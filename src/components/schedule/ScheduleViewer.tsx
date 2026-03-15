@@ -38,6 +38,7 @@ import {
   ChevronRight,
   Send,
   Pencil,
+  Printer,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -718,6 +719,7 @@ export function ScheduleViewer({
             <Button
               variant="ghost"
               size="icon"
+              className="no-print"
               onClick={() => router.push("/dashboard/schedule")}
             >
               <ArrowLeft className="h-4 w-4" />
@@ -733,12 +735,17 @@ export function ScheduleViewer({
             </p>
           </div>
         </div>
-        {isAdmin && schedule.status === "DRAFT" && (
-          <Button onClick={handlePublish}>
-            <Send className="mr-2 h-4 w-4" />
-            Publish Schedule
+        <div className="flex items-center gap-2 no-print">
+          <Button variant="outline" size="icon" onClick={() => window.print()} title="Print as PDF">
+            <Printer className="h-4 w-4" />
           </Button>
-        )}
+          {isAdmin && schedule.status === "DRAFT" && (
+            <Button onClick={handlePublish}>
+              <Send className="mr-2 h-4 w-4" />
+              Publish Schedule
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Stats */}

@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
 
 // --- Types ---
 
@@ -230,6 +230,14 @@ export function PhysicianCalendar({
 
   return (
     <div className="space-y-4">
+      {/* Print button */}
+      <div className="flex justify-end no-print">
+        <Button variant="outline" size="sm" onClick={() => window.print()}>
+          <Printer className="h-4 w-4 mr-1.5" />
+          Print as PDF
+        </Button>
+      </div>
+
       {/* Summary stats */}
       <Card className="shadow-sm">
         <CardContent className="p-4">
@@ -266,6 +274,7 @@ export function PhysicianCalendar({
         <Button
           variant="ghost"
           size="sm"
+          className="no-print"
           onClick={() => setMonth((m) => Math.max(0, m - 1))}
           disabled={month === 0}
         >
@@ -279,7 +288,7 @@ export function PhysicianCalendar({
             <Button
               variant="outline"
               size="sm"
-              className="text-xs h-7"
+              className="text-xs h-7 no-print"
               onClick={() => setMonth(now.getMonth())}
             >
               Today
@@ -289,6 +298,7 @@ export function PhysicianCalendar({
         <Button
           variant="ghost"
           size="sm"
+          className="no-print"
           onClick={() => setMonth((m) => Math.min(11, m + 1))}
           disabled={month === 11}
         >

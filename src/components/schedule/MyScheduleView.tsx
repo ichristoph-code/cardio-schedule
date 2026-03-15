@@ -156,7 +156,7 @@ export function MyScheduleView({
   if (viewMode === "calendar") {
     return (
       <div className="space-y-4">
-        <div className="flex gap-2">
+        <div className="flex gap-2 no-print">
           <Button
             variant="outline"
             size="sm"
