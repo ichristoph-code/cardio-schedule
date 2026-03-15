@@ -124,6 +124,34 @@ function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split("T")[0];
 }
 
+// Physician color palette — visually distinct, readable colors
+const PHYSICIAN_COLORS = [
+  { bg: "bg-blue-100",    text: "text-blue-800",    dot: "bg-blue-500" },
+  { bg: "bg-emerald-100", text: "text-emerald-800", dot: "bg-emerald-500" },
+  { bg: "bg-violet-100",  text: "text-violet-800",  dot: "bg-violet-500" },
+  { bg: "bg-amber-100",   text: "text-amber-800",   dot: "bg-amber-500" },
+  { bg: "bg-rose-100",    text: "text-rose-800",    dot: "bg-rose-500" },
+  { bg: "bg-cyan-100",    text: "text-cyan-800",    dot: "bg-cyan-500" },
+  { bg: "bg-orange-100",  text: "text-orange-800",  dot: "bg-orange-500" },
+  { bg: "bg-indigo-100",  text: "text-indigo-800",  dot: "bg-indigo-500" },
+  { bg: "bg-lime-100",    text: "text-lime-800",    dot: "bg-lime-500" },
+  { bg: "bg-pink-100",    text: "text-pink-800",    dot: "bg-pink-500" },
+  { bg: "bg-teal-100",    text: "text-teal-800",    dot: "bg-teal-500" },
+  { bg: "bg-fuchsia-100", text: "text-fuchsia-800", dot: "bg-fuchsia-500" },
+  { bg: "bg-sky-100",     text: "text-sky-800",     dot: "bg-sky-500" },
+  { bg: "bg-yellow-100",  text: "text-yellow-800",  dot: "bg-yellow-500" },
+  { bg: "bg-red-100",     text: "text-red-800",     dot: "bg-red-500" },
+];
+
+function buildPhysicianColorMap(physicians: Physician[]): Map<string, typeof PHYSICIAN_COLORS[0]> {
+  const sorted = [...physicians].sort((a, b) => a.lastName.localeCompare(b.lastName));
+  const map = new Map<string, typeof PHYSICIAN_COLORS[0]>();
+  sorted.forEach((p, i) => {
+    map.set(p.id, PHYSICIAN_COLORS[i % PHYSICIAN_COLORS.length]);
+  });
+  return map;
+}
+
 // --- Main Component ---
 
 export function ScheduleViewer({
@@ -160,6 +188,9 @@ export function ScheduleViewer({
   const [overridePhysicianId, setOverridePhysicianId] = useState("");
   const [overriding, setOverriding] = useState(false);
   const [localAssignments, setLocalAssignments] = useState(assignments);
+
+  // Build physician → color mapping
+  const physicianColors = useMemo(() => buildPhysicianColorMap(physicians), [physicians]);
 
   // Index assignments by date
   const assignmentsByDate = useMemo(() => {
@@ -315,19 +346,24 @@ export function ScheduleViewer({
                   {day}
                 </div>
                 <div className="space-y-px">
-                  {dayAssignments.slice(0, 4).map((a) => (
-                    <div
-                      key={a.id}
-                      className="flex items-center gap-1 text-[10px] leading-tight truncate"
-                    >
-                      <span
-                        className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                          CATEGORY_DOT[a.roleCategory] ?? "bg-gray-400"
-                        }`}
-                      />
-                      <span className="truncate">{a.physicianLastName}</span>
-                    </div>
-                  ))}
+                  {dayAssignments.slice(0, 4).map((a) => {
+                    const pColor = physicianColors.get(a.physicianId);
+                    return (
+                      <div
+                        key={a.id}
+                        className="flex items-center gap-1 text-[10px] leading-tight truncate"
+                      >
+                        <span
+                          className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                            pColor?.dot ?? "bg-gray-400"
+                          }`}
+                        />
+                        <span className={`truncate font-medium ${pColor?.text ?? ""}`}>
+                          {a.physicianLastName}
+                        </span>
+                      </div>
+                    );
+                  })}
                   {dayAssignments.length > 4 && (
                     <div className="text-[10px] text-muted-foreground">
                       +{dayAssignments.length - 4} more
@@ -339,14 +375,24 @@ export function ScheduleViewer({
           })}
         </div>
 
-        {/* Legend */}
-        <div className="flex gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
-          {Object.entries(CATEGORY_DOT).map(([cat, color]) => (
-            <div key={cat} className="flex items-center gap-1">
-              <span className={`w-2 h-2 rounded-full ${color}`} />
-              {cat.replace("_", " ")}
-            </div>
-          ))}
+        {/* Physician color legend */}
+        <div className="flex gap-2 mt-3 text-xs flex-wrap">
+          {[...physicianColors.entries()]
+            .sort((a, b) => {
+              const pA = physicians.find(p => p.id === a[0]);
+              const pB = physicians.find(p => p.id === b[0]);
+              return (pA?.lastName ?? "").localeCompare(pB?.lastName ?? "");
+            })
+            .map(([id, color]) => {
+              const p = physicians.find(ph => ph.id === id);
+              if (!p) return null;
+              return (
+                <span key={id} className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 ${color.bg} ${color.text}`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${color.dot}`} />
+                  {p.lastName}
+                </span>
+              );
+            })}
         </div>
       </div>
     );
@@ -439,6 +485,8 @@ export function ScheduleViewer({
                     );
                     const today = isToday(dateStr);
 
+                    const pColor = assignment ? physicianColors.get(assignment.physicianId) : undefined;
+
                     return (
                       <td
                         key={dateStr}
@@ -456,7 +504,7 @@ export function ScheduleViewer({
                         }}
                       >
                         {assignment ? (
-                          <span className="font-medium">
+                          <span className={`inline-block rounded-md px-1.5 py-0.5 font-medium ${pColor?.bg ?? ""} ${pColor?.text ?? ""}`}>
                             {assignment.physicianLastName}
                           </span>
                         ) : (
@@ -505,7 +553,9 @@ export function ScheduleViewer({
                 No assignments for this day.
               </p>
             ) : (
-              dayAssignments.map((a) => (
+              dayAssignments.map((a) => {
+                const pColor = physicianColors.get(a.physicianId);
+                return (
                 <Card key={a.id} className="shadow-sm">
                   <CardContent className="p-3 flex items-center justify-between">
                     <div>
@@ -517,7 +567,10 @@ export function ScheduleViewer({
                       >
                         {a.roleDisplayName}
                       </Badge>
-                      <div className="font-medium">{a.physicianName}</div>
+                      <div className="flex items-center gap-2">
+                        <span className={`inline-block w-2.5 h-2.5 rounded-full flex-shrink-0 ${pColor?.dot ?? "bg-gray-400"}`} />
+                        <span className={`font-medium ${pColor?.text ?? ""}`}>{a.physicianName}</span>
+                      </div>
                       {a.source === "MANUAL" && (
                         <span className="text-xs text-amber-600">
                           (manually assigned)
@@ -540,7 +593,8 @@ export function ScheduleViewer({
                     )}
                   </CardContent>
                 </Card>
-              ))
+                );
+              })
             )}
           </div>
         </SheetContent>

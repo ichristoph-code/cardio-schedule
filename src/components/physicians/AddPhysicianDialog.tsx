@@ -14,13 +14,14 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus } from "lucide-react";
+import { Plus, Eye, EyeOff } from "lucide-react";
 
 export function AddPhysicianDialog() {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -82,7 +83,36 @@ export function AddPhysicianDialog() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="password">Initial Password</Label>
-            <Input id="password" name="password" type="password" required minLength={6} />
+            <div className="relative">
+              <Input id="password" name="password" type={showPassword ? "text" : "password"} required minLength={6} className="pr-10" />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="addPhone">Phone</Label>
+            <Input
+              id="addPhone"
+              name="phone"
+              placeholder="(555) 555-5555"
+              onChange={(e) => {
+                const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                let formatted = digits;
+                if (digits.length > 6) {
+                  formatted = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+                } else if (digits.length > 3) {
+                  formatted = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+                } else if (digits.length > 0) {
+                  formatted = `(${digits}`;
+                }
+                e.target.value = formatted;
+              }}
+            />
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

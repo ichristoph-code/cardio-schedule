@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil } from "lucide-react";
 import { AddPhysicianDialog } from "@/components/physicians/AddPhysicianDialog";
+import { DeletePhysicianButton } from "@/components/physicians/DeletePhysicianButton";
 
 export default async function PhysiciansPage() {
   const physicians = await prisma.physician.findMany({
@@ -99,11 +100,17 @@ export default async function PhysiciansPage() {
                     </span>
                   </TableCell>
                   <TableCell>
-                    <Link href={`/dashboard/physicians/${doc.id}`}>
-                      <Button variant="ghost" size="icon">
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                    </Link>
+                    <div className="flex items-center gap-1">
+                      <Link href={`/dashboard/physicians/${doc.id}`}>
+                        <Button variant="ghost" size="icon">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                      <DeletePhysicianButton
+                        physicianId={doc.id}
+                        physicianName={`${doc.firstName} ${doc.lastName}`}
+                      />
+                    </div>
                   </TableCell>
                 </TableRow>
               ))

@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Save, ArrowLeft } from "lucide-react";
+import { Save, ArrowLeft, Eye, EyeOff } from "lucide-react";
 import Link from "next/link";
 
 interface RoleType {
@@ -75,7 +75,10 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
   // Form state
   const [firstName, setFirstName] = useState(physician.firstName);
   const [lastName, setLastName] = useState(physician.lastName);
+  const [email, setEmail] = useState(physician.email);
   const [phone, setPhone] = useState(physician.phone || "");
+  const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [fteDays, setFteDays] = useState(physician.fteDays);
   const [isInterventionalist, setIsInterventionalist] = useState(
     physician.isInterventionalist
@@ -122,12 +125,14 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
       body: JSON.stringify({
         firstName,
         lastName,
+        email,
         phone: phone || null,
         fteDays,
         isInterventionalist,
         isEP,
         officeDays,
         eligibleRoleIds,
+        ...(newPassword ? { newPassword } : {}),
       }),
     });
 
@@ -136,6 +141,7 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
       setError(data.error || "Failed to update physician");
     } else {
       setSuccess(true);
+      setNewPassword("");
       router.refresh();
       setTimeout(() => setSuccess(false), 3000);
     }
@@ -190,11 +196,33 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
                 </div>
               </div>
               <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="phone">Phone</Label>
                 <Input
                   id="phone"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  onChange={(e) => {
+                    // Auto-format phone number as (xxx) xxx-xxxx
+                    const digits = e.target.value.replace(/\D/g, "").slice(0, 10);
+                    let formatted = digits;
+                    if (digits.length > 6) {
+                      formatted = `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+                    } else if (digits.length > 3) {
+                      formatted = `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+                    } else if (digits.length > 0) {
+                      formatted = `(${digits}`;
+                    }
+                    setPhone(formatted);
+                  }}
                   placeholder="(555) 555-5555"
                 />
               </div>
@@ -268,6 +296,38 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
                     </Label>
                   </div>
                 ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Reset Password</CardTitle>
+              <CardDescription>
+                Set a new password for this physician. Leave blank to keep current password.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <Label htmlFor="newPassword">New Password</Label>
+                <div className="relative">
+                  <Input
+                    id="newPassword"
+                    type={showPassword ? "text" : "password"}
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    placeholder="Enter new password"
+                    minLength={6}
+                    className="pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
               </div>
             </CardContent>
           </Card>
