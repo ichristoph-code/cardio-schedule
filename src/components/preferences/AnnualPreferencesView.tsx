@@ -46,7 +46,7 @@ const MONTH_NAMES = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-const DAY_HEADERS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_HEADERS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 function formatDate(year: number, month: number, day: number): string {
   return `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
@@ -56,10 +56,9 @@ function getDaysInMonth(year: number, month: number): number {
   return new Date(year, month + 1, 0).getDate();
 }
 
-/** Returns 0=Mon … 6=Sun for the first day of the month */
+/** Returns 0=Sun … 6=Sat for the first day of the month */
 function getFirstDayOfMonth(year: number, month: number): number {
-  const d = new Date(year, month, 1).getDay();
-  return d === 0 ? 6 : d - 1; // Convert JS Sun=0 to Mon=0
+  return new Date(year, month, 1).getDay();
 }
 
 function isWeekend(year: number, month: number, day: number): boolean {
