@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { name, description, ruleType, roleTypeId, parameters, priority, isActive } = body;
+  const { name, description, ruleType, roleTypeId, physicianId, parameters, priority, isActive } = body;
 
   if (!name || !ruleType || !parameters) {
     return NextResponse.json(
@@ -54,12 +54,21 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Validate physicianId exists if provided
+  if (physicianId) {
+    const physician = await prisma.physician.findUnique({ where: { id: physicianId } });
+    if (!physician) {
+      return NextResponse.json({ error: "Invalid physician ID" }, { status: 400 });
+    }
+  }
+
   const rule = await prisma.schedulingRule.create({
     data: {
       name,
       description: description || null,
       ruleType: ruleType as "EXCLUSION" | "PREREQUISITE" | "DISTRIBUTION" | "CONFLICT",
       roleTypeId: roleTypeId || null,
+      physicianId: physicianId || null,
       parameters,
       priority: priority ?? 0,
       isActive: isActive ?? true,
@@ -67,6 +76,9 @@ export async function POST(req: NextRequest) {
     include: {
       roleType: {
         select: { id: true, name: true, displayName: true, category: true },
+      },
+      physician: {
+        select: { id: true, firstName: true, lastName: true },
       },
     },
   });

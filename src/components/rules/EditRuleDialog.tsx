@@ -19,12 +19,19 @@ interface RoleTypeOption {
   category: string;
 }
 
+interface PhysicianOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 interface RuleData {
   id: string;
   name: string;
   description: string | null;
   ruleType: string;
   roleTypeId: string | null;
+  physicianId: string | null;
   parameters: Record<string, unknown>;
   isActive: boolean;
   priority: number;
@@ -33,6 +40,7 @@ interface RuleData {
 interface EditRuleDialogProps {
   rule: RuleData;
   roleTypes: RoleTypeOption[];
+  physicians: PhysicianOption[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
@@ -40,6 +48,7 @@ interface EditRuleDialogProps {
 export function EditRuleDialog({
   rule,
   roleTypes,
+  physicians,
   open,
   onOpenChange,
 }: EditRuleDialogProps) {
@@ -57,6 +66,7 @@ export function EditRuleDialog({
         <RuleForm
           mode="edit"
           roleTypes={roleTypes}
+          physicians={physicians}
           initialData={rule}
           onSuccess={() => {
             onOpenChange(false);

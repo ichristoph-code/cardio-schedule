@@ -11,11 +11,14 @@ import { AddRuleDialog } from "@/components/rules/AddRuleDialog";
 import { RuleRow } from "@/components/rules/RuleRow";
 
 export default async function RulesPage() {
-  const [rules, roleTypes] = await Promise.all([
+  const [rules, roleTypes, physicians] = await Promise.all([
     prisma.schedulingRule.findMany({
       include: {
         roleType: {
           select: { id: true, name: true, displayName: true, category: true },
+        },
+        physician: {
+          select: { id: true, firstName: true, lastName: true },
         },
       },
       orderBy: [{ priority: "desc" }, { name: "asc" }],
@@ -23,6 +26,10 @@ export default async function RulesPage() {
     prisma.roleType.findMany({
       select: { id: true, name: true, displayName: true, category: true },
       orderBy: { sortOrder: "asc" },
+    }),
+    prisma.physician.findMany({
+      select: { id: true, firstName: true, lastName: true },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     }),
   ]);
 
@@ -34,6 +41,8 @@ export default async function RulesPage() {
     ruleType: r.ruleType,
     roleTypeId: r.roleTypeId,
     roleType: r.roleType,
+    physicianId: r.physicianId,
+    physician: r.physician,
     parameters: r.parameters as Record<string, unknown>,
     isActive: r.isActive,
     priority: r.priority,
@@ -51,7 +60,7 @@ export default async function RulesPage() {
             roles to physicians.
           </p>
         </div>
-        <AddRuleDialog roleTypes={roleTypes} />
+        <AddRuleDialog roleTypes={roleTypes} physicians={physicians} />
       </div>
 
       <div className="rounded-md border">
@@ -79,7 +88,7 @@ export default async function RulesPage() {
               </TableRow>
             ) : (
               serializedRules.map((rule) => (
-                <RuleRow key={rule.id} rule={rule} roleTypes={roleTypes} />
+                <RuleRow key={rule.id} rule={rule} roleTypes={roleTypes} physicians={physicians} />
               ))
             )}
           </TableBody>

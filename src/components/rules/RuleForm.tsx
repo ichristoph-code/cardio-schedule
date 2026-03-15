@@ -44,12 +44,19 @@ interface RoleTypeOption {
   category: string;
 }
 
+interface PhysicianOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 interface RuleData {
   id: string;
   name: string;
   description: string | null;
   ruleType: string;
   roleTypeId: string | null;
+  physicianId?: string | null;
   parameters: Record<string, unknown>;
   isActive: boolean;
   priority: number;
@@ -58,6 +65,7 @@ interface RuleData {
 interface RuleFormProps {
   mode: "create" | "edit";
   roleTypes: RoleTypeOption[];
+  physicians: PhysicianOption[];
   initialData?: RuleData;
   onSuccess: () => void;
   onCancel: () => void;
@@ -81,7 +89,11 @@ function parseExistingParameters(
     return { exclusionMode: "eligibility" as const, subspecialtyAttr: "isInterventionalist" };
   }
   if (ruleType === "PREREQUISITE") {
-    return { requireOfficeDay: params.requireOfficeDay === true };
+    return {
+      requireOfficeDay: params.requireOfficeDay === true,
+      coupleWithGeneralCall: params.coupleWithGeneralCall === true,
+      preferredPhysician: params.preferredPhysician === true,
+    };
   }
   if (ruleType === "DISTRIBUTION") {
     return {
@@ -102,6 +114,7 @@ function parseExistingParameters(
 export function RuleForm({
   mode,
   roleTypes,
+  physicians,
   initialData,
   onSuccess,
   onCancel,
@@ -132,6 +145,13 @@ export function RuleForm({
   const [requireOfficeDay, setRequireOfficeDay] = useState(
     "requireOfficeDay" in existingParams ? existingParams.requireOfficeDay === true : true
   );
+  const [coupleWithGeneralCall, setCoupleWithGeneralCall] = useState(
+    "coupleWithGeneralCall" in existingParams ? existingParams.coupleWithGeneralCall === true : false
+  );
+  const [preferredPhysician, setPreferredPhysician] = useState(
+    "preferredPhysician" in existingParams ? existingParams.preferredPhysician === true : false
+  );
+  const [physicianId, setPhysicianId] = useState(initialData?.physicianId ?? "");
 
   // DISTRIBUTION params
   const [distributeEvenly, setDistributeEvenly] = useState(
@@ -175,8 +195,13 @@ export function RuleForm({
         if (exclusionMode === "require")
           return { requireSubspecialty: subspecialtyAttr };
         return { requireEligibility: true };
-      case "PREREQUISITE":
-        return { requireOfficeDay };
+      case "PREREQUISITE": {
+        const prereqParams: Record<string, unknown> = {};
+        if (requireOfficeDay) prereqParams.requireOfficeDay = true;
+        if (coupleWithGeneralCall) prereqParams.coupleWithGeneralCall = true;
+        if (preferredPhysician) prereqParams.preferredPhysician = true;
+        return prereqParams;
+      }
       case "DISTRIBUTION":
         return { distributeEvenly, ignoreFTE };
       case "CONFLICT": {
@@ -201,6 +226,7 @@ export function RuleForm({
       description: description || null,
       ruleType,
       roleTypeId: roleTypeId || null,
+      physicianId: physicianId || null,
       parameters: buildParameters(),
       priority,
       isActive,
@@ -359,13 +385,59 @@ export function RuleForm({
         )}
 
         {ruleType === "PREREQUISITE" && (
-          <div className="flex items-center gap-3">
-            <Switch
-              checked={requireOfficeDay}
-              onCheckedChange={setRequireOfficeDay}
-            />
-            <Label>Require Office Day</Label>
-          </div>
+          <>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={requireOfficeDay}
+                onCheckedChange={setRequireOfficeDay}
+              />
+              <Label>Require Office Day</Label>
+            </div>
+            <div className="flex items-center gap-3">
+              <Switch
+                checked={coupleWithGeneralCall}
+                onCheckedChange={setCoupleWithGeneralCall}
+              />
+              <div>
+                <Label>Couple with General Call</Label>
+                <p className="text-xs text-muted-foreground">
+                  When an interventionalist is on general call, they also get interventional call
+                </p>
+              </div>
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={preferredPhysician}
+                  onCheckedChange={setPreferredPhysician}
+                />
+                <div>
+                  <Label>Preferred Physician</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Always assign this role to a specific physician when available
+                  </p>
+                </div>
+              </div>
+              {preferredPhysician && (
+                <div className="ml-12 space-y-1">
+                  <Label htmlFor="physicianSelect">Physician</Label>
+                  <select
+                    id="physicianSelect"
+                    value={physicianId}
+                    onChange={(e) => setPhysicianId(e.target.value)}
+                    className={selectClassName}
+                  >
+                    <option value="">Select a physician...</option>
+                    {physicians.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        Dr. {p.lastName}, {p.firstName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+            </div>
+          </>
         )}
 
         {ruleType === "DISTRIBUTION" && (

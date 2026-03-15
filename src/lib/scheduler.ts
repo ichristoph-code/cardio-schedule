@@ -114,6 +114,7 @@ export async function generateSchedule(year: number): Promise<{
 
   const rules = await prisma.schedulingRule.findMany({
     where: { isActive: true },
+    include: { physician: true },
   });
 
   const dbHolidays = await prisma.holiday.findMany();
@@ -213,10 +214,35 @@ export async function generateSchedule(year: number): Promise<{
   const prerequisiteRules = rules.filter((r) => r.ruleType === "PREREQUISITE");
   const conflictRules = rules.filter((r) => r.ruleType === "CONFLICT");
 
+  // IC coupling rule: when interventionalist gets General Call, also gets IC
+  const icCouplingRule = prerequisiteRules.find(
+    (r) => (r.parameters as Record<string, unknown>).coupleWithGeneralCall === true
+  );
+  const interventionalCallRole = roleData.find((r) => r.name === "INTERVENTIONAL_CALL");
+  const generalCallRole = roleData.find((r) => r.name === "GENERAL_CALL");
+
+  // When IC coupling is active, reorder so IC is processed right after General Call
+  // (normally IC comes first since fewer eligible physicians = higher priority)
+  if (icCouplingRule && interventionalCallRole && generalCallRole) {
+    const icIdx = sortedRoles.findIndex((r) => r.name === "INTERVENTIONAL_CALL");
+    const gcIdx = sortedRoles.findIndex((r) => r.name === "GENERAL_CALL");
+    if (icIdx !== -1 && gcIdx !== -1 && icIdx < gcIdx) {
+      const [ic] = sortedRoles.splice(icIdx, 1);
+      const newGcIdx = sortedRoles.findIndex((r) => r.name === "GENERAL_CALL");
+      sortedRoles.splice(newGcIdx + 1, 0, ic);
+    }
+  }
+
+  // Preferred physician rules (e.g., Ginwalla for ICU Rounder)
+  const preferredPhysicianRules = prerequisiteRules.filter(
+    (r) => (r.parameters as Record<string, unknown>).preferredPhysician === true && r.physicianId
+  );
+
   // Tracking structures
   const assignmentCount: Record<string, Record<string, number>> = {};
   const dailyPhysicianRoles = new Map<string, Set<string>>(); // "date:physId" -> roleIds
   const lastAssigned: Record<string, Record<string, string>> = {}; // physId -> roleId -> dateStr
+  const handledRoleDays = new Set<string>(); // "dateStr:roleId" — roles already assigned via coupling
 
   for (const role of roleData) assignmentCount[role.id] = {};
 
@@ -273,6 +299,9 @@ export async function generateSchedule(year: number): Promise<{
       })();
 
       if (!needsFilling) continue;
+
+      // Skip roles already assigned via IC coupling
+      if (handledRoleDays.has(`${dateStr}:${role.id}`)) continue;
 
       // Weekend call is a 3-day block (Fri-Sat-Sun) covered by a single MD.
       // On Saturday (dow=6) or Sunday (dow=7), reuse the Friday assignment.
@@ -425,10 +454,19 @@ export async function generateSchedule(year: number): Promise<{
         const todayRoles = dailyPhysicianRoles.get(todayKey);
         if (todayRoles) {
           // Max 1 ON_CALL role per physician per day
+          // Exception: IC coupling allows General Call + Interventional Call together
           if (role.category === "ON_CALL") {
             for (const rid of todayRoles) {
               const rr = roleData.find((r) => r.id === rid);
-              if (rr?.category === "ON_CALL") return false;
+              if (rr?.category === "ON_CALL") {
+                if (icCouplingRule) {
+                  const isICGeneralPair =
+                    (role.name === "INTERVENTIONAL_CALL" && rr.name === "GENERAL_CALL") ||
+                    (role.name === "GENERAL_CALL" && rr.name === "INTERVENTIONAL_CALL");
+                  if (isICGeneralPair) continue; // Allow this specific pairing
+                }
+                return false;
+              }
             }
           }
           // Max 1 DAYTIME role per physician per day
@@ -458,6 +496,12 @@ export async function generateSchedule(year: number): Promise<{
       // Score candidates
       const scored = eligible.map((p) => {
         let score = 0;
+
+        // Preferred physician rule: strongly favor this physician for linked roles
+        const prefRule = preferredPhysicianRules.find((r) => r.roleTypeId === role.id);
+        if (prefRule && prefRule.physicianId === p.id) {
+          score -= 100000; // Overwhelming preference — always picked when available
+        }
 
         // Weekend call equalization — highest priority
         // On Friday ON_CALL assignments (which anchor the whole Fri-Sat-Sun block),
@@ -535,6 +579,50 @@ export async function generateSchedule(year: number): Promise<{
         stats.holidays[holidayName][role.id] = winner.id;
         const w = holidayWeights[holidayName] ?? 1;
         holidayBurden.set(winner.id, (holidayBurden.get(winner.id) ?? 0) + w);
+      }
+
+      // IC Coupling: when General Call is assigned to an interventionalist,
+      // also assign them Interventional Call for the same day
+      if (
+        icCouplingRule &&
+        role.name === "GENERAL_CALL" &&
+        interventionalCallRole &&
+        winner.isInterventionalist
+      ) {
+        const icRoleId = interventionalCallRole.id;
+
+        // Assign IC
+        assignments.push({
+          date: dateStr,
+          roleTypeId: icRoleId,
+          physicianId: winner.id,
+        });
+
+        // Update tracking for IC
+        assignmentCount[icRoleId][winner.id] = (assignmentCount[icRoleId][winner.id] ?? 0) + 1;
+        const icKey = `${dateStr}:${winner.id}`;
+        if (!dailyPhysicianRoles.has(icKey)) dailyPhysicianRoles.set(icKey, new Set());
+        dailyPhysicianRoles.get(icKey)!.add(icRoleId);
+        if (!lastAssigned[winner.id]) lastAssigned[winner.id] = {};
+        lastAssigned[winner.id][icRoleId] = dateStr;
+
+        stats.totalAssignments++;
+        stats.byPhysician[winner.id] = (stats.byPhysician[winner.id] ?? 0) + 1;
+
+        // Mark IC as handled so normal loop skips it
+        handledRoleDays.add(`${dateStr}:${icRoleId}`);
+
+        // If Friday, store IC weekend block for Sat/Sun reuse
+        if (dow === 5) {
+          weekendCallBlocks.set(`${dateStr}:${icRoleId}`, winner.id);
+        }
+
+        if (holidayName) {
+          if (!stats.holidays[holidayName]) stats.holidays[holidayName] = {};
+          stats.holidays[holidayName][icRoleId] = winner.id;
+          const hw = holidayWeights[holidayName] ?? 1;
+          holidayBurden.set(winner.id, (holidayBurden.get(winner.id) ?? 0) + hw);
+        }
       }
     }
   }

@@ -22,7 +22,7 @@ export async function PUT(
   }
 
   const body = await req.json();
-  const { name, description, ruleType, roleTypeId, parameters, priority, isActive } = body;
+  const { name, description, ruleType, roleTypeId, physicianId, parameters, priority, isActive } = body;
 
   if (ruleType && !VALID_RULE_TYPES.includes(ruleType)) {
     return NextResponse.json(
@@ -39,6 +39,14 @@ export async function PUT(
     }
   }
 
+  // Validate physicianId if provided
+  if (physicianId) {
+    const phys = await prisma.physician.findUnique({ where: { id: physicianId } });
+    if (!phys) {
+      return NextResponse.json({ error: "Invalid physician ID" }, { status: 400 });
+    }
+  }
+
   const rule = await prisma.schedulingRule.update({
     where: { id },
     data: {
@@ -46,6 +54,7 @@ export async function PUT(
       ...(description !== undefined && { description: description || null }),
       ...(ruleType !== undefined && { ruleType }),
       ...(roleTypeId !== undefined && { roleTypeId: roleTypeId || null }),
+      ...(physicianId !== undefined && { physicianId: physicianId || null }),
       ...(parameters !== undefined && { parameters }),
       ...(priority !== undefined && { priority }),
       ...(isActive !== undefined && { isActive }),
@@ -53,6 +62,9 @@ export async function PUT(
     include: {
       roleType: {
         select: { id: true, name: true, displayName: true, category: true },
+      },
+      physician: {
+        select: { id: true, firstName: true, lastName: true },
       },
     },
   });

@@ -31,6 +31,12 @@ interface RoleTypeOption {
   category: string;
 }
 
+interface PhysicianOption {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
 interface RuleData {
   id: string;
   name: string;
@@ -38,6 +44,8 @@ interface RuleData {
   ruleType: string;
   roleTypeId: string | null;
   roleType: RoleTypeOption | null;
+  physicianId: string | null;
+  physician: PhysicianOption | null;
   parameters: Record<string, unknown>;
   isActive: boolean;
   priority: number;
@@ -57,9 +65,10 @@ const RULE_TYPE_STYLES: Record<string, string> = {
 interface RuleRowProps {
   rule: RuleData;
   roleTypes: RoleTypeOption[];
+  physicians: PhysicianOption[];
 }
 
-export function RuleRow({ rule, roleTypes }: RuleRowProps) {
+export function RuleRow({ rule, roleTypes, physicians }: RuleRowProps) {
   const router = useRouter();
   const [toggling, setToggling] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
@@ -112,6 +121,11 @@ export function RuleRow({ rule, roleTypes }: RuleRowProps) {
               {rule.description}
             </div>
           )}
+          {rule.physician && (
+            <div className="text-xs text-blue-600 mt-0.5">
+              Dr. {rule.physician.lastName}
+            </div>
+          )}
         </TableCell>
         <TableCell>
           <span
@@ -159,6 +173,7 @@ export function RuleRow({ rule, roleTypes }: RuleRowProps) {
           <EditRuleDialog
             rule={rule}
             roleTypes={roleTypes}
+            physicians={physicians}
             open={editOpen}
             onOpenChange={setEditOpen}
           />

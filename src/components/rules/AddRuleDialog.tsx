@@ -21,11 +21,18 @@ interface RoleTypeOption {
   category: string;
 }
 
-interface AddRuleDialogProps {
-  roleTypes: RoleTypeOption[];
+interface PhysicianOption {
+  id: string;
+  firstName: string;
+  lastName: string;
 }
 
-export function AddRuleDialog({ roleTypes }: AddRuleDialogProps) {
+interface AddRuleDialogProps {
+  roleTypes: RoleTypeOption[];
+  physicians: PhysicianOption[];
+}
+
+export function AddRuleDialog({ roleTypes, physicians }: AddRuleDialogProps) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
 
@@ -46,6 +53,7 @@ export function AddRuleDialog({ roleTypes }: AddRuleDialogProps) {
         <RuleForm
           mode="create"
           roleTypes={roleTypes}
+          physicians={physicians}
           onSuccess={() => {
             setOpen(false);
             toast.success("Rule created successfully");
