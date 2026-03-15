@@ -13,8 +13,15 @@ import {
 import { Plus, Pencil } from "lucide-react";
 import { AddPhysicianDialog } from "@/components/physicians/AddPhysicianDialog";
 import { DeletePhysicianButton } from "@/components/physicians/DeletePhysicianButton";
+import { CallStatsYearSelect } from "@/components/physicians/CallStatsYearSelect";
 
-export default async function PhysiciansPage() {
+export default async function PhysiciansPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
+  const params = await searchParams;
+
   const physicians = await prisma.physician.findMany({
     include: {
       user: { select: { email: true } },
@@ -24,11 +31,22 @@ export default async function PhysiciansPage() {
     orderBy: { lastName: "asc" },
   });
 
-  // --- Call statistics: weekday call days + weekend blocks for current year ---
-  const currentYear = new Date().getFullYear();
-  const schedule = await prisma.schedule.findFirst({
-    where: { year: currentYear },
+  // --- Call statistics: weekday call days + weekend blocks ---
+  // Get all available schedule years for the dropdown
+  const allSchedules = await prisma.schedule.findMany({
+    select: { id: true, year: true },
+    orderBy: { year: "desc" },
   });
+  const availableYears = allSchedules.map((s) => s.year);
+  const currentYear = new Date().getFullYear();
+
+  // Selected year from URL param, falling back to current year
+  const selectedYear = params.year
+    ? parseInt(params.year, 10)
+    : currentYear;
+
+  // Find the schedule for the selected year
+  const schedule = allSchedules.find((s) => s.year === selectedYear);
 
   const callStatsMap = new Map<string, { weekdays: number; weekends: number }>();
 
@@ -55,12 +73,12 @@ export default async function PhysiciansPage() {
       }
       const stats = callStatsMap.get(a.physicianId)!;
 
-      // Weekday call (Mon–Fri)
+      // Weekday call (Mon-Fri)
       if (dow >= 1 && dow <= 5) {
         stats.weekdays++;
       }
 
-      // Weekend blocks — count only Fridays (each Fri = 1 weekend block covering Fri-Sat-Sun)
+      // Weekend blocks - count only Fridays (each Fri = 1 weekend block covering Fri-Sat-Sun)
       if (dow === 5) {
         stats.weekends++;
       }
@@ -91,8 +109,20 @@ export default async function PhysiciansPage() {
               <TableHead className="hidden md:table-cell">Subspecialty</TableHead>
               <TableHead className="hidden lg:table-cell">Office Days</TableHead>
               <TableHead className="hidden lg:table-cell">Eligible Roles</TableHead>
-              <TableHead className="hidden xl:table-cell text-center">Weekday Call</TableHead>
-              <TableHead className="hidden xl:table-cell text-center">Weekends</TableHead>
+              <TableHead className="hidden xl:table-cell">
+                <div className="flex flex-col items-center gap-1">
+                  <span>Weekday Call</span>
+                  {availableYears.length > 0 && (
+                    <CallStatsYearSelect
+                      years={availableYears}
+                      selectedYear={selectedYear}
+                    />
+                  )}
+                </div>
+              </TableHead>
+              <TableHead className="hidden xl:table-cell text-center">
+                Weekends
+              </TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
