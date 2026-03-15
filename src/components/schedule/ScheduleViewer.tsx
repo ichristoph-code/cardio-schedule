@@ -425,19 +425,24 @@ export function ScheduleViewer({
       );
     }
 
+    // Boundaries: allow navigating from the week containing Jan 1
+    // through the week containing Dec 31 of the schedule year
+    const earliestWeek = getWeekStart(schedule.year, 0, 1);
+    const latestWeek = getWeekStart(schedule.year, 11, 31);
+
     function prevWeek() {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() - 7);
-      // Allow if the week's Saturday (end) is still in (or after) schedule year
-      const weekEnd = new Date(d);
-      weekEnd.setDate(weekEnd.getDate() + 6);
-      if (weekEnd.getFullYear() >= schedule.year) setWeekStart(d);
+      setWeekStart((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() - 7);
+        return d >= earliestWeek ? d : prev;
+      });
     }
     function nextWeek() {
-      const d = new Date(weekStart);
-      d.setDate(d.getDate() + 7);
-      // Allow if the week's Sunday (start) is still in (or before) schedule year
-      if (d.getFullYear() <= schedule.year) setWeekStart(d);
+      setWeekStart((prev) => {
+        const d = new Date(prev);
+        d.setDate(d.getDate() + 7);
+        return d <= latestWeek ? d : prev;
+      });
     }
 
     const weekLabel = (() => {

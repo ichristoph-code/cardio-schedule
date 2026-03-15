@@ -112,7 +112,7 @@ export default async function PhysiciansPage({
               <TableHead className="hidden lg:table-cell">Eligible Roles</TableHead>
               <TableHead className="hidden xl:table-cell">
                 <div className="flex flex-col items-center gap-1">
-                  <span>Weekday Call</span>
+                  <span>Weekday General Call</span>
                   {availableYears.length > 0 && (
                     <CallStatsYearSelect
                       years={availableYears}
@@ -123,7 +123,7 @@ export default async function PhysiciansPage({
               </TableHead>
               <TableHead className="hidden xl:table-cell">
                 <div className="flex flex-col items-center gap-1">
-                  <span>Weekends</span>
+                  <span>Weekend General Call</span>
                   {availableYears.length > 0 && (
                     <CallStatsYearSelect
                       years={availableYears}
