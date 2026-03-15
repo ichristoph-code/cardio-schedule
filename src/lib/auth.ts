@@ -15,8 +15,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) return null;
 
-        const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+        // Case-insensitive email lookup
+        const user = await prisma.user.findFirst({
+          where: { email: { equals: (credentials.email as string).toLowerCase(), mode: "insensitive" } },
           include: { physician: true },
         });
 
