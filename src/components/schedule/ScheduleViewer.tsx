@@ -1,0 +1,699 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  Send,
+  Pencil,
+} from "lucide-react";
+import { toast } from "sonner";
+
+// --- Types ---
+
+interface Assignment {
+  id: string;
+  date: string;
+  physicianId: string;
+  physicianName: string;
+  physicianLastName: string;
+  roleTypeId: string;
+  roleName: string;
+  roleDisplayName: string;
+  roleCategory: string;
+  roleSortOrder: number;
+  source: string;
+}
+
+interface ScheduleInfo {
+  id: string;
+  year: number;
+  status: string;
+  generatedAt: string | null;
+  publishedAt: string | null;
+}
+
+interface RoleType {
+  id: string;
+  name: string;
+  displayName: string;
+  category: string;
+  sortOrder: number;
+}
+
+interface Physician {
+  id: string;
+  firstName: string;
+  lastName: string;
+}
+
+// --- Helpers ---
+
+const MONTH_NAMES = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
+const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const CATEGORY_COLORS: Record<string, string> = {
+  ON_CALL: "bg-red-100 text-red-800 border-red-200",
+  DAYTIME: "bg-blue-100 text-blue-800 border-blue-200",
+  READING: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  SPECIAL: "bg-purple-100 text-purple-800 border-purple-200",
+};
+
+const CATEGORY_DOT: Record<string, string> = {
+  ON_CALL: "bg-red-500",
+  DAYTIME: "bg-blue-500",
+  READING: "bg-emerald-500",
+  SPECIAL: "bg-purple-500",
+};
+
+function formatDate(y: number, m: number, d: number): string {
+  return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+}
+
+/** 0=Mon … 6=Sun */
+function dayOfWeekMon(y: number, m: number, d: number): number {
+  const js = new Date(y, m, d).getDay(); // 0=Sun
+  return js === 0 ? 6 : js - 1;
+}
+
+function getWeekStart(y: number, m: number, d: number): Date {
+  const date = new Date(y, m, d);
+  const dow = date.getDay();
+  const diff = dow === 0 ? 6 : dow - 1; // Mon=0
+  date.setDate(date.getDate() - diff);
+  return date;
+}
+
+function isToday(dateStr: string): boolean {
+  return dateStr === new Date().toISOString().split("T")[0];
+}
+
+// --- Main Component ---
+
+export function ScheduleViewer({
+  schedule,
+  assignments,
+  physicians,
+  roleTypes,
+  isAdmin,
+}: {
+  schedule: ScheduleInfo;
+  assignments: Assignment[];
+  physicians: Physician[];
+  roleTypes: RoleType[];
+  isAdmin: boolean;
+}) {
+  const router = useRouter();
+  const [month, setMonth] = useState(() => {
+    const now = new Date();
+    return now.getFullYear() === schedule.year ? now.getMonth() : 0;
+  });
+  const [weekStart, setWeekStart] = useState(() => {
+    const now = new Date();
+    if (now.getFullYear() === schedule.year) {
+      const ws = getWeekStart(now.getFullYear(), now.getMonth(), now.getDate());
+      return ws;
+    }
+    // First Monday of the year
+    const jan1 = new Date(schedule.year, 0, 1);
+    return getWeekStart(schedule.year, 0, jan1.getDate());
+  });
+
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [overrideAssignment, setOverrideAssignment] = useState<Assignment | null>(null);
+  const [overridePhysicianId, setOverridePhysicianId] = useState("");
+  const [overriding, setOverriding] = useState(false);
+  const [localAssignments, setLocalAssignments] = useState(assignments);
+
+  // Index assignments by date
+  const assignmentsByDate = useMemo(() => {
+    const map = new Map<string, Assignment[]>();
+    for (const a of localAssignments) {
+      const list = map.get(a.date) ?? [];
+      list.push(a);
+      map.set(a.date, list);
+    }
+    // Sort each day's assignments by role sort order
+    for (const list of map.values()) {
+      list.sort((a, b) => a.roleSortOrder - b.roleSortOrder);
+    }
+    return map;
+  }, [localAssignments]);
+
+  // Active role types (ones that actually have assignments)
+  const activeRoleTypes = useMemo(() => {
+    const ids = new Set(localAssignments.map((a) => a.roleTypeId));
+    return roleTypes.filter((r) => ids.has(r.id));
+  }, [localAssignments, roleTypes]);
+
+  // --- Handlers ---
+
+  function handlePublish() {
+    fetch(`/api/schedules/${schedule.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status: "PUBLISHED" }),
+    }).then((res) => {
+      if (res.ok) {
+        toast.success("Schedule published!");
+        router.refresh();
+      } else {
+        toast.error("Failed to publish");
+      }
+    });
+  }
+
+  async function handleOverride() {
+    if (!overrideAssignment || !overridePhysicianId) return;
+    setOverriding(true);
+    try {
+      const res = await fetch(
+        `/api/schedules/${schedule.id}/assignments/${overrideAssignment.id}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ physicianId: overridePhysicianId }),
+        }
+      );
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to override");
+      }
+      const updated = await res.json();
+      // Update local state
+      setLocalAssignments((prev) =>
+        prev.map((a) =>
+          a.id === overrideAssignment.id
+            ? {
+                ...a,
+                physicianId: updated.physician.id,
+                physicianName: `${updated.physician.firstName} ${updated.physician.lastName}`,
+                physicianLastName: updated.physician.lastName,
+                source: "MANUAL",
+              }
+            : a
+        )
+      );
+      toast.success("Assignment updated");
+      setOverrideAssignment(null);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Override failed");
+    } finally {
+      setOverriding(false);
+    }
+  }
+
+  // --- Month Calendar ---
+
+  function renderMonthView() {
+    const daysInMonth = new Date(schedule.year, month + 1, 0).getDate();
+    const firstDow = dayOfWeekMon(schedule.year, month, 1);
+
+    const cells: (number | null)[] = [];
+    for (let i = 0; i < firstDow; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    while (cells.length % 7 !== 0) cells.push(null);
+
+    return (
+      <div>
+        {/* Month navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMonth((m) => Math.max(0, m - 1))}
+            disabled={month === 0}
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h3 className="text-lg font-semibold">
+            {MONTH_NAMES[month]} {schedule.year}
+          </h3>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setMonth((m) => Math.min(11, m + 1))}
+            disabled={month === 11}
+          >
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Day headers */}
+        <div className="grid grid-cols-7 gap-px mb-1">
+          {DAY_LABELS.map((d) => (
+            <div
+              key={d}
+              className="text-center text-xs font-medium text-muted-foreground py-1"
+            >
+              {d}
+            </div>
+          ))}
+        </div>
+
+        {/* Calendar grid */}
+        <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+          {cells.map((day, idx) => {
+            if (day === null) {
+              return <div key={idx} className="bg-muted/30 min-h-[80px]" />;
+            }
+
+            const dateStr = formatDate(schedule.year, month, day);
+            const dayAssignments = assignmentsByDate.get(dateStr) ?? [];
+            const today = isToday(dateStr);
+            const isWeekend = idx % 7 >= 5;
+
+            return (
+              <button
+                key={idx}
+                className={`bg-background min-h-[80px] p-1 text-left hover:bg-accent/50 transition-colors cursor-pointer
+                  ${today ? "ring-2 ring-primary ring-inset" : ""}
+                  ${isWeekend ? "bg-muted/20" : ""}`}
+                onClick={() => setSelectedDate(dateStr)}
+              >
+                <div
+                  className={`text-xs font-medium mb-0.5 ${
+                    today ? "text-primary font-bold" : "text-muted-foreground"
+                  }`}
+                >
+                  {day}
+                </div>
+                <div className="space-y-px">
+                  {dayAssignments.slice(0, 4).map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center gap-1 text-[10px] leading-tight truncate"
+                    >
+                      <span
+                        className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
+                          CATEGORY_DOT[a.roleCategory] ?? "bg-gray-400"
+                        }`}
+                      />
+                      <span className="truncate">{a.physicianLastName}</span>
+                    </div>
+                  ))}
+                  {dayAssignments.length > 4 && (
+                    <div className="text-[10px] text-muted-foreground">
+                      +{dayAssignments.length - 4} more
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Legend */}
+        <div className="flex gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+          {Object.entries(CATEGORY_DOT).map(([cat, color]) => (
+            <div key={cat} className="flex items-center gap-1">
+              <span className={`w-2 h-2 rounded-full ${color}`} />
+              {cat.replace("_", " ")}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Week Grid ---
+
+  function renderWeekView() {
+    const weekDates: string[] = [];
+    const ws = new Date(weekStart);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(ws);
+      d.setDate(d.getDate() + i);
+      weekDates.push(
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+      );
+    }
+
+    function prevWeek() {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() - 7);
+      if (d.getFullYear() >= schedule.year) setWeekStart(d);
+    }
+    function nextWeek() {
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + 7);
+      if (d.getFullYear() <= schedule.year) setWeekStart(d);
+    }
+
+    const weekLabel = (() => {
+      const s = new Date(weekStart);
+      const e = new Date(weekStart);
+      e.setDate(e.getDate() + 6);
+      return `${MONTH_NAMES[s.getMonth()].slice(0, 3)} ${s.getDate()} \u2013 ${MONTH_NAMES[e.getMonth()].slice(0, 3)} ${e.getDate()}, ${e.getFullYear()}`;
+    })();
+
+    return (
+      <div>
+        {/* Week navigation */}
+        <div className="flex items-center justify-between mb-4">
+          <Button variant="ghost" size="sm" onClick={prevWeek}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <h3 className="text-lg font-semibold">{weekLabel}</h3>
+          <Button variant="ghost" size="sm" onClick={nextWeek}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Grid table */}
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <table className="w-full border-collapse text-sm min-w-[700px]">
+            <thead>
+              <tr>
+                <th className="border p-2 bg-muted text-left w-[140px]">Role</th>
+                {weekDates.map((dateStr, i) => {
+                  const d = new Date(dateStr + "T12:00:00");
+                  const today = isToday(dateStr);
+                  return (
+                    <th
+                      key={dateStr}
+                      className={`border p-2 text-center ${
+                        today ? "bg-primary/10 font-bold" : "bg-muted"
+                      } ${i >= 5 ? "bg-muted/60" : ""}`}
+                    >
+                      <div className="text-xs text-muted-foreground">
+                        {DAY_LABELS[i]}
+                      </div>
+                      <div>{d.getDate()}</div>
+                    </th>
+                  );
+                })}
+              </tr>
+            </thead>
+            <tbody>
+              {activeRoleTypes.map((role) => (
+                <tr key={role.id}>
+                  <td className="border p-2">
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${CATEGORY_COLORS[role.category] ?? ""}`}
+                    >
+                      {role.displayName}
+                    </Badge>
+                  </td>
+                  {weekDates.map((dateStr, dayIdx) => {
+                    const dayAssigns = assignmentsByDate.get(dateStr) ?? [];
+                    const assignment = dayAssigns.find(
+                      (a) => a.roleTypeId === role.id
+                    );
+                    const today = isToday(dateStr);
+
+                    return (
+                      <td
+                        key={dateStr}
+                        className={`border p-1 text-center text-xs cursor-pointer hover:bg-accent/50 transition-colors
+                          ${today ? "bg-primary/5" : ""}
+                          ${dayIdx >= 5 ? "bg-muted/10" : ""}
+                          ${assignment?.source === "MANUAL" ? "ring-1 ring-inset ring-amber-400" : ""}`}
+                        onClick={() => {
+                          if (assignment && isAdmin && schedule.status === "DRAFT") {
+                            setOverrideAssignment(assignment);
+                            setOverridePhysicianId(assignment.physicianId);
+                          } else {
+                            setSelectedDate(dateStr);
+                          }
+                        }}
+                      >
+                        {assignment ? (
+                          <span className="font-medium">
+                            {assignment.physicianLastName}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">&mdash;</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        <div className="flex gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 border border-amber-400 rounded-sm" />
+            Manual override
+          </div>
+          {isAdmin && schedule.status === "DRAFT" && (
+            <div className="italic">Click a cell to override an assignment</div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // --- Day Detail Sheet ---
+
+  function renderDaySheet() {
+    if (!selectedDate) return null;
+
+    const dayAssignments = assignmentsByDate.get(selectedDate) ?? [];
+    const d = new Date(selectedDate + "T12:00:00");
+    const dayLabel = `${DAY_LABELS[dayOfWeekMon(d.getFullYear(), d.getMonth(), d.getDate())]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+
+    return (
+      <Sheet open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
+        <SheetContent className="overflow-y-auto">
+          <SheetHeader>
+            <SheetTitle>{dayLabel}</SheetTitle>
+          </SheetHeader>
+          <div className="mt-4 space-y-3">
+            {dayAssignments.length === 0 ? (
+              <p className="text-muted-foreground text-sm">
+                No assignments for this day.
+              </p>
+            ) : (
+              dayAssignments.map((a) => (
+                <Card key={a.id} className="shadow-sm">
+                  <CardContent className="p-3 flex items-center justify-between">
+                    <div>
+                      <Badge
+                        variant="outline"
+                        className={`mb-1 text-xs ${
+                          CATEGORY_COLORS[a.roleCategory] ?? ""
+                        }`}
+                      >
+                        {a.roleDisplayName}
+                      </Badge>
+                      <div className="font-medium">{a.physicianName}</div>
+                      {a.source === "MANUAL" && (
+                        <span className="text-xs text-amber-600">
+                          (manually assigned)
+                        </span>
+                      )}
+                    </div>
+                    {isAdmin && schedule.status === "DRAFT" && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => {
+                          setOverrideAssignment(a);
+                          setOverridePhysicianId(a.physicianId);
+                          setSelectedDate(null);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+    );
+  }
+
+  // --- Override Dialog ---
+
+  function renderOverrideDialog() {
+    if (!overrideAssignment) return null;
+
+    const d = new Date(overrideAssignment.date + "T12:00:00");
+    const dayLabel = `${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+
+    return (
+      <Dialog
+        open={!!overrideAssignment}
+        onOpenChange={() => setOverrideAssignment(null)}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Override Assignment</DialogTitle>
+            <DialogDescription>
+              {overrideAssignment.roleDisplayName} on {dayLabel}
+              <br />
+              Currently assigned to:{" "}
+              <strong>{overrideAssignment.physicianName}</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2">
+            <label className="text-sm font-medium">Assign to</label>
+            <select
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+              value={overridePhysicianId}
+              onChange={(e) => setOverridePhysicianId(e.target.value)}
+            >
+              <option value="">Select physician</option>
+              {physicians.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.lastName}, {p.firstName}
+                </option>
+              ))}
+            </select>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setOverrideAssignment(null)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={handleOverride} disabled={overriding}>
+              {overriding ? "Saving..." : "Save"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  // --- Stats Summary ---
+
+  function renderStats() {
+    // Group by role category
+    const byCategory: Record<string, number> = {};
+    for (const a of localAssignments) {
+      byCategory[a.roleCategory] = (byCategory[a.roleCategory] ?? 0) + 1;
+    }
+
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        {Object.entries(byCategory).map(([cat, count]) => (
+          <Card key={cat} className="shadow-sm">
+            <CardContent className="p-3 text-center">
+              <div className="text-2xl font-bold">{count.toLocaleString()}</div>
+              <div className="text-xs text-muted-foreground">
+                {cat.replace("_", " ")}
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // --- Render ---
+
+  const statusBadge = (() => {
+    switch (schedule.status) {
+      case "DRAFT":
+        return <Badge variant="secondary">Draft</Badge>;
+      case "PUBLISHED":
+        return <Badge className="bg-green-600 hover:bg-green-700">Published</Badge>;
+      case "ARCHIVED":
+        return <Badge variant="outline">Archived</Badge>;
+      default:
+        return <Badge>{schedule.status}</Badge>;
+    }
+  })();
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => router.push("/dashboard/schedule")}
+          >
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl font-bold">{schedule.year} Schedule</h1>
+              {statusBadge}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {localAssignments.length.toLocaleString()} assignments
+            </p>
+          </div>
+        </div>
+        {isAdmin && schedule.status === "DRAFT" && (
+          <Button onClick={handlePublish}>
+            <Send className="mr-2 h-4 w-4" />
+            Publish Schedule
+          </Button>
+        )}
+      </div>
+
+      {/* Stats */}
+      {renderStats()}
+
+      {/* Tabs: Month / Week */}
+      <Tabs defaultValue="week">
+        <TabsList>
+          <TabsTrigger value="week">Week View</TabsTrigger>
+          <TabsTrigger value="month">Month View</TabsTrigger>
+        </TabsList>
+        <TabsContent value="week" className="mt-4">
+          {renderWeekView()}
+        </TabsContent>
+        <TabsContent value="month" className="mt-4">
+          {renderMonthView()}
+        </TabsContent>
+      </Tabs>
+
+      {/* Day detail sheet */}
+      {renderDaySheet()}
+
+      {/* Override dialog */}
+      {renderOverrideDialog()}
+    </div>
+  );
+}
