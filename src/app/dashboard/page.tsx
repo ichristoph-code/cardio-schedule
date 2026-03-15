@@ -7,7 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Calendar, ClipboardList, Users, Heart } from "lucide-react";
+import { Calendar, ClipboardList, Heart } from "lucide-react";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -21,7 +21,6 @@ export default async function DashboardPage() {
   today.setHours(0, 0, 0, 0);
 
   const [
-    physicianCount,
     pendingVacations,
     pendingSwaps,
     pendingNoCallDays,
@@ -29,8 +28,6 @@ export default async function DashboardPage() {
     todayCoverage,
     myNextAssignment,
   ] = await Promise.all([
-    // Active physician count
-    prisma.physician.count(),
     // Pending vacation requests (admin sees all, physician sees own)
     prisma.vacationRequest.count({
       where: {
@@ -102,7 +99,7 @@ export default async function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -117,19 +114,6 @@ export default async function DashboardPage() {
                 ? "No assignments today"
                 : `Role${todayCoverage !== 1 ? "s" : ""} filled today`}
             </p>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">
-              Active Physicians
-            </CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{physicianCount}</div>
-            <p className="text-xs text-muted-foreground">In the practice</p>
           </CardContent>
         </Card>
 

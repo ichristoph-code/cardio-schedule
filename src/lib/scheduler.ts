@@ -233,6 +233,10 @@ export async function generateSchedule(year: number): Promise<{
   // Weekend call is a 3-day block (Fri-Sat-Sun) covered by the same MD
   const weekendCallBlocks = new Map<string, string>();
 
+  // Track weekly rounder blocks: "Mon dateStr:roleId" -> physicianId
+  // Hospital/ICU rounders are assigned Mon-Fri as a week-long block (same MD)
+  const weeklyRounderBlocks = new Map<string, string>();
+
   // Seeded random for deterministic tiebreaking
   let seed = year * 31337;
   function nextRandom(): number {
@@ -256,10 +260,8 @@ export async function generateSchedule(year: number): Promise<{
         if (role.category === "ON_CALL") return true; // every day
         // DAYTIME roles: weekdays + holidays (hospital/ICU still need coverage)
         if (role.category === "DAYTIME") {
-          if (role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") {
-            return true; // 7 days a week
-          }
-          return !weekend; // Doc in the Box: weekdays only
+          // All DAYTIME roles are weekdays only (Mon-Fri)
+          return !weekend;
         }
         if (role.category === "READING") return !weekend;
         if (role.category === "SPECIAL") return !weekend;
@@ -300,6 +302,43 @@ export async function generateSchedule(year: number): Promise<{
             holidayBurden.set(fridayPhysId, (holidayBurden.get(fridayPhysId) ?? 0) + w);
           }
           continue; // Skip the normal scoring — we've already assigned this
+        }
+      }
+
+      // Weekly rounder blocks: Hospital/ICU rounders are assigned Mon-Fri,
+      // same MD all week. On Tue-Fri (dow 2-5), reuse Monday's assignment.
+      if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && dow >= 2 && dow <= 5) {
+        // Find the Monday of this week
+        const monday = new Date(date);
+        monday.setDate(monday.getDate() - (dow - 1));
+        const mondayStr = formatDate(monday);
+        const blockKey = `${mondayStr}:${role.id}`;
+        const mondayPhysId = weeklyRounderBlocks.get(blockKey);
+
+        if (mondayPhysId) {
+          // Check if Monday's physician is on vacation this day — if so, fall through to normal scoring
+          if (!vacationDays.get(mondayPhysId)?.has(dateStr)) {
+            assignments.push({ date: dateStr, roleTypeId: role.id, physicianId: mondayPhysId });
+
+            // Update tracking
+            assignmentCount[role.id][mondayPhysId] = (assignmentCount[role.id][mondayPhysId] ?? 0) + 1;
+            const todayKey = `${dateStr}:${mondayPhysId}`;
+            if (!dailyPhysicianRoles.has(todayKey)) dailyPhysicianRoles.set(todayKey, new Set());
+            dailyPhysicianRoles.get(todayKey)!.add(role.id);
+            if (!lastAssigned[mondayPhysId]) lastAssigned[mondayPhysId] = {};
+            lastAssigned[mondayPhysId][role.id] = dateStr;
+
+            stats.totalAssignments++;
+            stats.byPhysician[mondayPhysId] = (stats.byPhysician[mondayPhysId] ?? 0) + 1;
+
+            if (holidayName) {
+              if (!stats.holidays[holidayName]) stats.holidays[holidayName] = {};
+              stats.holidays[holidayName][role.id] = mondayPhysId;
+              const w = holidayWeights[holidayName] ?? 1;
+              holidayBurden.set(mondayPhysId, (holidayBurden.get(mondayPhysId) ?? 0) + w);
+            }
+            continue; // Skip normal scoring — reused Monday's assignment
+          }
         }
       }
 
@@ -457,6 +496,11 @@ export async function generateSchedule(year: number): Promise<{
       // If Friday ON_CALL, store in weekend block map for Sat/Sun reuse
       if (role.category === "ON_CALL" && dow === 5) {
         weekendCallBlocks.set(`${dateStr}:${role.id}`, winner.id);
+      }
+
+      // If Monday rounder, store in weekly block map for Tue-Fri reuse
+      if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && dow === 1) {
+        weeklyRounderBlocks.set(`${dateStr}:${role.id}`, winner.id);
       }
 
       // Update tracking
