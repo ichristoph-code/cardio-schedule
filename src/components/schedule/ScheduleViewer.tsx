@@ -496,7 +496,7 @@ export function ScheduleViewer({
                           ${dayIdx === 0 || dayIdx === 6 ? "bg-muted/10" : ""}
                           ${assignment?.source === "MANUAL" ? "ring-1 ring-inset ring-amber-400" : ""}`}
                         onClick={() => {
-                          if (assignment && isAdmin && schedule.status === "DRAFT") {
+                          if (assignment && isAdmin) {
                             setOverrideAssignment(assignment);
                             setOverridePhysicianId(assignment.physicianId);
                           } else {
@@ -525,7 +525,7 @@ export function ScheduleViewer({
             <span className="w-3 h-3 border border-amber-400 rounded-sm" />
             Manual override
           </div>
-          {isAdmin && schedule.status === "DRAFT" && (
+          {isAdmin && (
             <div className="italic">Click a cell to override an assignment</div>
           )}
         </div>
@@ -578,7 +578,7 @@ export function ScheduleViewer({
                         </span>
                       )}
                     </div>
-                    {isAdmin && schedule.status === "DRAFT" && (
+                    {isAdmin && (
                       <Button
                         variant="ghost"
                         size="icon"
