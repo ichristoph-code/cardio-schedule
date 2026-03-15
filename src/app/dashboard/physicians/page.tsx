@@ -120,8 +120,16 @@ export default async function PhysiciansPage({
                   )}
                 </div>
               </TableHead>
-              <TableHead className="hidden xl:table-cell text-center">
-                Weekends
+              <TableHead className="hidden xl:table-cell">
+                <div className="flex flex-col items-center gap-1">
+                  <span>Weekends</span>
+                  {availableYears.length > 0 && (
+                    <CallStatsYearSelect
+                      years={availableYears}
+                      selectedYear={selectedYear}
+                    />
+                  )}
+                </div>
               </TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
