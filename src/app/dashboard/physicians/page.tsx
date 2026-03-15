@@ -10,7 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil } from "lucide-react";
+import { Plus, Pencil, Calendar } from "lucide-react";
 import { AddPhysicianDialog } from "@/components/physicians/AddPhysicianDialog";
 import { DeletePhysicianButton } from "@/components/physicians/DeletePhysicianButton";
 import { CallStatsYearSelect } from "@/components/physicians/CallStatsYearSelect";
@@ -205,6 +205,11 @@ export default async function PhysiciansPage({
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
+                      <Link href={`/dashboard/physicians/${doc.id}/calendar`}>
+                        <Button variant="ghost" size="icon">
+                          <Calendar className="h-4 w-4" />
+                        </Button>
+                      </Link>
                       <Link href={`/dashboard/physicians/${doc.id}`}>
                         <Button variant="ghost" size="icon">
                           <Pencil className="h-4 w-4" />

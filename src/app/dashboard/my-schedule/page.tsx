@@ -41,50 +41,85 @@ export default async function MySchedulePage() {
     );
   }
 
-  const assignments = await prisma.scheduleAssignment.findMany({
-    where: {
-      scheduleId: schedule.id,
-      physicianId,
-      isActive: true,
-    },
-    include: {
-      roleType: {
-        select: {
-          id: true,
-          name: true,
-          displayName: true,
-          category: true,
-          sortOrder: true,
+  const [assignments, physician, vacations, noCallDays] = await Promise.all([
+    prisma.scheduleAssignment.findMany({
+      where: {
+        scheduleId: schedule.id,
+        physicianId,
+        isActive: true,
+      },
+      include: {
+        roleType: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            category: true,
+            sortOrder: true,
+          },
         },
       },
-    },
-    orderBy: [{ date: "asc" }, { roleType: { sortOrder: "asc" } }],
-  });
+      orderBy: [{ date: "asc" }, { roleType: { sortOrder: "asc" } }],
+    }),
+    prisma.physician.findUnique({
+      where: { id: physicianId },
+      select: { firstName: true, lastName: true },
+    }),
+    prisma.vacationRequest.findMany({
+      where: {
+        physicianId,
+        status: "APPROVED",
+        startDate: { lte: new Date(schedule.year, 11, 31) },
+        endDate: { gte: new Date(schedule.year, 0, 1) },
+      },
+      orderBy: { startDate: "asc" },
+    }),
+    prisma.noCallDayRequest.findMany({
+      where: {
+        physicianId,
+        status: "APPROVED",
+        date: {
+          gte: new Date(schedule.year, 0, 1),
+          lte: new Date(schedule.year, 11, 31),
+        },
+      },
+      orderBy: { date: "asc" },
+    }),
+  ]);
 
-  const physician = await prisma.physician.findUnique({
-    where: { id: physicianId },
-    select: { firstName: true, lastName: true },
-  });
+  const physicianName = physician
+    ? `${physician.firstName} ${physician.lastName}`
+    : "Your";
 
   return (
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Schedule</h1>
         <p className="text-muted-foreground">
-          {physician
-            ? `${physician.firstName} ${physician.lastName}'s assignments for ${schedule.year}`
-            : `Your assignments for ${schedule.year}`}
+          {physicianName}&apos;s assignments for {schedule.year}
         </p>
       </div>
 
       <MyScheduleView
         year={schedule.year}
+        physicianName={physicianName}
         assignments={assignments.map((a) => ({
           id: a.id,
           date: a.date.toISOString().split("T")[0],
           roleDisplayName: a.roleType.displayName,
           roleCategory: a.roleType.category,
           source: a.source,
+        }))}
+        vacations={vacations.map((v) => ({
+          id: v.id,
+          startDate: v.startDate.toISOString().split("T")[0],
+          endDate: v.endDate.toISOString().split("T")[0],
+          reason: v.reason,
+        }))}
+        noCallDays={noCallDays.map((nc) => ({
+          id: nc.id,
+          date: nc.date.toISOString().split("T")[0],
+          reason: nc.reason,
         }))}
       />
     </div>

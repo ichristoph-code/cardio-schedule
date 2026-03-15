@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 
 interface Assignment {
   id: string;
@@ -19,6 +20,19 @@ interface Assignment {
   roleDisplayName: string;
   roleCategory: string;
   source: string;
+}
+
+interface VacationInfo {
+  id: string;
+  startDate: string;
+  endDate: string;
+  reason: string | null;
+}
+
+interface NoCallDayInfo {
+  id: string;
+  date: string;
+  reason: string | null;
 }
 
 const MONTH_NAMES = [
@@ -37,16 +51,24 @@ const CATEGORY_COLORS: Record<string, string> = {
 
 export function MyScheduleView({
   year,
+  physicianName,
   assignments,
+  vacations = [],
+  noCallDays = [],
 }: {
   year: number;
+  physicianName: string;
   assignments: Assignment[];
+  vacations?: VacationInfo[];
+  noCallDays?: NoCallDayInfo[];
 }) {
   const now = new Date();
   const [month, setMonth] = useState(
     now.getFullYear() === year ? now.getMonth() : 0
   );
-  const [viewMode, setViewMode] = useState<"upcoming" | "month">("upcoming");
+  const [viewMode, setViewMode] = useState<"upcoming" | "month" | "calendar">(
+    "calendar"
+  );
 
   const byDate = useMemo(() => {
     const map = new Map<string, Assignment[]>();
@@ -130,6 +152,41 @@ export function MyScheduleView({
     );
   }
 
+  // Calendar view — delegates to PhysicianCalendar component
+  if (viewMode === "calendar") {
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode("upcoming")}
+          >
+            Upcoming
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode("month")}
+          >
+            By Month
+          </Button>
+          <Button variant="default" size="sm">
+            Calendar
+          </Button>
+        </div>
+
+        <PhysicianCalendar
+          year={year}
+          physicianName={physicianName}
+          assignments={assignments}
+          vacations={vacations}
+          noCallDays={noCallDays}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {/* Summary */}
@@ -170,6 +227,13 @@ export function MyScheduleView({
           >
             By Month
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setViewMode("calendar")}
+          >
+            Calendar
+          </Button>
         </div>
         {viewMode === "month" && (
           <div className="flex items-center gap-2">
@@ -182,7 +246,7 @@ export function MyScheduleView({
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Select value={String(month)} onValueChange={(v) => setMonth(Number(v))}>
+            <Select value={String(month)} onValueChange={(v) => v !== null && setMonth(Number(v))}>
               <SelectTrigger className="w-[140px] h-8">
                 <SelectValue />
               </SelectTrigger>
