@@ -24,8 +24,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: Home },
-  { label: "Schedule", href: "/dashboard/schedule", icon: Calendar },
-  { label: "My Schedule", href: "/dashboard/my-schedule", icon: CalendarDays },
+  { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
+  { label: "My Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
   { label: "My Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
   { label: "Requests", href: "/dashboard/requests", icon: ClipboardList },
   { label: "Physicians", href: "/dashboard/physicians", icon: Users, adminOnly: true },

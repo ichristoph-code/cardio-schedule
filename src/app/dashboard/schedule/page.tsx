@@ -106,26 +106,8 @@ export default async function SchedulePage({
 
   return (
     <div className="space-y-4">
-      {/* Admin toolbar — generate button + year selector */}
-      {isAdmin && (
-        <div className="flex items-center justify-between">
-          {availableYears.length > 1 ? (
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">Year:</span>
-              <CalendarYearSelect
-                years={availableYears}
-                selectedYear={selectedSchedule.year}
-              />
-            </div>
-          ) : (
-            <div />
-          )}
-          <ScheduleGenerateButton />
-        </div>
-      )}
-
-      {/* Non-admin year selector (no generate button) */}
-      {!isAdmin && availableYears.length > 1 && (
+      {/* Toolbar — year selector + generate button */}
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Year:</span>
           <CalendarYearSelect
@@ -133,7 +115,8 @@ export default async function SchedulePage({
             selectedYear={selectedSchedule.year}
           />
         </div>
-      )}
+        {isAdmin && <ScheduleGenerateButton />}
+      </div>
 
       <ScheduleViewer
         key={selectedSchedule.id}
