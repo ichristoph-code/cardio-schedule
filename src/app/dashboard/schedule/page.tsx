@@ -3,22 +3,29 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { ScheduleViewer } from "@/components/schedule/ScheduleViewer";
 import { ScheduleGenerateButton } from "@/components/schedule/ScheduleGenerateButton";
+import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
 import { Calendar } from "lucide-react";
 
-export default async function SchedulePage() {
+export default async function SchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
   const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
+  const query = await searchParams;
 
-  // Find the latest schedule (admin sees any, physician sees published only)
-  const latestSchedule = await prisma.schedule.findFirst({
+  // Load all available schedules (admin sees any, physician sees published only)
+  const allSchedules = await prisma.schedule.findMany({
     where: isAdmin ? {} : { status: "PUBLISHED" },
+    select: { id: true, year: true, status: true, generatedAt: true, publishedAt: true },
     orderBy: { year: "desc" },
   });
 
   // No schedule exists — show empty state with generate button
-  if (!latestSchedule) {
+  if (allSchedules.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center justify-between">
@@ -46,10 +53,22 @@ export default async function SchedulePage() {
     );
   }
 
-  // Load full data for the latest schedule
+  const availableYears = allSchedules.map((s) => s.year);
+  const currentYear = new Date().getFullYear();
+
+  // Selected year: URL param > current year > latest available
+  const selectedYear = query.year
+    ? parseInt(query.year, 10)
+    : availableYears.includes(currentYear)
+      ? currentYear
+      : availableYears[0];
+
+  const selectedSchedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
+
+  // Load full data for the selected schedule
   const [assignments, physicians, roleTypes] = await Promise.all([
     prisma.scheduleAssignment.findMany({
-      where: { scheduleId: latestSchedule.id, isActive: true },
+      where: { scheduleId: selectedSchedule.id, isActive: true },
       include: {
         physician: { select: { id: true, firstName: true, lastName: true } },
         roleType: {
@@ -87,20 +106,43 @@ export default async function SchedulePage() {
 
   return (
     <div className="space-y-4">
-      {/* Admin toolbar — generate button sits above the calendar */}
+      {/* Admin toolbar — generate button + year selector */}
       {isAdmin && (
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {availableYears.length > 1 ? (
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Year:</span>
+              <CalendarYearSelect
+                years={availableYears}
+                selectedYear={selectedSchedule.year}
+              />
+            </div>
+          ) : (
+            <div />
+          )}
           <ScheduleGenerateButton />
         </div>
       )}
 
+      {/* Non-admin year selector (no generate button) */}
+      {!isAdmin && availableYears.length > 1 && (
+        <div className="flex items-center gap-2">
+          <span className="text-sm text-muted-foreground">Year:</span>
+          <CalendarYearSelect
+            years={availableYears}
+            selectedYear={selectedSchedule.year}
+          />
+        </div>
+      )}
+
       <ScheduleViewer
+        key={selectedSchedule.id}
         schedule={{
-          id: latestSchedule.id,
-          year: latestSchedule.year,
-          status: latestSchedule.status,
-          generatedAt: latestSchedule.generatedAt?.toISOString() ?? null,
-          publishedAt: latestSchedule.publishedAt?.toISOString() ?? null,
+          id: selectedSchedule.id,
+          year: selectedSchedule.year,
+          status: selectedSchedule.status,
+          generatedAt: selectedSchedule.generatedAt?.toISOString() ?? null,
+          publishedAt: selectedSchedule.publishedAt?.toISOString() ?? null,
         }}
         assignments={serializedAssignments}
         physicians={physicians}
