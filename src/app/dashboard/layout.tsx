@@ -17,12 +17,12 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
-      <aside className="hidden w-64 shrink-0 bg-white/80 shadow-[1px_0_3px_rgba(0,0,0,0.04),2px_0_8px_rgba(0,0,0,0.02)] backdrop-blur-xl lg:block dark:bg-card/80">
+      <aside className="hidden w-64 shrink-0 border-r border-black/[0.04] bg-white/70 backdrop-blur-xl backdrop-saturate-150 lg:block dark:border-white/[0.06] dark:bg-card/70">
         <Sidebar userRole={session.user.role} />
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-background">
+      <div className="flex flex-1 flex-col overflow-hidden bg-mesh">
         <Header
           userName={session.user.name ?? "User"}
           userRole={session.user.role}

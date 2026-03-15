@@ -49,7 +49,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
     <div className="flex h-full flex-col">
       <div className="flex h-14 items-center px-5">
         <Link href="/dashboard" className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <Heart className="h-5 w-5 text-red-500" />
+          <Heart className="h-5 w-5 text-rose-500" />
           <span className="text-[15px]">CardioSchedule</span>
         </Link>
       </div>
@@ -68,7 +68,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-200",
                 isActive
-                  ? "bg-black/[0.06] text-foreground shadow-[0_0.5px_1px_rgba(0,0,0,0.04)] dark:bg-white/[0.1]"
+                  ? "bg-primary/10 text-primary shadow-[0_0.5px_2px_rgba(0,0,0,0.04)] dark:bg-primary/15 dark:text-primary"
                   : "text-muted-foreground hover:bg-black/[0.03] hover:text-foreground dark:hover:bg-white/[0.06]"
               )}
             >

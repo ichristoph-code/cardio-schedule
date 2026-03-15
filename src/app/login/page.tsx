@@ -48,10 +48,10 @@ function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md">
+    <Card className="w-full max-w-md card-glass">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-primary">
-          <Heart className="h-6 w-6 text-primary-foreground" />
+        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/50">
+          <Heart className="h-6 w-6 text-rose-500" />
         </div>
         <CardTitle className="text-2xl">CardioSchedule</CardTitle>
         <CardDescription>
@@ -105,7 +105,7 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+    <div className="flex min-h-screen items-center justify-center bg-mesh-login px-4">
       <Suspense>
         <LoginForm />
       </Suspense>
