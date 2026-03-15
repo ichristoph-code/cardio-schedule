@@ -24,6 +24,49 @@ export default async function PhysiciansPage() {
     orderBy: { lastName: "asc" },
   });
 
+  // --- Call statistics: weekday call days + weekend blocks for current year ---
+  const currentYear = new Date().getFullYear();
+  const schedule = await prisma.schedule.findFirst({
+    where: { year: currentYear },
+  });
+
+  const callStatsMap = new Map<string, { weekdays: number; weekends: number }>();
+
+  if (schedule) {
+    // Fetch all active ON_CALL assignments for this year's schedule
+    const onCallAssignments = await prisma.scheduleAssignment.findMany({
+      where: {
+        scheduleId: schedule.id,
+        isActive: true,
+        roleType: { category: "ON_CALL" },
+      },
+      select: {
+        physicianId: true,
+        date: true,
+      },
+    });
+
+    for (const a of onCallAssignments) {
+      const date = new Date(a.date);
+      const dow = date.getUTCDay(); // 0=Sun, 1=Mon ... 5=Fri, 6=Sat (UTC to avoid TZ offset)
+
+      if (!callStatsMap.has(a.physicianId)) {
+        callStatsMap.set(a.physicianId, { weekdays: 0, weekends: 0 });
+      }
+      const stats = callStatsMap.get(a.physicianId)!;
+
+      // Weekday call (Mon–Fri)
+      if (dow >= 1 && dow <= 5) {
+        stats.weekdays++;
+      }
+
+      // Weekend blocks — count only Fridays (each Fri = 1 weekend block covering Fri-Sat-Sun)
+      if (dow === 5) {
+        stats.weekends++;
+      }
+    }
+  }
+
   const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
   return (
@@ -48,13 +91,15 @@ export default async function PhysiciansPage() {
               <TableHead className="hidden md:table-cell">Subspecialty</TableHead>
               <TableHead className="hidden lg:table-cell">Office Days</TableHead>
               <TableHead className="hidden lg:table-cell">Eligible Roles</TableHead>
+              <TableHead className="hidden xl:table-cell text-center">Weekday Call</TableHead>
+              <TableHead className="hidden xl:table-cell text-center">Weekends</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {physicians.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                   No physicians added yet. Click &quot;Add Physician&quot; to get started.
                 </TableCell>
               </TableRow>
@@ -98,6 +143,26 @@ export default async function PhysiciansPage() {
                     <span className="text-sm text-muted-foreground">
                       {doc.eligibilities.length} roles
                     </span>
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {(() => {
+                      const stats = callStatsMap.get(doc.id);
+                      return stats ? (
+                        <span className="text-sm font-medium">{stats.weekdays}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {(() => {
+                      const stats = callStatsMap.get(doc.id);
+                      return stats ? (
+                        <span className="text-sm font-medium">{stats.weekends}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
