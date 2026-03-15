@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   ArrowLeft,
   ChevronLeft,
@@ -39,6 +40,7 @@ import {
   Send,
   Pencil,
   Printer,
+  Filter,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -189,6 +191,8 @@ export function ScheduleViewer({
   const [overridePhysicianId, setOverridePhysicianId] = useState("");
   const [overriding, setOverriding] = useState(false);
   const [localAssignments, setLocalAssignments] = useState(assignments);
+  const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
+  const [showRoleFilter, setShowRoleFilter] = useState(false);
 
   // Build physician → color mapping
   const physicianColors = useMemo(() => buildPhysicianColorMap(physicians), [physicians]);
@@ -213,6 +217,54 @@ export function ScheduleViewer({
     const ids = new Set(localAssignments.map((a) => a.roleTypeId));
     return roleTypes.filter((r) => ids.has(r.id));
   }, [localAssignments, roleTypes]);
+
+  // Visible role types (filtered by checkboxes)
+  const visibleRoleTypes = useMemo(
+    () => activeRoleTypes.filter((r) => !hiddenRoles.has(r.id)),
+    [activeRoleTypes, hiddenRoles]
+  );
+
+  // Filtered assignments by date (only visible roles)
+  const filteredAssignmentsByDate = useMemo(() => {
+    if (hiddenRoles.size === 0) return assignmentsByDate;
+    const map = new Map<string, Assignment[]>();
+    for (const [date, list] of assignmentsByDate) {
+      const filtered = list.filter((a) => !hiddenRoles.has(a.roleTypeId));
+      if (filtered.length > 0) map.set(date, filtered);
+    }
+    return map;
+  }, [assignmentsByDate, hiddenRoles]);
+
+  // Group role types by category for the filter panel
+  const rolesByCategory = useMemo(() => {
+    const groups: Record<string, RoleType[]> = {};
+    for (const r of activeRoleTypes) {
+      (groups[r.category] ??= []).push(r);
+    }
+    return groups;
+  }, [activeRoleTypes]);
+
+  function toggleRole(roleId: string) {
+    setHiddenRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(roleId)) next.delete(roleId);
+      else next.add(roleId);
+      return next;
+    });
+  }
+
+  function toggleCategory(category: string) {
+    const roles = rolesByCategory[category] ?? [];
+    const allHidden = roles.every((r) => hiddenRoles.has(r.id));
+    setHiddenRoles((prev) => {
+      const next = new Set(prev);
+      for (const r of roles) {
+        if (allHidden) next.delete(r.id);
+        else next.add(r.id);
+      }
+      return next;
+    });
+  }
 
   // --- Handlers ---
 
@@ -339,7 +391,7 @@ export function ScheduleViewer({
             }
 
             const dateStr = formatDate(schedule.year, month, day);
-            const dayAssignments = assignmentsByDate.get(dateStr) ?? [];
+            const dayAssignments = filteredAssignmentsByDate.get(dateStr) ?? [];
             const today = isToday(dateStr);
             const colIdx = idx % 7;
             const isWeekend = colIdx === 0 || colIdx === 6;
@@ -491,7 +543,7 @@ export function ScheduleViewer({
               </tr>
             </thead>
             <tbody>
-              {activeRoleTypes.map((role) => (
+              {visibleRoleTypes.map((role) => (
                 <tr key={role.id}>
                   <td className="border p-2">
                     <Badge
@@ -762,10 +814,104 @@ export function ScheduleViewer({
 
       {/* Tabs: Month / Week */}
       <Tabs defaultValue="week">
-        <TabsList>
-          <TabsTrigger value="week">Week View</TabsTrigger>
-          <TabsTrigger value="month">Month View</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="week">Week View</TabsTrigger>
+            <TabsTrigger value="month">Month View</TabsTrigger>
+          </TabsList>
+          <Button
+            variant={hiddenRoles.size > 0 ? "default" : "outline"}
+            size="sm"
+            className="no-print"
+            onClick={() => setShowRoleFilter((v) => !v)}
+          >
+            <Filter className="h-4 w-4 mr-1" />
+            Filter Roles
+            {hiddenRoles.size > 0 && (
+              <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+                {activeRoleTypes.length - hiddenRoles.size}/{activeRoleTypes.length}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Role filter panel */}
+        {showRoleFilter && (
+          <Card className="mt-2 no-print">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-sm font-medium">Show/hide roles</p>
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() => setHiddenRoles(new Set())}
+                  >
+                    Show All
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-xs h-7"
+                    onClick={() =>
+                      setHiddenRoles(new Set(activeRoleTypes.map((r) => r.id)))
+                    }
+                  >
+                    Hide All
+                  </Button>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                {Object.entries(rolesByCategory).map(([category, roles]) => {
+                  const allHidden = roles.every((r) => hiddenRoles.has(r.id));
+                  const someHidden = roles.some((r) => hiddenRoles.has(r.id));
+                  return (
+                    <div key={category}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <Checkbox
+                          id={`cat-${category}`}
+                          checked={!allHidden}
+                          // indeterminate when partially hidden
+                          data-state={someHidden && !allHidden ? "indeterminate" : undefined}
+                          onCheckedChange={() => toggleCategory(category)}
+                        />
+                        <label
+                          htmlFor={`cat-${category}`}
+                          className="text-sm font-semibold cursor-pointer"
+                        >
+                          <Badge
+                            variant="outline"
+                            className={CATEGORY_COLORS[category] ?? ""}
+                          >
+                            {category.replace("_", " ")}
+                          </Badge>
+                        </label>
+                      </div>
+                      <div className="space-y-1.5 ml-4">
+                        {roles.map((role) => (
+                          <div key={role.id} className="flex items-center gap-2">
+                            <Checkbox
+                              id={`role-${role.id}`}
+                              checked={!hiddenRoles.has(role.id)}
+                              onCheckedChange={() => toggleRole(role.id)}
+                            />
+                            <label
+                              htmlFor={`role-${role.id}`}
+                              className="text-xs cursor-pointer"
+                            >
+                              {role.displayName}
+                            </label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <TabsContent value="week" className="mt-4">
           {renderWeekView()}
         </TabsContent>
