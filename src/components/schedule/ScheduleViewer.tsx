@@ -428,11 +428,15 @@ export function ScheduleViewer({
     function prevWeek() {
       const d = new Date(weekStart);
       d.setDate(d.getDate() - 7);
-      if (d.getFullYear() >= schedule.year) setWeekStart(d);
+      // Allow if the week's Saturday (end) is still in (or after) schedule year
+      const weekEnd = new Date(d);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      if (weekEnd.getFullYear() >= schedule.year) setWeekStart(d);
     }
     function nextWeek() {
       const d = new Date(weekStart);
       d.setDate(d.getDate() + 7);
+      // Allow if the week's Sunday (start) is still in (or before) schedule year
       if (d.getFullYear() <= schedule.year) setWeekStart(d);
     }
 
