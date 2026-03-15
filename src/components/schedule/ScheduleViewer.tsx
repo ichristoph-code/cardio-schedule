@@ -293,9 +293,21 @@ export function ScheduleViewer({
           >
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="text-lg font-semibold">
-            {MONTH_NAMES[month]} {schedule.year}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">
+              {MONTH_NAMES[month]} {schedule.year}
+            </h3>
+            {new Date().getFullYear() === schedule.year && month !== new Date().getMonth() && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7"
+                onClick={() => setMonth(new Date().getMonth())}
+              >
+                Today
+              </Button>
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
