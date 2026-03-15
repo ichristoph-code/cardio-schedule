@@ -262,7 +262,7 @@ export function PhysicianCalendar({
       </Card>
 
       {/* Month navigation */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-center gap-1">
         <Button
           variant="ghost"
           size="sm"

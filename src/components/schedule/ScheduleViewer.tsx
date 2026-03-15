@@ -284,7 +284,7 @@ export function ScheduleViewer({
     return (
       <div>
         {/* Month navigation */}
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-center gap-1 mb-4">
           <Button
             variant="ghost"
             size="sm"
