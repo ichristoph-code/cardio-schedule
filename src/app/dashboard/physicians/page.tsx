@@ -61,6 +61,7 @@ export default async function PhysiciansPage({
       select: {
         physicianId: true,
         date: true,
+        roleType: { select: { name: true } },
       },
     });
 
@@ -73,8 +74,8 @@ export default async function PhysiciansPage({
       }
       const stats = callStatsMap.get(a.physicianId)!;
 
-      // Weekday call (Mon-Fri)
-      if (dow >= 1 && dow <= 5) {
+      // Weekday call (Mon-Fri) — General Call only (excludes EP and Interventional)
+      if (dow >= 1 && dow <= 5 && a.roleType.name === "GENERAL_CALL") {
         stats.weekdays++;
       }
 
