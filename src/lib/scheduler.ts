@@ -233,6 +233,10 @@ export async function generateSchedule(year: number): Promise<{
   // Weekend call is a 3-day block (Fri-Sat-Sun) covered by the same MD
   const weekendCallBlocks = new Map<string, string>();
 
+  // Track weekend call block counts per physician for equalization
+  // Key: physicianId, Value: number of weekend blocks assigned
+  const weekendBlockCount: Record<string, number> = {};
+
   // Track weekly rounder blocks: "Mon dateStr:roleId" -> physicianId
   // Hospital/ICU rounders are assigned Mon-Fri as a week-long block (same MD)
   const weeklyRounderBlocks = new Map<string, string>();
@@ -455,7 +459,15 @@ export async function generateSchedule(year: number): Promise<{
       const scored = eligible.map((p) => {
         let score = 0;
 
-        // Assignment count equity (main factor)
+        // Weekend call equalization — highest priority
+        // On Friday ON_CALL assignments (which anchor the whole Fri-Sat-Sun block),
+        // heavily favor physicians with fewer weekend blocks for fair distribution.
+        if (role.category === "ON_CALL" && dow === 5) {
+          const wkendCnt = weekendBlockCount[p.id] ?? 0;
+          score += wkendCnt * 500; // Strongest weight — equalizes weekend call above all else
+        }
+
+        // Assignment count equity (main factor for non-weekend)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
         score += cnt * 100;
 
@@ -494,8 +506,10 @@ export async function generateSchedule(year: number): Promise<{
       });
 
       // If Friday ON_CALL, store in weekend block map for Sat/Sun reuse
+      // and increment weekend block count for equalization tracking
       if (role.category === "ON_CALL" && dow === 5) {
         weekendCallBlocks.set(`${dateStr}:${role.id}`, winner.id);
+        weekendBlockCount[winner.id] = (weekendBlockCount[winner.id] ?? 0) + 1;
       }
 
       // If Monday rounder, store in weekly block map for Tue-Fri reuse
