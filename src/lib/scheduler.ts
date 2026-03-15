@@ -259,9 +259,10 @@ export async function generateSchedule(year: number): Promise<{
   // Weekend call is a 3-day block (Fri-Sat-Sun) covered by the same MD
   const weekendCallBlocks = new Map<string, string>();
 
-  // Track weekend call block counts per physician for equalization
-  // Key: physicianId, Value: number of weekend blocks assigned
-  const weekendBlockCount: Record<string, number> = {};
+  // Track weekend call block counts per role per physician for equalization
+  // roleId -> physicianId -> count (so each ON_CALL role equalizes independently)
+  const weekendBlockCount: Record<string, Record<string, number>> = {};
+  for (const role of roleData) weekendBlockCount[role.id] = {};
 
   // Track weekday call counts separately per role per physician for independent equalization
   // roleId -> physicianId -> count of weekday-only (Mon-Thu) call assignments
@@ -293,12 +294,12 @@ export async function generateSchedule(year: number): Promise<{
       // Determine if role needs filling today
       const needsFilling = (() => {
         if (role.category === "ON_CALL") return true; // every day
-        // DAYTIME roles: weekdays + holidays (hospital/ICU still need coverage)
+        // DAYTIME roles: weekdays only, skip weekends AND holidays
+        // (no hospital/ICU rounders on weekends or holidays)
         if (role.category === "DAYTIME") {
-          // All DAYTIME roles are weekdays only (Mon-Fri)
-          return !weekend;
+          return !weekend && !holidayName;
         }
-        if (role.category === "READING") return !weekend;
+        if (role.category === "READING") return !weekend && !holidayName;
         if (role.category === "SPECIAL") return !weekend;
         return !weekend;
       })();
@@ -512,7 +513,7 @@ export async function generateSchedule(year: number): Promise<{
         // so one pool doesn't penalize the other
         if (role.category === "ON_CALL" && dow === 5) {
           // Weekend call equalization — highest priority for Fridays
-          const wkendCnt = weekendBlockCount[p.id] ?? 0;
+          const wkendCnt = weekendBlockCount[role.id]?.[p.id] ?? 0;
           score += wkendCnt * 500;
         } else if (role.category === "ON_CALL" && dow >= 1 && dow <= 4) {
           // Weekday call equalization — equally strong for Mon-Thu
@@ -567,7 +568,7 @@ export async function generateSchedule(year: number): Promise<{
       // and increment weekend block count for equalization tracking
       if (role.category === "ON_CALL" && dow === 5) {
         weekendCallBlocks.set(`${dateStr}:${role.id}`, winner.id);
-        weekendBlockCount[winner.id] = (weekendBlockCount[winner.id] ?? 0) + 1;
+        weekendBlockCount[role.id][winner.id] = (weekendBlockCount[role.id][winner.id] ?? 0) + 1;
       }
 
       // Track weekday call count separately (Mon-Thu) for independent equalization
