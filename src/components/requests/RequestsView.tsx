@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -506,18 +507,18 @@ export function RequestsView({
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Start Date</Label>
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={vacStartDate}
-                        onChange={(e) => setVacStartDate(e.target.value)}
+                        onChange={setVacStartDate}
+                        placeholder="Start date"
                       />
                     </div>
                     <div>
                       <Label>End Date</Label>
-                      <Input
-                        type="date"
+                      <DatePicker
                         value={vacEndDate}
-                        onChange={(e) => setVacEndDate(e.target.value)}
+                        onChange={setVacEndDate}
+                        placeholder="End date"
                       />
                     </div>
                   </div>
