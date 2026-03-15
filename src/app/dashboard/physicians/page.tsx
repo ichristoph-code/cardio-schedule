@@ -79,8 +79,9 @@ export default async function PhysiciansPage({
         stats.weekdays++;
       }
 
-      // Weekend blocks - count only Fridays (each Fri = 1 weekend block covering Fri-Sat-Sun)
-      if (dow === 5) {
+      // Weekend General Call blocks - count only Fridays with GENERAL_CALL
+      // (each Fri = 1 weekend block covering Fri-Sat-Sun)
+      if (dow === 5 && a.roleType.name === "GENERAL_CALL") {
         stats.weekends++;
       }
     }
