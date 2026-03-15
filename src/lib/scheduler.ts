@@ -229,6 +229,10 @@ export async function generateSchedule(year: number): Promise<{
     unfilledSlots: [],
   };
 
+  // Track weekend call blocks: "Fri dateStr:roleId" -> physicianId
+  // Weekend call is a 3-day block (Fri-Sat-Sun) covered by the same MD
+  const weekendCallBlocks = new Map<string, string>();
+
   // Seeded random for deterministic tiebreaking
   let seed = year * 31337;
   function nextRandom(): number {
@@ -263,6 +267,41 @@ export async function generateSchedule(year: number): Promise<{
       })();
 
       if (!needsFilling) continue;
+
+      // Weekend call is a 3-day block (Fri-Sat-Sun) covered by a single MD.
+      // On Saturday (dow=6) or Sunday (dow=7), reuse the Friday assignment.
+      if (role.category === "ON_CALL" && (dow === 6 || dow === 7)) {
+        // Find the Friday of this weekend
+        const friday = new Date(date);
+        friday.setDate(friday.getDate() - (dow === 6 ? 1 : 2));
+        const fridayStr = formatDate(friday);
+        const blockKey = `${fridayStr}:${role.id}`;
+        const fridayPhysId = weekendCallBlocks.get(blockKey);
+
+        if (fridayPhysId) {
+          // Assign the same physician as Friday
+          assignments.push({ date: dateStr, roleTypeId: role.id, physicianId: fridayPhysId });
+
+          // Update tracking
+          assignmentCount[role.id][fridayPhysId] = (assignmentCount[role.id][fridayPhysId] ?? 0) + 1;
+          const todayKey = `${dateStr}:${fridayPhysId}`;
+          if (!dailyPhysicianRoles.has(todayKey)) dailyPhysicianRoles.set(todayKey, new Set());
+          dailyPhysicianRoles.get(todayKey)!.add(role.id);
+          if (!lastAssigned[fridayPhysId]) lastAssigned[fridayPhysId] = {};
+          lastAssigned[fridayPhysId][role.id] = dateStr;
+
+          stats.totalAssignments++;
+          stats.byPhysician[fridayPhysId] = (stats.byPhysician[fridayPhysId] ?? 0) + 1;
+
+          if (holidayName) {
+            if (!stats.holidays[holidayName]) stats.holidays[holidayName] = {};
+            stats.holidays[holidayName][role.id] = fridayPhysId;
+            const w = holidayWeights[holidayName] ?? 1;
+            holidayBurden.set(fridayPhysId, (holidayBurden.get(fridayPhysId) ?? 0) + w);
+          }
+          continue; // Skip the normal scoring — we've already assigned this
+        }
+      }
 
       // Find eligible candidates
       const eligible = physData.filter((p) => {
@@ -306,20 +345,25 @@ export async function generateSchedule(year: number): Promise<{
             }
           }
 
-          // No consecutive weekend call — if physician was on call last weekend,
-          // exclude them from this weekend's call assignments
-          if (params.noConsecutiveWeekendCall && weekend) {
+          // No consecutive weekend call — if physician was on call last weekend
+          // (Fri-Sat-Sun block), exclude from this weekend's call assignments.
+          // Weekend call is now a 3-day block anchored on Friday (dow=5).
+          if (params.noConsecutiveWeekendCall && (dow === 5 || weekend)) {
             const cats = (params.callCategories as string[]) ?? ["ON_CALL"];
             if (cats.includes(role.category)) {
-              // Find previous weekend's Saturday (7 days before current weekend's Saturday)
-              const currentSat = new Date(date);
-              if (dow === 7) currentSat.setDate(currentSat.getDate() - 1);
-              const prevSat = new Date(currentSat);
-              prevSat.setDate(prevSat.getDate() - 7);
+              // Find previous Friday (7 days before this weekend's Friday)
+              const thisFri = new Date(date);
+              if (dow === 6) thisFri.setDate(thisFri.getDate() - 1);
+              else if (dow === 7) thisFri.setDate(thisFri.getDate() - 2);
+              // thisFri is now the Friday of this weekend
+              const prevFri = new Date(thisFri);
+              prevFri.setDate(prevFri.getDate() - 7);
+              const prevSat = new Date(prevFri);
+              prevSat.setDate(prevSat.getDate() + 1);
               const prevSun = new Date(prevSat);
               prevSun.setDate(prevSun.getDate() + 1);
 
-              for (const prevDate of [prevSat, prevSun]) {
+              for (const prevDate of [prevFri, prevSat, prevSun]) {
                 const prevKey = `${formatDate(prevDate)}:${p.id}`;
                 const prevRoles = dailyPhysicianRoles.get(prevKey);
                 if (prevRoles) {
@@ -409,6 +453,11 @@ export async function generateSchedule(year: number): Promise<{
         roleTypeId: role.id,
         physicianId: winner.id,
       });
+
+      // If Friday ON_CALL, store in weekend block map for Sat/Sun reuse
+      if (role.category === "ON_CALL" && dow === 5) {
+        weekendCallBlocks.set(`${dateStr}:${role.id}`, winner.id);
+      }
 
       // Update tracking
       assignmentCount[role.id][winner.id] = (assignmentCount[role.id][winner.id] ?? 0) + 1;

@@ -86,7 +86,7 @@ const MONTH_NAMES = [
   "July","August","September","October","November","December",
 ];
 
-const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const CATEGORY_COLORS: Record<string, string> = {
   ON_CALL: "bg-red-100 text-red-800 border-red-200",
@@ -106,17 +106,15 @@ function formatDate(y: number, m: number, d: number): string {
   return `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
 }
 
-/** 0=Mon … 6=Sun */
-function dayOfWeekMon(y: number, m: number, d: number): number {
-  const js = new Date(y, m, d).getDay(); // 0=Sun
-  return js === 0 ? 6 : js - 1;
+/** 0=Sun … 6=Sat (standard JS day) */
+function dayOfWeekSun(y: number, m: number, d: number): number {
+  return new Date(y, m, d).getDay();
 }
 
 function getWeekStart(y: number, m: number, d: number): Date {
   const date = new Date(y, m, d);
-  const dow = date.getDay();
-  const diff = dow === 0 ? 6 : dow - 1; // Mon=0
-  date.setDate(date.getDate() - diff);
+  const dow = date.getDay(); // 0=Sun
+  date.setDate(date.getDate() - dow); // go back to Sunday
   return date;
 }
 
@@ -274,7 +272,7 @@ export function ScheduleViewer({
 
   function renderMonthView() {
     const daysInMonth = new Date(schedule.year, month + 1, 0).getDate();
-    const firstDow = dayOfWeekMon(schedule.year, month, 1);
+    const firstDow = dayOfWeekSun(schedule.year, month, 1);
 
     const cells: (number | null)[] = [];
     for (let i = 0; i < firstDow; i++) cells.push(null);
@@ -328,7 +326,8 @@ export function ScheduleViewer({
             const dateStr = formatDate(schedule.year, month, day);
             const dayAssignments = assignmentsByDate.get(dateStr) ?? [];
             const today = isToday(dateStr);
-            const isWeekend = idx % 7 >= 5;
+            const colIdx = idx % 7;
+            const isWeekend = colIdx === 0 || colIdx === 6;
 
             return (
               <button
@@ -456,7 +455,7 @@ export function ScheduleViewer({
                       key={dateStr}
                       className={`border p-2 text-center ${
                         today ? "bg-primary/10 font-bold" : "bg-muted"
-                      } ${i >= 5 ? "bg-muted/60" : ""}`}
+                      } ${i === 0 || i === 6 ? "bg-muted/60" : ""}`}
                     >
                       <div className="text-xs text-muted-foreground">
                         {DAY_LABELS[i]}
@@ -492,7 +491,7 @@ export function ScheduleViewer({
                         key={dateStr}
                         className={`border p-1 text-center text-xs cursor-pointer hover:bg-accent/50 transition-colors
                           ${today ? "bg-primary/5" : ""}
-                          ${dayIdx >= 5 ? "bg-muted/10" : ""}
+                          ${dayIdx === 0 || dayIdx === 6 ? "bg-muted/10" : ""}
                           ${assignment?.source === "MANUAL" ? "ring-1 ring-inset ring-amber-400" : ""}`}
                         onClick={() => {
                           if (assignment && isAdmin && schedule.status === "DRAFT") {
@@ -539,7 +538,7 @@ export function ScheduleViewer({
 
     const dayAssignments = assignmentsByDate.get(selectedDate) ?? [];
     const d = new Date(selectedDate + "T12:00:00");
-    const dayLabel = `${DAY_LABELS[dayOfWeekMon(d.getFullYear(), d.getMonth(), d.getDate())]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+    const dayLabel = `${DAY_LABELS[dayOfWeekSun(d.getFullYear(), d.getMonth(), d.getDate())]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 
     return (
       <Sheet open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
