@@ -263,6 +263,11 @@ export async function generateSchedule(year: number): Promise<{
   // Key: physicianId, Value: number of weekend blocks assigned
   const weekendBlockCount: Record<string, number> = {};
 
+  // Track weekday call counts separately per role per physician for independent equalization
+  // roleId -> physicianId -> count of weekday-only (Mon-Thu) call assignments
+  const weekdayCallCount: Record<string, Record<string, number>> = {};
+  for (const role of roleData) weekdayCallCount[role.id] = {};
+
   // Track weekly rounder blocks: "Mon dateStr:roleId" -> physicianId
   // Hospital/ICU rounders are assigned Mon-Fri as a week-long block (same MD)
   const weeklyRounderBlocks = new Map<string, string>();
@@ -503,17 +508,26 @@ export async function generateSchedule(year: number): Promise<{
           score -= 100000; // Overwhelming preference — always picked when available
         }
 
-        // Weekend call equalization — highest priority
-        // On Friday ON_CALL assignments (which anchor the whole Fri-Sat-Sun block),
-        // heavily favor physicians with fewer weekend blocks for fair distribution.
+        // ON_CALL equalization: track weekday and weekend separately
+        // so one pool doesn't penalize the other
         if (role.category === "ON_CALL" && dow === 5) {
+          // Weekend call equalization — highest priority for Fridays
           const wkendCnt = weekendBlockCount[p.id] ?? 0;
-          score += wkendCnt * 500; // Strongest weight — equalizes weekend call above all else
+          score += wkendCnt * 500;
+        } else if (role.category === "ON_CALL" && dow >= 1 && dow <= 4) {
+          // Weekday call equalization — equally strong for Mon-Thu
+          const wkdayCnt = weekdayCallCount[role.id]?.[p.id] ?? 0;
+          score += wkdayCnt * 500;
         }
 
-        // Assignment count equity (main factor for non-weekend)
+        // Assignment count equity (main factor for non-ON_CALL roles)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
-        score += cnt * 100;
+        if (role.category !== "ON_CALL") {
+          score += cnt * 100;
+        } else {
+          // For ON_CALL, still use a lighter general equity as tiebreaker
+          score += cnt * 10;
+        }
 
         // Daily load (prefer physicians with fewer roles today)
         const todayKey = `${dateStr}:${p.id}`;
@@ -554,6 +568,11 @@ export async function generateSchedule(year: number): Promise<{
       if (role.category === "ON_CALL" && dow === 5) {
         weekendCallBlocks.set(`${dateStr}:${role.id}`, winner.id);
         weekendBlockCount[winner.id] = (weekendBlockCount[winner.id] ?? 0) + 1;
+      }
+
+      // Track weekday call count separately (Mon-Thu) for independent equalization
+      if (role.category === "ON_CALL" && dow >= 1 && dow <= 4) {
+        weekdayCallCount[role.id][winner.id] = (weekdayCallCount[role.id][winner.id] ?? 0) + 1;
       }
 
       // If Monday rounder, store in weekly block map for Tue-Fri reuse
