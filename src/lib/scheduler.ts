@@ -416,8 +416,9 @@ export async function generateSchedule(year: number): Promise<{
               const yRoles = dailyPhysicianRoles.get(yKey);
               if (yRoles) {
                 for (const rid of yRoles) {
-                  const rr = roleData.find((r) => r.id === rid);
-                  if (rr && cats.includes(rr.category)) return false;
+                  // Only block if physician had the SAME role yesterday
+                  // (e.g., EP_CALL on Mon doesn't block General Call on Tue)
+                  if (rid === role.id) return false;
                 }
               }
             }
@@ -446,8 +447,8 @@ export async function generateSchedule(year: number): Promise<{
                 const prevRoles = dailyPhysicianRoles.get(prevKey);
                 if (prevRoles) {
                   for (const rid of prevRoles) {
-                    const rr = roleData.find((r) => r.id === rid);
-                    if (rr && cats.includes(rr.category)) return false;
+                    // Only block if physician had the SAME role last weekend
+                    if (rid === role.id) return false;
                   }
                 }
               }
