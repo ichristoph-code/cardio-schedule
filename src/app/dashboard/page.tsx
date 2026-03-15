@@ -105,7 +105,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-sm font-medium">
               Today&apos;s Coverage
             </CardTitle>
-            <Heart className="h-4 w-4 text-muted-foreground" />
+            <Heart className="h-4 w-4 text-rose-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{todayCoverage}</div>
@@ -123,7 +123,7 @@ export default async function DashboardPage() {
               <CardTitle className="text-sm font-medium">
                 Pending Requests
               </CardTitle>
-              <ClipboardList className="h-4 w-4 text-muted-foreground" />
+              <ClipboardList className="h-4 w-4 text-amber-500" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{totalPending}</div>
@@ -147,7 +147,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-sm font-medium">
               Current Schedule
             </CardTitle>
-            <Calendar className="h-4 w-4 text-muted-foreground" />
+            <Calendar className="h-4 w-4 text-primary" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
@@ -210,7 +210,7 @@ export default async function DashboardPage() {
                 &mdash; Go to{" "}
                 <Link
                   href="/dashboard/physicians"
-                  className="underline text-foreground"
+                  className="underline text-primary hover:text-primary/80"
                 >
                   Physicians
                 </Link>{" "}
@@ -223,7 +223,7 @@ export default async function DashboardPage() {
                 &mdash; Go to{" "}
                 <Link
                   href="/dashboard/schedule"
-                  className="underline text-foreground"
+                  className="underline text-primary hover:text-primary/80"
                 >
                   Schedule
                 </Link>{" "}
@@ -236,7 +236,7 @@ export default async function DashboardPage() {
                 &mdash; Check{" "}
                 <Link
                   href="/dashboard/requests"
-                  className="underline text-foreground"
+                  className="underline text-primary hover:text-primary/80"
                 >
                   Requests
                 </Link>{" "}
