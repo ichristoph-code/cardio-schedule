@@ -2,10 +2,17 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { MyScheduleView } from "@/components/schedule/MyScheduleView";
+import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
 
-export default async function MySchedulePage() {
+export default async function MySchedulePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
+
+  const query = await searchParams;
 
   const physicianId = (session.user as Record<string, unknown>).physicianId as
     | string
@@ -23,14 +30,15 @@ export default async function MySchedulePage() {
     );
   }
 
-  // Find latest published schedule (or draft if admin)
+  // Find all published schedules (or drafts if admin)
   const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
-  const schedule = await prisma.schedule.findFirst({
+  const allSchedules = await prisma.schedule.findMany({
     where: isAdmin ? {} : { status: "PUBLISHED" },
+    select: { id: true, year: true },
     orderBy: { year: "desc" },
   });
 
-  if (!schedule) {
+  if (allSchedules.length === 0) {
     return (
       <div className="space-y-6">
         <h1 className="text-2xl font-bold tracking-tight">My Schedule</h1>
@@ -40,6 +48,18 @@ export default async function MySchedulePage() {
       </div>
     );
   }
+
+  const availableYears = allSchedules.map((s) => s.year);
+  const currentYear = new Date().getFullYear();
+
+  // Selected year: URL param > current year > latest available
+  const selectedYear = query.year
+    ? parseInt(query.year, 10)
+    : availableYears.includes(currentYear)
+      ? currentYear
+      : availableYears[0];
+
+  const schedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
 
   const [assignments, physician, vacations, noCallDays] = await Promise.all([
     prisma.scheduleAssignment.findMany({
@@ -93,14 +113,21 @@ export default async function MySchedulePage() {
 
   return (
     <div className="space-y-6">
-      <div>
+      <div className="flex items-center gap-3">
         <h1 className="text-2xl font-bold tracking-tight">My Schedule</h1>
-        <p className="text-muted-foreground">
-          {physicianName}&apos;s assignments for {schedule.year}
-        </p>
+        {availableYears.length > 1 && (
+          <CalendarYearSelect
+            years={availableYears}
+            selectedYear={schedule.year}
+          />
+        )}
       </div>
+      <p className="text-muted-foreground">
+        {physicianName}&apos;s assignments for {schedule.year}
+      </p>
 
       <MyScheduleView
+        key={schedule.year}
         year={schedule.year}
         physicianName={physicianName}
         assignments={assignments.map((a) => ({

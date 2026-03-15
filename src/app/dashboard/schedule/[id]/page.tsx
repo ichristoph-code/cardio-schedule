@@ -67,6 +67,7 @@ export default async function ScheduleDetailPage({
   return (
     <div className="space-y-4">
       <ScheduleViewer
+        key={schedule.id}
         schedule={{
           id: schedule.id,
           year: schedule.year,

@@ -5,11 +5,14 @@ import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
 
 export default async function PhysicianCalendarPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ year?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -18,6 +21,7 @@ export default async function PhysicianCalendarPage({
   if (!isAdmin) redirect("/dashboard");
 
   const { id } = await params;
+  const query = await searchParams;
 
   const physician = await prisma.physician.findUnique({
     where: { id },
@@ -26,12 +30,13 @@ export default async function PhysicianCalendarPage({
 
   if (!physician) notFound();
 
-  // Find latest schedule
-  const schedule = await prisma.schedule.findFirst({
+  // Load all available schedule years
+  const allSchedules = await prisma.schedule.findMany({
+    select: { id: true, year: true },
     orderBy: { year: "desc" },
   });
 
-  if (!schedule) {
+  if (allSchedules.length === 0) {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
@@ -50,6 +55,18 @@ export default async function PhysicianCalendarPage({
       </div>
     );
   }
+
+  const availableYears = allSchedules.map((s) => s.year);
+  const currentYear = new Date().getFullYear();
+
+  // Selected year: URL param > current year > latest available
+  const selectedYear = query.year
+    ? parseInt(query.year, 10)
+    : availableYears.includes(currentYear)
+      ? currentYear
+      : availableYears[0];
+
+  const schedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
 
   const [assignments, vacations, noCallDays] = await Promise.all([
     prisma.scheduleAssignment.findMany({
@@ -98,9 +115,16 @@ export default async function PhysicianCalendarPage({
         <h1 className="text-2xl font-bold tracking-tight">
           {physician.firstName} {physician.lastName} — {schedule.year} Calendar
         </h1>
+        {availableYears.length > 1 && (
+          <CalendarYearSelect
+            years={availableYears}
+            selectedYear={schedule.year}
+          />
+        )}
       </div>
 
       <PhysicianCalendar
+        key={schedule.year}
         year={schedule.year}
         physicianName={`${physician.firstName} ${physician.lastName}`}
         assignments={assignments.map((a) => ({
