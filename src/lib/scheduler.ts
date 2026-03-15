@@ -238,6 +238,11 @@ export async function generateSchedule(year: number): Promise<{
     (r) => (r.parameters as Record<string, unknown>).preferredPhysician === true && r.physicianId
   );
 
+  // Preferred day-of-week rules (e.g., Christoph reads MPI on Mondays)
+  const preferredDayRules = prerequisiteRules.filter(
+    (r) => (r.parameters as Record<string, unknown>).preferredDayOfWeek != null && r.physicianId
+  );
+
   // Tracking structures
   const assignmentCount: Record<string, Record<string, number>> = {};
   const dailyPhysicianRoles = new Map<string, Set<string>>(); // "date:physId" -> roleIds
@@ -508,6 +513,17 @@ export async function generateSchedule(year: number): Promise<{
         const prefRule = preferredPhysicianRules.find((r) => r.roleTypeId === role.id);
         if (prefRule && prefRule.physicianId === p.id) {
           score -= 100000; // Overwhelming preference — always picked when available
+        }
+
+        // Preferred day-of-week rule: favor physician on their preferred day
+        const dayPrefRule = preferredDayRules.find(
+          (r) => r.roleTypeId === role.id && r.physicianId === p.id
+        );
+        if (dayPrefRule) {
+          const prefDay = (dayPrefRule.parameters as Record<string, unknown>).preferredDayOfWeek as number;
+          if (dow === prefDay) {
+            score -= 50000; // Strong day preference — picked on this day when available
+          }
         }
 
         // ON_CALL equalization: track weekday and weekend separately

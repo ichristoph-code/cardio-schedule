@@ -30,6 +30,14 @@ const SUBSPECIALTY_OPTIONS = [
   { value: "isEP", label: "Electrophysiologist (EP)" },
 ];
 
+const DAY_OF_WEEK_OPTIONS = [
+  { value: 1, label: "Monday" },
+  { value: 2, label: "Tuesday" },
+  { value: 3, label: "Wednesday" },
+  { value: 4, label: "Thursday" },
+  { value: 5, label: "Friday" },
+];
+
 const ROLE_CATEGORIES = [
   { value: "ON_CALL", label: "On Call" },
   { value: "DAYTIME", label: "Daytime" },
@@ -93,6 +101,8 @@ function parseExistingParameters(
       requireOfficeDay: params.requireOfficeDay === true,
       coupleWithGeneralCall: params.coupleWithGeneralCall === true,
       preferredPhysician: params.preferredPhysician === true,
+      preferredDayOfWeekEnabled: params.preferredDayOfWeek != null,
+      preferredDayOfWeek: (params.preferredDayOfWeek as number) ?? 1,
     };
   }
   if (ruleType === "DISTRIBUTION") {
@@ -153,6 +163,14 @@ export function RuleForm({
   );
   const [physicianId, setPhysicianId] = useState(initialData?.physicianId ?? "");
 
+  // PREREQUISITE: Preferred Day of Week
+  const [preferredDayOfWeekEnabled, setPreferredDayOfWeekEnabled] = useState(
+    "preferredDayOfWeekEnabled" in existingParams ? existingParams.preferredDayOfWeekEnabled === true : false
+  );
+  const [preferredDay, setPreferredDay] = useState<number>(
+    "preferredDayOfWeek" in existingParams ? (existingParams.preferredDayOfWeek as number) : 1
+  );
+
   // DISTRIBUTION params
   const [distributeEvenly, setDistributeEvenly] = useState(
     "distributeEvenly" in existingParams ? existingParams.distributeEvenly === true : true
@@ -200,6 +218,7 @@ export function RuleForm({
         if (requireOfficeDay) prereqParams.requireOfficeDay = true;
         if (coupleWithGeneralCall) prereqParams.coupleWithGeneralCall = true;
         if (preferredPhysician) prereqParams.preferredPhysician = true;
+        if (preferredDayOfWeekEnabled) prereqParams.preferredDayOfWeek = preferredDay;
         return prereqParams;
       }
       case "DISTRIBUTION":
@@ -434,6 +453,55 @@ export function RuleForm({
                       </option>
                     ))}
                   </select>
+                </div>
+              )}
+            </div>
+            <div className="space-y-2">
+              <div className="flex items-center gap-3">
+                <Switch
+                  checked={preferredDayOfWeekEnabled}
+                  onCheckedChange={setPreferredDayOfWeekEnabled}
+                />
+                <div>
+                  <Label>Preferred Day of Week</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Assign this physician to this role on a specific day each week when available
+                  </p>
+                </div>
+              </div>
+              {preferredDayOfWeekEnabled && (
+                <div className="ml-12 space-y-3">
+                  <div className="space-y-1">
+                    <Label htmlFor="dayPhysicianSelect">Physician</Label>
+                    <select
+                      id="dayPhysicianSelect"
+                      value={physicianId}
+                      onChange={(e) => setPhysicianId(e.target.value)}
+                      className={selectClassName}
+                    >
+                      <option value="">Select a physician...</option>
+                      {physicians.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          Dr. {p.lastName}, {p.firstName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label htmlFor="dayOfWeekSelect">Day</Label>
+                    <select
+                      id="dayOfWeekSelect"
+                      value={preferredDay}
+                      onChange={(e) => setPreferredDay(Number(e.target.value))}
+                      className={selectClassName}
+                    >
+                      {DAY_OF_WEEK_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
                 </div>
               )}
             </div>
