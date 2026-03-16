@@ -97,6 +97,23 @@ function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split("T")[0];
 }
 
+/** Shorten long role names for calendar cells */
+function shortRoleName(name: string): string {
+  // Common abbreviations for readability in small cells
+  return name
+    .replace("Interventional Call", "Intv Call")
+    .replace("Interventional", "Intv")
+    .replace("Hospital Rounder", "Hosp Rnd")
+    .replace("ICU Rounder", "ICU Rnd")
+    .replace("Cardioversion / TEE", "CV/TEE")
+    .replace("Doc in the Box", "DITB")
+    .replace("CT FFR Reader", "CT FFR")
+    .replace("ECG Reader", "ECG")
+    .replace("MPI Reader", "MPI")
+    .replace("Echo Reader", "Echo")
+    .replace("General Call", "Gen Call");
+}
+
 /** Returns a Map of "YYYY-MM-DD" → holiday name */
 function getHolidayDatesForYear(year: number): Map<string, string> {
   const map = new Map<string, string>();
@@ -306,55 +323,56 @@ export function PhysicianCalendar({
 
   return (
     <div className="space-y-5">
-      {/* Print button */}
-      <div className="flex justify-end no-print">
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
-          <Printer className="h-4 w-4" />
+      {/* Summary stats — compact colored cards with print button */}
+      <div className="flex items-center justify-between mb-1 no-print">
+        <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+          {year} Summary
+        </h4>
+        <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5 h-7 text-xs">
+          <Printer className="h-3.5 w-3.5" />
           Print
         </Button>
       </div>
-
-      {/* Summary stats — colorful metric cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
         {roleCounts.map(([role, { count, category }]) => (
           <div
             key={role}
-            className={`rounded-xl border p-3.5 ${CATEGORY_BG[category] ?? "bg-muted/30"} transition-shadow hover:shadow-md`}
+            className={`rounded-lg border p-2.5 ${CATEGORY_BG[category] ?? "bg-muted/30"}`}
           >
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className={`w-2.5 h-2.5 rounded-full ${CATEGORY_DOT[category] ?? "bg-gray-400"}`} />
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
-                {role}
+            <div className="flex items-center gap-1.5 mb-1">
+              <span className={`w-2 h-2 rounded-full ${CATEGORY_DOT[category] ?? "bg-gray-400"}`} />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground truncate">
+                {shortRoleName(role)}
               </span>
             </div>
-            <div className={`text-2xl font-bold tabular-nums ${CATEGORY_ICON_COLOR[category] ?? ""}`}>
+            <div className={`text-xl font-bold tabular-nums ${CATEGORY_ICON_COLOR[category] ?? ""}`}>
               {count}
             </div>
           </div>
         ))}
 
         {totalVacationDays > 0 && (
-          <div className="rounded-xl border p-3.5 bg-amber-50 dark:bg-amber-950/30 transition-shadow hover:shadow-md">
-            <div className="flex items-center gap-2 mb-1.5">
-              <Palmtree className="w-3.5 h-3.5 text-amber-500" />
-              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+          <div className="rounded-lg border p-2.5 bg-amber-50 dark:bg-amber-950/30">
+            <div className="flex items-center gap-1.5 mb-1">
+              <Palmtree className="w-3 h-3 text-amber-500" />
+              <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Vacation
               </span>
             </div>
-            <div className="text-2xl font-bold tabular-nums text-amber-600">
+            <div className="text-xl font-bold tabular-nums text-amber-600">
               {totalVacationDays}
             </div>
           </div>
         )}
 
-        <div className="rounded-xl border p-3.5 bg-primary/5 dark:bg-primary/10 transition-shadow hover:shadow-md">
-          <div className="flex items-center gap-2 mb-1.5">
-            <Activity className="w-3.5 h-3.5 text-primary" />
-            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+        <div className="rounded-lg border p-2.5 bg-primary/5 dark:bg-primary/10">
+          <div className="flex items-center gap-1.5 mb-1">
+            <Activity className="w-3 h-3 text-primary" />
+            <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               Total
             </span>
           </div>
-          <div className="text-2xl font-bold tabular-nums text-primary">
+          <div className="text-xl font-bold tabular-nums text-primary">
             {assignments.length}
           </div>
         </div>
@@ -399,12 +417,14 @@ export function PhysicianCalendar({
       </div>
 
       {/* Day-of-week headers */}
-      <div className="grid grid-cols-7 gap-px">
+      <div className="grid grid-cols-7">
         {DAY_LABELS.map((d, i) => (
           <div
             key={d}
-            className={`text-center text-xs font-semibold uppercase tracking-wider py-2 ${
-              i === 0 || i === 6 ? "text-slate-400 dark:text-slate-500" : "text-muted-foreground"
+            className={`text-center text-[11px] font-semibold uppercase tracking-widest py-2.5 ${
+              i === 0 || i === 6
+                ? "text-slate-400 dark:text-slate-500 bg-slate-50/50 dark:bg-slate-900/10"
+                : "text-muted-foreground"
             }`}
           >
             {d}
@@ -413,10 +433,12 @@ export function PhysicianCalendar({
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-[1px] bg-border/50 rounded-xl overflow-hidden shadow-sm">
+      <div className="grid grid-cols-7 gap-[1px] bg-border/40 rounded-xl overflow-hidden shadow-sm ring-1 ring-border/40">
         {cells.map((day, idx) => {
           if (day === null) {
-            return <div key={idx} className="bg-muted/20 min-h-[90px]" />;
+            const emptyColIdx = idx % 7;
+            const emptyIsWeekend = emptyColIdx === 0 || emptyColIdx === 6;
+            return <div key={idx} className={`min-h-[105px] ${emptyIsWeekend ? "bg-slate-50/60 dark:bg-slate-900/15" : "bg-muted/10"}`} />;
           }
 
           const dateStr = formatDate(year, month, day);
@@ -429,29 +451,30 @@ export function PhysicianCalendar({
           const holidayName = holidays.get(dateStr);
 
           // Determine cell background — layered priority
-          let cellBg = "bg-white dark:bg-background";
-          if (vacation) cellBg = "bg-gradient-to-br from-amber-50 to-yellow-50/80 dark:from-amber-950/30 dark:to-yellow-950/20";
-          else if (holidayName) cellBg = "bg-gradient-to-br from-rose-50 to-pink-50/80 dark:from-rose-950/30 dark:to-pink-950/20";
-          else if (noCall) cellBg = "bg-slate-50/80 dark:bg-slate-900/30";
-          else if (isWeekend) cellBg = "bg-slate-50 dark:bg-slate-900/20";
+          let cellBg = isWeekend
+            ? "bg-slate-50/60 dark:bg-slate-900/15"
+            : "bg-white dark:bg-background";
+          if (vacation) cellBg = "bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-yellow-950/20";
+          else if (holidayName) cellBg = "bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/20";
+          else if (noCall) cellBg = "bg-slate-100/60 dark:bg-slate-900/30";
 
           return (
             <button
               key={idx}
-              className={`min-h-[90px] p-1.5 text-left hover:bg-accent/40 transition-all cursor-pointer relative group
+              className={`min-h-[105px] p-2 text-left hover:brightness-[0.97] active:brightness-95 transition-all cursor-pointer relative group
                 ${cellBg}
-                ${today ? "ring-2 ring-primary ring-inset shadow-[inset_0_0_12px_rgba(59,130,246,0.08)]" : ""}`}
+                ${today ? "ring-2 ring-primary ring-inset" : ""}`}
               onClick={() => setSelectedDate(dateStr)}
             >
               {/* Day number */}
-              <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center justify-between mb-1.5">
                 <span
-                  className={`text-sm font-semibold inline-flex items-center justify-center ${
+                  className={`inline-flex items-center justify-center leading-none ${
                     today
-                      ? "bg-primary text-white w-7 h-7 rounded-full"
+                      ? "bg-primary text-white w-7 h-7 rounded-full text-sm font-bold shadow-sm"
                       : isWeekend
-                        ? "text-slate-400 dark:text-slate-500"
-                        : "text-foreground"
+                        ? "text-slate-400 dark:text-slate-500 text-sm font-medium"
+                        : "text-foreground text-sm font-semibold"
                   }`}
                 >
                   {day}
@@ -463,16 +486,16 @@ export function PhysicianCalendar({
 
               {/* Holiday label */}
               {holidayName && (
-                <div className="text-[10px] leading-tight font-semibold text-rose-500 dark:text-rose-400 truncate mb-0.5">
+                <div className="text-[10px] leading-snug font-bold text-rose-500 dark:text-rose-400 truncate mb-1">
                   {holidayName}
                 </div>
               )}
 
               {/* Vacation label */}
               {vacation && (
-                <div className="flex items-center gap-0.5 mb-0.5">
-                  <Palmtree className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />
-                  <span className="text-[10px] leading-tight font-semibold text-amber-600 dark:text-amber-400 truncate">
+                <div className="flex items-center gap-1 mb-1">
+                  <Palmtree className="w-3 h-3 text-amber-500 flex-shrink-0" />
+                  <span className="text-[11px] leading-snug font-semibold text-amber-600 dark:text-amber-400">
                     Vacation
                   </span>
                 </div>
@@ -480,38 +503,41 @@ export function PhysicianCalendar({
 
               {/* No-call label */}
               {noCall && !vacation && (
-                <div className="flex items-center gap-0.5 mb-0.5">
-                  <PhoneOff className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />
-                  <span className="text-[10px] leading-tight font-medium text-slate-500 dark:text-slate-400 truncate">
+                <div className="flex items-center gap-1 mb-1">
+                  <PhoneOff className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                  <span className="text-[11px] leading-snug font-medium text-slate-500 dark:text-slate-400">
                     No Call
                   </span>
                 </div>
               )}
 
-              {/* Assignments */}
+              {/* Assignments — colored bars */}
               <div className="space-y-0.5">
-                {dayAssigns.slice(0, 3).map((a) => (
+                {dayAssigns.slice(0, 4).map((a) => (
                   <div
                     key={a.id}
-                    className={`flex items-center gap-1 text-[10px] leading-tight truncate rounded-sm px-1 py-[1px] ${CATEGORY_BG[a.roleCategory] ?? ""}`}
+                    className={`rounded px-1.5 py-[2px] text-[11px] leading-snug font-medium truncate border-l-[3px] ${
+                      a.roleCategory === "ON_CALL"
+                        ? "border-l-red-400 bg-red-50/80 text-red-700 dark:bg-red-950/40 dark:text-red-300"
+                        : a.roleCategory === "DAYTIME"
+                          ? "border-l-blue-400 bg-blue-50/80 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300"
+                          : a.roleCategory === "READING"
+                            ? "border-l-emerald-400 bg-emerald-50/80 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
+                            : "border-l-purple-400 bg-purple-50/80 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300"
+                    }`}
                   >
-                    <span
-                      className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
-                        CATEGORY_DOT[a.roleCategory] ?? "bg-gray-400"
-                      }`}
-                    />
-                    <span className="truncate font-medium">{a.roleDisplayName}</span>
+                    {shortRoleName(a.roleDisplayName)}
                   </div>
                 ))}
-                {dayAssigns.length > 3 && (
+                {dayAssigns.length > 4 && (
                   <div className="text-[10px] text-muted-foreground font-medium pl-1">
-                    +{dayAssigns.length - 3} more
+                    +{dayAssigns.length - 4} more
                   </div>
                 )}
               </div>
 
-              {/* Hover indicator */}
-              <div className="absolute inset-0 rounded-none border-2 border-transparent group-hover:border-primary/20 transition-colors pointer-events-none" />
+              {/* Hover overlay */}
+              <div className="absolute inset-0 border-2 border-transparent group-hover:border-primary/20 transition-colors pointer-events-none" />
             </button>
           );
         })}
