@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { PhysicianProfileForm } from "@/components/physicians/PhysicianProfileForm";
+import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -23,6 +24,37 @@ export default async function PhysicianDetailPage({ params }: PageProps) {
   const roleTypes = await prisma.roleType.findMany({
     orderBy: { sortOrder: "asc" },
   });
+
+  // Check MPI eligibility and existing day preference for this physician
+  const mpiRoleType = roleTypes.find((r) => r.name === "MPI_READER");
+  let isMpiEligible = false;
+  let mpiPreferredDay: number | null = null;
+
+  if (mpiRoleType) {
+    isMpiEligible = physician.eligibilities.some(
+      (e) => e.roleTypeId === mpiRoleType.id
+    );
+
+    if (isMpiEligible) {
+      const mpiRules = await prisma.schedulingRule.findMany({
+        where: {
+          physicianId: id,
+          roleTypeId: mpiRoleType.id,
+          ruleType: "PREREQUISITE",
+          isActive: true,
+        },
+      });
+      const dayRule = mpiRules.find(
+        (r) =>
+          (r.parameters as Record<string, unknown>).preferredDayOfWeek != null
+      );
+      if (dayRule) {
+        mpiPreferredDay = (
+          dayRule.parameters as Record<string, unknown>
+        ).preferredDayOfWeek as number;
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -52,6 +84,12 @@ export default async function PhysicianDetailPage({ params }: PageProps) {
           displayName: r.displayName,
           category: r.category,
         }))}
+      />
+
+      <MpiDayPreference
+        initialPreferredDay={mpiPreferredDay}
+        isMpiEligible={isMpiEligible}
+        physicianId={id}
       />
     </div>
   );

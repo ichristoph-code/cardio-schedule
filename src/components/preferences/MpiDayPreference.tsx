@@ -27,11 +27,14 @@ const selectClassName =
 interface MpiDayPreferenceProps {
   initialPreferredDay: number | null;
   isMpiEligible: boolean;
+  /** When set, the component operates on behalf of this physician (admin mode) */
+  physicianId?: string;
 }
 
 export function MpiDayPreference({
   initialPreferredDay,
   isMpiEligible,
+  physicianId,
 }: MpiDayPreferenceProps) {
   const [selectedDay, setSelectedDay] = useState<string>(
     initialPreferredDay != null ? String(initialPreferredDay) : ""
@@ -53,6 +56,7 @@ export function MpiDayPreference({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           preferredDay: selectedDay ? Number(selectedDay) : null,
+          ...(physicianId ? { physicianId } : {}),
         }),
       });
 
@@ -83,8 +87,9 @@ export function MpiDayPreference({
           <CardTitle>MPI Reading Day Preference</CardTitle>
         </div>
         <CardDescription>
-          Choose your preferred day of the week for MPI reading. The scheduler
-          will prioritize assigning you on this day when possible.
+          {physicianId
+            ? "Set this physician's preferred day for MPI reading. The scheduler will prioritize this day when possible."
+            : "Choose your preferred day of the week for MPI reading. The scheduler will prioritize assigning you on this day when possible."}
         </CardDescription>
       </CardHeader>
       <CardContent>

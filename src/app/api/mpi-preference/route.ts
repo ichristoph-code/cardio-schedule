@@ -3,14 +3,25 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { auditLog } from "@/lib/audit";
 
-// GET /api/mpi-preference — get physician's preferred MPI reading day
-export async function GET() {
+// GET /api/mpi-preference?physicianId=xxx — get physician's preferred MPI reading day
+// Admins can pass ?physicianId= to query any physician; non-admins use their own
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const physicianId = (session.user as Record<string, unknown>).physicianId as string | null;
+  const userRole = (session.user as Record<string, unknown>).role as string;
+  const isAdmin = userRole === "ADMIN";
+
+  const { searchParams } = new URL(req.url);
+  const queryPhysicianId = searchParams.get("physicianId");
+
+  // Admins can specify a physicianId; non-admins use their own
+  const physicianId = isAdmin && queryPhysicianId
+    ? queryPhysicianId
+    : ((session.user as Record<string, unknown>).physicianId as string | null);
+
   if (!physicianId) {
     return NextResponse.json({ eligible: false, preferredDay: null });
   }
@@ -51,18 +62,26 @@ export async function GET() {
 }
 
 // POST /api/mpi-preference — set or clear preferred MPI reading day
+// Admins can include physicianId in body to set for any physician
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const physicianId = (session.user as Record<string, unknown>).physicianId as string | null;
-  if (!physicianId) {
-    return NextResponse.json({ error: "Only physicians can set MPI preferences" }, { status: 403 });
-  }
+  const userRole = (session.user as Record<string, unknown>).role as string;
+  const isAdmin = userRole === "ADMIN";
 
-  const { preferredDay } = await req.json();
+  const { preferredDay, physicianId: bodyPhysicianId } = await req.json();
+
+  // Admins can specify a physicianId; non-admins use their own
+  const physicianId = isAdmin && bodyPhysicianId
+    ? bodyPhysicianId
+    : ((session.user as Record<string, unknown>).physicianId as string | null);
+
+  if (!physicianId) {
+    return NextResponse.json({ error: "No physician specified" }, { status: 403 });
+  }
 
   // Validate: null (clear) or integer 1-5
   if (preferredDay !== null && (typeof preferredDay !== "number" || preferredDay < 1 || preferredDay > 5)) {
