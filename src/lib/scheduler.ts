@@ -278,6 +278,29 @@ export async function generateSchedule(year: number): Promise<{
   // Hospital/ICU rounders are assigned Mon-Fri as a week-long block (same MD)
   const weeklyRounderBlocks = new Map<string, string>();
 
+  // --- FTE-proportional allocation for READING roles ---
+  // Pre-compute each eligible physician's FTE share per reading role.
+  // If a role has 3 eligible MDs with FTE 200, 200, and 100, their shares
+  // are 0.4, 0.4, 0.2 — so the half-time doc gets ~half the days.
+  // fteShareByRole: roleId -> physId -> proportional share (0-1, sums to 1)
+  const fteShareByRole: Record<string, Record<string, number>> = {};
+  // Monthly assignment tracking for READING roles: "roleId:month" -> physId -> count
+  const monthlyReadingCount: Record<string, Record<string, number>> = {};
+
+  for (const role of roleData) {
+    if (role.category !== "READING") continue;
+
+    const eligiblePhys = physData.filter((p) => p.eligibleRoleIds.has(role.id));
+    const totalFte = eligiblePhys.reduce((sum, p) => sum + p.fteDays, 0);
+
+    if (totalFte > 0) {
+      fteShareByRole[role.id] = {};
+      for (const p of eligiblePhys) {
+        fteShareByRole[role.id][p.id] = p.fteDays / totalFte;
+      }
+    }
+  }
+
   // Seeded random for deterministic tiebreaking
   let seed = year * 31337;
   function nextRandom(): number {
@@ -540,7 +563,21 @@ export async function generateSchedule(year: number): Promise<{
 
         // Assignment count equity (main factor for non-ON_CALL roles)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
-        if (role.category !== "ON_CALL") {
+        if (role.category === "READING" && fteShareByRole[role.id]?.[p.id]) {
+          // FTE-proportional equity: normalize count by physician's target share.
+          // A physician with 40% share who has 10 assignments scores the same as
+          // one with 20% share who has 5 — both are "on pace" relative to FTE.
+          const share = fteShareByRole[role.id][p.id];
+          const normalized = cnt / share; // higher = more "over quota"
+          score += normalized * 100;
+
+          // Monthly balancing: within the current month, nudge toward FTE-proportional
+          // distribution so assignments spread evenly across the year, not just annually.
+          const monthKey = `${role.id}:${date.getMonth()}`;
+          const monthlyCnt = monthlyReadingCount[monthKey]?.[p.id] ?? 0;
+          const monthlyNormalized = monthlyCnt / share;
+          score += monthlyNormalized * 40; // softer weight — monthly is a nudge, yearly is precise
+        } else if (role.category !== "ON_CALL") {
           score += cnt * 100;
         } else {
           // For ON_CALL, still use a lighter general equity as tiebreaker
@@ -600,6 +637,13 @@ export async function generateSchedule(year: number): Promise<{
 
       // Update tracking
       assignmentCount[role.id][winner.id] = (assignmentCount[role.id][winner.id] ?? 0) + 1;
+
+      // Monthly reading count for FTE-proportional monthly balancing
+      if (role.category === "READING") {
+        const monthKey = `${role.id}:${date.getMonth()}`;
+        if (!monthlyReadingCount[monthKey]) monthlyReadingCount[monthKey] = {};
+        monthlyReadingCount[monthKey][winner.id] = (monthlyReadingCount[monthKey][winner.id] ?? 0) + 1;
+      }
 
       const todayKey = `${dateStr}:${winner.id}`;
       if (!dailyPhysicianRoles.has(todayKey)) dailyPhysicianRoles.set(todayKey, new Set());
