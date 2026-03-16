@@ -2,6 +2,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AnnualPreferencesView } from "@/components/preferences/AnnualPreferencesView";
+import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
 
 export default async function MyPreferencesPage() {
   const session = await auth();
@@ -31,7 +32,7 @@ export default async function MyPreferencesPage() {
   const yearStart = new Date(`${currentYear}-01-01`);
   const yearEnd = new Date(`${currentYear}-12-31`);
 
-  const [vacations, noCallDays] = await Promise.all([
+  const [vacations, noCallDays, mpiRoleType] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId,
@@ -49,7 +50,36 @@ export default async function MyPreferencesPage() {
       },
       orderBy: { date: "asc" },
     }),
+    prisma.roleType.findFirst({ where: { name: "MPI_READER" } }),
   ]);
+
+  // Check MPI eligibility and existing day preference
+  let isMpiEligible = false;
+  let mpiPreferredDay: number | null = null;
+
+  if (mpiRoleType) {
+    const eligibility = await prisma.physicianEligibility.findFirst({
+      where: { physicianId, roleTypeId: mpiRoleType.id },
+    });
+    isMpiEligible = !!eligibility;
+
+    if (isMpiEligible) {
+      const mpiRules = await prisma.schedulingRule.findMany({
+        where: {
+          physicianId,
+          roleTypeId: mpiRoleType.id,
+          ruleType: "PREREQUISITE",
+          isActive: true,
+        },
+      });
+      const dayRule = mpiRules.find(
+        (r) => (r.parameters as Record<string, unknown>).preferredDayOfWeek != null
+      );
+      if (dayRule) {
+        mpiPreferredDay = (dayRule.parameters as Record<string, unknown>).preferredDayOfWeek as number;
+      }
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -61,6 +91,11 @@ export default async function MyPreferencesPage() {
           be assigned night call.
         </p>
       </div>
+
+      <MpiDayPreference
+        initialPreferredDay={mpiPreferredDay}
+        isMpiEligible={isMpiEligible}
+      />
 
       <AnnualPreferencesView
         physicianId={physicianId}
