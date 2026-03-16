@@ -125,6 +125,37 @@ function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split("T")[0];
 }
 
+/** Returns a Map of "YYYY-MM-DD" → holiday name for all US holidays in the given year */
+function getHolidayDatesForYear(year: number): Map<string, string> {
+  const map = new Map<string, string>();
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  // Fixed dates
+  map.set(fmt(new Date(year, 0, 1)), "New Year's Day");
+  map.set(fmt(new Date(year, 6, 4)), "Independence Day");
+  map.set(fmt(new Date(year, 11, 24)), "Christmas Eve");
+  map.set(fmt(new Date(year, 11, 25)), "Christmas Day");
+
+  // Memorial Day: last Monday of May
+  const memDay = new Date(year, 4, 31);
+  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
+  map.set(fmt(memDay), "Memorial Day");
+
+  // Labor Day: first Monday of September
+  const labDay = new Date(year, 8, 1);
+  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
+  map.set(fmt(labDay), "Labor Day");
+
+  // Thanksgiving: fourth Thursday of November
+  const tg = new Date(year, 10, 1);
+  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
+  tg.setDate(tg.getDate() + 21);
+  map.set(fmt(tg), "Thanksgiving");
+
+  return map;
+}
+
 // Physician color palette — maximally distinct colors, ordered for contrast between neighbors
 // Removed near-duplicates (sky≈cyan, teal≈emerald, pink≈rose, amber≈orange)
 // Using 200-level backgrounds for stronger visual separation
@@ -469,14 +500,23 @@ export function ScheduleViewer({
   // --- Week Grid ---
 
   function renderWeekView() {
+    const VISIBLE_DAYS = 31;
+
     const weekDates: string[] = [];
     const ws = new Date(weekStart);
-    for (let i = 0; i < 14; i++) {
+    for (let i = 0; i < VISIBLE_DAYS; i++) {
       const d = new Date(ws);
       d.setDate(d.getDate() + i);
       weekDates.push(
         `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
       );
+    }
+
+    // Holiday lookup for the schedule year (and potentially year+1 if range spans Dec→Jan)
+    const holidays = getHolidayDatesForYear(schedule.year);
+    if (schedule.year + 1 <= new Date().getFullYear() + 2) {
+      const nextYearHolidays = getHolidayDatesForYear(schedule.year + 1);
+      nextYearHolidays.forEach((v, k) => holidays.set(k, v));
     }
 
     // Boundaries: allow navigating from the week containing Jan 1
@@ -499,10 +539,10 @@ export function ScheduleViewer({
       });
     }
 
-    const weekLabel = (() => {
+    const rangeLabel = (() => {
       const s = new Date(weekStart);
       const e = new Date(weekStart);
-      e.setDate(e.getDate() + 13);
+      e.setDate(e.getDate() + VISIBLE_DAYS - 1);
       return `${MONTH_NAMES[s.getMonth()].slice(0, 3)} ${s.getDate()} \u2013 ${MONTH_NAMES[e.getMonth()].slice(0, 3)} ${e.getDate()}, ${e.getFullYear()}`;
     })();
 
@@ -513,7 +553,7 @@ export function ScheduleViewer({
           <Button variant="ghost" size="sm" onClick={prevWeek}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
-          <h3 className="text-lg font-semibold">{weekLabel}</h3>
+          <h3 className="text-lg font-semibold">{rangeLabel}</h3>
           <Button variant="ghost" size="sm" onClick={nextWeek}>
             <ChevronRight className="h-4 w-4" />
           </Button>
@@ -529,17 +569,31 @@ export function ScheduleViewer({
                   const d = new Date(dateStr + "T12:00:00");
                   const dow = d.getDay(); // 0=Sun
                   const today = isToday(dateStr);
+                  const isWeekend = dow === 0 || dow === 6;
+                  const holidayName = holidays.get(dateStr);
                   return (
                     <th
                       key={dateStr}
                       className={`border p-2 text-center min-w-[90px] ${
-                        today ? "bg-primary/10 font-bold" : "bg-muted"
-                      } ${dow === 0 || dow === 6 ? "bg-muted/60" : ""}`}
+                        today
+                          ? "bg-primary/10 font-bold"
+                          : holidayName
+                            ? "bg-rose-100 dark:bg-rose-950/40"
+                            : isWeekend
+                              ? "bg-slate-200/70 dark:bg-slate-800/50"
+                              : "bg-muted"
+                      }`}
+                      title={holidayName ?? undefined}
                     >
                       <div className="text-xs text-muted-foreground">
                         {DAY_LABELS[dow]}
                       </div>
                       <div>{d.getDate()}</div>
+                      {holidayName && (
+                        <div className="text-[10px] text-rose-600 dark:text-rose-400 font-medium leading-tight mt-0.5 truncate max-w-[80px]">
+                          {holidayName}
+                        </div>
+                      )}
                     </th>
                   );
                 })}
@@ -563,6 +617,8 @@ export function ScheduleViewer({
                     );
                     const today = isToday(dateStr);
                     const dow = new Date(dateStr + "T12:00:00").getDay();
+                    const isWeekend = dow === 0 || dow === 6;
+                    const isHoliday = holidays.has(dateStr);
 
                     const pColor = assignment ? physicianColors.get(assignment.physicianId) : undefined;
 
@@ -570,8 +626,7 @@ export function ScheduleViewer({
                       <td
                         key={dateStr}
                         className={`border p-1 text-center text-xs min-w-[90px] cursor-pointer hover:bg-accent/50 transition-colors
-                          ${today ? "bg-primary/5" : ""}
-                          ${dow === 0 || dow === 6 ? "bg-muted/10" : ""}
+                          ${today ? "bg-primary/5" : isHoliday ? "bg-rose-50 dark:bg-rose-950/20" : isWeekend ? "bg-slate-100 dark:bg-slate-800/30" : ""}
                           ${assignment?.source === "MANUAL" ? "ring-1 ring-inset ring-amber-400" : ""}`}
                         onClick={() => {
                           if (assignment && isAdmin) {
@@ -599,6 +654,14 @@ export function ScheduleViewer({
         </div>
 
         <div className="flex gap-4 mt-3 text-xs text-muted-foreground flex-wrap">
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-slate-200 dark:bg-slate-700 border border-slate-300 dark:border-slate-600" />
+            Weekend
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-rose-100 dark:bg-rose-900 border border-rose-300 dark:border-rose-700" />
+            Holiday
+          </div>
           <div className="flex items-center gap-1">
             <span className="w-3 h-3 border border-amber-400 rounded-sm" />
             Manual override
