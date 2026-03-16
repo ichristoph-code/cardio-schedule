@@ -1,6 +1,7 @@
 "use client";
 
 import { signOut } from "next-auth/react";
+import { useRouter } from "next/navigation";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,9 +18,11 @@ import { useState } from "react";
 interface HeaderProps {
   userName: string;
   userRole: string;
+  physicianId?: string | null;
 }
 
-export function Header({ userName, userRole }: HeaderProps) {
+export function Header({ userName, userRole, physicianId }: HeaderProps) {
+  const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const initials = userName
     .split(" ")
@@ -58,7 +61,15 @@ export function Header({ userName, userRole }: HeaderProps) {
             <p className="text-xs text-muted-foreground">{userRole}</p>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={() =>
+              router.push(
+                physicianId
+                  ? `/dashboard/physicians/${physicianId}`
+                  : "/dashboard/physicians"
+              )
+            }
+          >
             <User className="mr-2 h-4 w-4" />
             Profile
           </DropdownMenuItem>
