@@ -125,23 +125,25 @@ function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split("T")[0];
 }
 
-// Physician color palette — visually distinct, readable colors
+// Physician color palette — maximally distinct colors, ordered for contrast between neighbors
+// Removed near-duplicates (sky≈cyan, teal≈emerald, pink≈rose, amber≈orange)
+// Using 200-level backgrounds for stronger visual separation
 const PHYSICIAN_COLORS = [
-  { bg: "bg-blue-100",    text: "text-blue-800",    dot: "bg-blue-500" },
-  { bg: "bg-emerald-100", text: "text-emerald-800", dot: "bg-emerald-500" },
-  { bg: "bg-violet-100",  text: "text-violet-800",  dot: "bg-violet-500" },
-  { bg: "bg-amber-100",   text: "text-amber-800",   dot: "bg-amber-500" },
-  { bg: "bg-rose-100",    text: "text-rose-800",    dot: "bg-rose-500" },
-  { bg: "bg-cyan-100",    text: "text-cyan-800",    dot: "bg-cyan-500" },
-  { bg: "bg-orange-100",  text: "text-orange-800",  dot: "bg-orange-500" },
-  { bg: "bg-indigo-100",  text: "text-indigo-800",  dot: "bg-indigo-500" },
-  { bg: "bg-lime-100",    text: "text-lime-800",    dot: "bg-lime-500" },
-  { bg: "bg-pink-100",    text: "text-pink-800",    dot: "bg-pink-500" },
-  { bg: "bg-teal-100",    text: "text-teal-800",    dot: "bg-teal-500" },
-  { bg: "bg-fuchsia-100", text: "text-fuchsia-800", dot: "bg-fuchsia-500" },
-  { bg: "bg-sky-100",     text: "text-sky-800",     dot: "bg-sky-500" },
-  { bg: "bg-yellow-100",  text: "text-yellow-800",  dot: "bg-yellow-500" },
-  { bg: "bg-red-100",     text: "text-red-800",     dot: "bg-red-500" },
+  { bg: "bg-blue-200",    text: "text-blue-900",    dot: "bg-blue-600" },
+  { bg: "bg-orange-200",  text: "text-orange-900",  dot: "bg-orange-600" },
+  { bg: "bg-emerald-200", text: "text-emerald-900", dot: "bg-emerald-600" },
+  { bg: "bg-rose-200",    text: "text-rose-900",    dot: "bg-rose-600" },
+  { bg: "bg-violet-200",  text: "text-violet-900",  dot: "bg-violet-600" },
+  { bg: "bg-yellow-200",  text: "text-yellow-900",  dot: "bg-yellow-600" },
+  { bg: "bg-cyan-200",    text: "text-cyan-900",    dot: "bg-cyan-600" },
+  { bg: "bg-fuchsia-200", text: "text-fuchsia-900", dot: "bg-fuchsia-600" },
+  { bg: "bg-lime-200",    text: "text-lime-900",    dot: "bg-lime-600" },
+  { bg: "bg-red-200",     text: "text-red-900",     dot: "bg-red-600" },
+  { bg: "bg-indigo-200",  text: "text-indigo-900",  dot: "bg-indigo-600" },
+  { bg: "bg-amber-200",   text: "text-amber-900",   dot: "bg-amber-600" },
+  { bg: "bg-teal-200",    text: "text-teal-900",    dot: "bg-teal-600" },
+  { bg: "bg-pink-200",    text: "text-pink-900",    dot: "bg-pink-600" },
+  { bg: "bg-sky-200",     text: "text-sky-900",     dot: "bg-sky-600" },
 ];
 
 function buildPhysicianColorMap(physicians: Physician[]): Map<string, typeof PHYSICIAN_COLORS[0]> {
