@@ -471,7 +471,7 @@ export function ScheduleViewer({
   function renderWeekView() {
     const weekDates: string[] = [];
     const ws = new Date(weekStart);
-    for (let i = 0; i < 7; i++) {
+    for (let i = 0; i < 14; i++) {
       const d = new Date(ws);
       d.setDate(d.getDate() + i);
       weekDates.push(
@@ -502,7 +502,7 @@ export function ScheduleViewer({
     const weekLabel = (() => {
       const s = new Date(weekStart);
       const e = new Date(weekStart);
-      e.setDate(e.getDate() + 6);
+      e.setDate(e.getDate() + 13);
       return `${MONTH_NAMES[s.getMonth()].slice(0, 3)} ${s.getDate()} \u2013 ${MONTH_NAMES[e.getMonth()].slice(0, 3)} ${e.getDate()}, ${e.getFullYear()}`;
     })();
 
@@ -524,19 +524,20 @@ export function ScheduleViewer({
           <table className="w-full border-collapse text-sm min-w-[700px]">
             <thead>
               <tr>
-                <th className="border p-2 bg-muted text-left w-[140px]">Role</th>
-                {weekDates.map((dateStr, i) => {
+                <th className="border p-2 bg-muted text-left w-[140px] min-w-[140px] sticky left-0 z-20 shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">Role</th>
+                {weekDates.map((dateStr) => {
                   const d = new Date(dateStr + "T12:00:00");
+                  const dow = d.getDay(); // 0=Sun
                   const today = isToday(dateStr);
                   return (
                     <th
                       key={dateStr}
-                      className={`border p-2 text-center ${
+                      className={`border p-2 text-center min-w-[90px] ${
                         today ? "bg-primary/10 font-bold" : "bg-muted"
-                      } ${i === 0 || i === 6 ? "bg-muted/60" : ""}`}
+                      } ${dow === 0 || dow === 6 ? "bg-muted/60" : ""}`}
                     >
                       <div className="text-xs text-muted-foreground">
-                        {DAY_LABELS[i]}
+                        {DAY_LABELS[dow]}
                       </div>
                       <div>{d.getDate()}</div>
                     </th>
@@ -547,7 +548,7 @@ export function ScheduleViewer({
             <tbody>
               {visibleRoleTypes.map((role) => (
                 <tr key={role.id}>
-                  <td className="border p-2">
+                  <td className="border p-2 sticky left-0 z-10 bg-white dark:bg-background shadow-[2px_0_4px_-2px_rgba(0,0,0,0.1)]">
                     <Badge
                       variant="outline"
                       className={`text-xs ${CATEGORY_COLORS[role.category] ?? ""}`}
@@ -555,21 +556,22 @@ export function ScheduleViewer({
                       {role.displayName}
                     </Badge>
                   </td>
-                  {weekDates.map((dateStr, dayIdx) => {
+                  {weekDates.map((dateStr) => {
                     const dayAssigns = assignmentsByDate.get(dateStr) ?? [];
                     const assignment = dayAssigns.find(
                       (a) => a.roleTypeId === role.id
                     );
                     const today = isToday(dateStr);
+                    const dow = new Date(dateStr + "T12:00:00").getDay();
 
                     const pColor = assignment ? physicianColors.get(assignment.physicianId) : undefined;
 
                     return (
                       <td
                         key={dateStr}
-                        className={`border p-1 text-center text-xs cursor-pointer hover:bg-accent/50 transition-colors
+                        className={`border p-1 text-center text-xs min-w-[90px] cursor-pointer hover:bg-accent/50 transition-colors
                           ${today ? "bg-primary/5" : ""}
-                          ${dayIdx === 0 || dayIdx === 6 ? "bg-muted/10" : ""}
+                          ${dow === 0 || dow === 6 ? "bg-muted/10" : ""}
                           ${assignment?.source === "MANUAL" ? "ring-1 ring-inset ring-amber-400" : ""}`}
                         onClick={() => {
                           if (assignment && isAdmin) {
