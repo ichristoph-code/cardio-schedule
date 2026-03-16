@@ -56,11 +56,17 @@ export default async function DashboardPage() {
         ...(isAdmin ? {} : { physicianId: physicianId ?? undefined }),
       },
     }),
-    // Latest schedule
+    // Latest schedule — prefer the current year; fall back to newest
     prisma.schedule.findFirst({
-      orderBy: { year: "desc" },
+      where: { year: new Date().getFullYear() },
       select: { id: true, year: true, status: true },
-    }),
+    }).then(async (s) =>
+      s ??
+      prisma.schedule.findFirst({
+        orderBy: { year: "desc" },
+        select: { id: true, year: true, status: true },
+      })
+    ),
     // Today's coverage count
     prisma.scheduleAssignment.count({
       where: {
