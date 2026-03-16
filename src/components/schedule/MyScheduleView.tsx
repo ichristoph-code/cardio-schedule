@@ -11,7 +11,15 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CalendarDays,
+  List,
+  Clock,
+  Activity,
+  Palmtree,
+} from "lucide-react";
 import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 
 interface Assignment {
@@ -49,6 +57,20 @@ const CATEGORY_COLORS: Record<string, string> = {
   SPECIAL: "bg-purple-100 text-purple-800 border-purple-200",
 };
 
+const CATEGORY_DOT: Record<string, string> = {
+  ON_CALL: "bg-red-500",
+  DAYTIME: "bg-blue-500",
+  READING: "bg-emerald-500",
+  SPECIAL: "bg-purple-500",
+};
+
+const CATEGORY_ICON_COLOR: Record<string, string> = {
+  ON_CALL: "text-red-500",
+  DAYTIME: "text-blue-500",
+  READING: "text-emerald-500",
+  SPECIAL: "text-purple-500",
+};
+
 export function MyScheduleView({
   year,
   physicianName,
@@ -80,13 +102,16 @@ export function MyScheduleView({
     return map;
   }, [assignments]);
 
-  // Role summary counts
+  // Role summary counts with category
   const roleCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const counts: Record<string, { count: number; category: string }> = {};
     for (const a of assignments) {
-      counts[a.roleDisplayName] = (counts[a.roleDisplayName] ?? 0) + 1;
+      if (!counts[a.roleDisplayName]) {
+        counts[a.roleDisplayName] = { count: 0, category: a.roleCategory };
+      }
+      counts[a.roleDisplayName].count++;
     }
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return Object.entries(counts).sort((a, b) => b[1].count - a[1].count);
   }, [assignments]);
 
   const todayStr = now.toISOString().split("T")[0];
@@ -118,63 +143,100 @@ export function MyScheduleView({
     const d = new Date(dateStr + "T12:00:00");
     const isToday = dateStr === todayStr;
     const dayName = DAY_NAMES[d.getDay()];
+    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
 
     return (
-      <Card
+      <div
         key={dateStr}
-        className={`shadow-sm ${isToday ? "ring-2 ring-primary" : ""}`}
+        className={`rounded-xl border p-3.5 transition-all hover:shadow-md ${
+          isToday
+            ? "ring-2 ring-primary bg-primary/5 border-primary/20"
+            : isWeekend
+              ? "bg-slate-50/80 dark:bg-slate-900/20"
+              : "bg-white dark:bg-background"
+        }`}
       >
-        <CardContent className="p-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-[100px]">
-              <div className={`text-sm font-medium ${isToday ? "text-primary" : ""}`}>
-                {dayName.slice(0, 3)}, {MONTH_NAMES[d.getMonth()].slice(0, 3)}{" "}
-                {d.getDate()}
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-center gap-3">
+            {/* Prominent date circle */}
+            <div
+              className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-lg flex-shrink-0 ${
+                isToday
+                  ? "bg-primary text-white shadow-sm"
+                  : "bg-muted/60 text-foreground"
+              }`}
+            >
+              {d.getDate()}
+            </div>
+            <div>
+              <div className={`text-sm font-semibold ${isToday ? "text-primary" : ""}`}>
+                {dayName}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {MONTH_NAMES[d.getMonth()].slice(0, 3)} {d.getDate()}, {d.getFullYear()}
               </div>
               {isToday && (
-                <span className="text-xs text-primary font-medium">Today</span>
+                <span className="text-[10px] font-bold uppercase tracking-widest text-primary">
+                  Today
+                </span>
               )}
             </div>
-            <div className="flex flex-wrap gap-1.5 justify-end">
-              {dayAssigns.map((a) => (
-                <Badge
-                  key={a.id}
-                  variant="outline"
-                  className={`text-xs ${CATEGORY_COLORS[a.roleCategory] ?? ""}`}
-                >
-                  {a.roleDisplayName}
-                </Badge>
-              ))}
-            </div>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex flex-wrap gap-1.5 justify-end">
+            {dayAssigns.map((a) => (
+              <Badge
+                key={a.id}
+                variant="outline"
+                className={`text-xs ${CATEGORY_COLORS[a.roleCategory] ?? ""}`}
+              >
+                <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1 ${CATEGORY_DOT[a.roleCategory] ?? ""}`} />
+                {a.roleDisplayName}
+              </Badge>
+            ))}
+          </div>
+        </div>
+      </div>
     );
   }
+
+  // View mode toggle buttons
+  const viewToggle = (
+    <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
+      <Button
+        variant={viewMode === "upcoming" ? "default" : "ghost"}
+        size="sm"
+        className="gap-1.5 h-8 rounded-md"
+        onClick={() => setViewMode("upcoming")}
+      >
+        <Clock className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Upcoming</span>
+      </Button>
+      <Button
+        variant={viewMode === "month" ? "default" : "ghost"}
+        size="sm"
+        className="gap-1.5 h-8 rounded-md"
+        onClick={() => setViewMode("month")}
+      >
+        <List className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">By Month</span>
+      </Button>
+      <Button
+        variant={viewMode === "calendar" ? "default" : "ghost"}
+        size="sm"
+        className="gap-1.5 h-8 rounded-md"
+        onClick={() => setViewMode("calendar")}
+      >
+        <CalendarDays className="h-3.5 w-3.5" />
+        <span className="hidden sm:inline">Calendar</span>
+      </Button>
+    </div>
+  );
 
   // Calendar view — delegates to PhysicianCalendar component
   if (viewMode === "calendar") {
     return (
       <div className="space-y-4">
-        <div className="flex gap-2 no-print">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode("upcoming")}
-          >
-            Upcoming
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode("month")}
-          >
-            By Month
-          </Button>
-          <Button variant="default" size="sm">
-            Calendar
-          </Button>
-        </div>
+        <div className="no-print">{viewToggle}</div>
 
         <PhysicianCalendar
           year={year}
@@ -188,66 +250,54 @@ export function MyScheduleView({
   }
 
   return (
-    <div className="space-y-4">
-      {/* Summary */}
-      <Card className="shadow-sm">
-        <CardContent className="p-4">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
-            {year} Assignment Summary
-          </h3>
-          <div className="flex flex-wrap gap-3">
-            {roleCounts.map(([role, count]) => (
-              <div key={role} className="text-center">
-                <div className="text-xl font-bold">{count}</div>
-                <div className="text-xs text-muted-foreground">{role}</div>
-              </div>
-            ))}
-            <div className="text-center border-l pl-3">
-              <div className="text-xl font-bold">{assignments.length}</div>
-              <div className="text-xs text-muted-foreground">Total</div>
+    <div className="space-y-5">
+      {/* Summary — colorful stat cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+        {roleCounts.map(([role, { count, category }]) => (
+          <div
+            key={role}
+            className="rounded-xl border p-3.5 bg-white dark:bg-background transition-shadow hover:shadow-md"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <span className={`w-2 h-2 rounded-full ${CATEGORY_DOT[category] ?? "bg-gray-400"}`} />
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
+                {role}
+              </span>
+            </div>
+            <div className={`text-2xl font-bold tabular-nums ${CATEGORY_ICON_COLOR[category] ?? ""}`}>
+              {count}
             </div>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* View toggle */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-2">
-          <Button
-            variant={viewMode === "upcoming" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("upcoming")}
-          >
-            Upcoming
-          </Button>
-          <Button
-            variant={viewMode === "month" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setViewMode("month")}
-          >
-            By Month
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setViewMode("calendar")}
-          >
-            Calendar
-          </Button>
+        ))}
+        <div className="rounded-xl border p-3.5 bg-primary/5 dark:bg-primary/10 transition-shadow hover:shadow-md">
+          <div className="flex items-center gap-2 mb-1">
+            <Activity className="w-3 h-3 text-primary" />
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Total
+            </span>
+          </div>
+          <div className="text-2xl font-bold tabular-nums text-primary">
+            {assignments.length}
+          </div>
         </div>
+      </div>
+
+      {/* View toggle + month nav */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        {viewToggle}
         {viewMode === "month" && (
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full"
               onClick={() => setMonth((m) => Math.max(0, m - 1))}
               disabled={month === 0}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
             <Select value={String(month)} onValueChange={(v) => v !== null && setMonth(Number(v))}>
-              <SelectTrigger className="w-[140px] h-8">
+              <SelectTrigger className="w-[140px] h-8 rounded-lg">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -261,7 +311,7 @@ export function MyScheduleView({
             <Button
               variant="ghost"
               size="icon"
-              className="h-8 w-8"
+              className="h-8 w-8 rounded-full"
               onClick={() => setMonth((m) => Math.min(11, m + 1))}
               disabled={month === 11}
             >
@@ -277,16 +327,25 @@ export function MyScheduleView({
           upcomingDates.length > 0 ? (
             upcomingDates.map(renderDateRow)
           ) : (
-            <p className="text-muted-foreground text-sm py-4 text-center">
-              No upcoming assignments.
-            </p>
+            <div className="text-center py-12">
+              <CalendarDays className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm font-medium">
+                No upcoming assignments
+              </p>
+              <p className="text-muted-foreground/60 text-xs mt-1">
+                Your schedule is clear for the next 30 days.
+              </p>
+            </div>
           )
         ) : monthDates.length > 0 ? (
           monthDates.map(renderDateRow)
         ) : (
-          <p className="text-muted-foreground text-sm py-4 text-center">
-            No assignments in {MONTH_NAMES[month]}.
-          </p>
+          <div className="text-center py-12">
+            <CalendarDays className="h-10 w-10 text-muted-foreground/30 mx-auto mb-3" />
+            <p className="text-muted-foreground text-sm font-medium">
+              No assignments in {MONTH_NAMES[month]}
+            </p>
+          </div>
         )}
       </div>
     </div>

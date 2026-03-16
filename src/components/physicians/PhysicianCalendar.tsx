@@ -10,7 +10,18 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ChevronLeft, ChevronRight, Printer } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Printer,
+  Stethoscope,
+  Sun,
+  Moon,
+  Palmtree,
+  PhoneOff,
+  CalendarHeart,
+  Activity,
+} from "lucide-react";
 
 // --- Types ---
 
@@ -58,6 +69,20 @@ const CATEGORY_DOT: Record<string, string> = {
   SPECIAL: "bg-purple-500",
 };
 
+const CATEGORY_BG: Record<string, string> = {
+  ON_CALL: "bg-red-50 dark:bg-red-950/30",
+  DAYTIME: "bg-blue-50 dark:bg-blue-950/30",
+  READING: "bg-emerald-50 dark:bg-emerald-950/30",
+  SPECIAL: "bg-purple-50 dark:bg-purple-950/30",
+};
+
+const CATEGORY_ICON_COLOR: Record<string, string> = {
+  ON_CALL: "text-red-500",
+  DAYTIME: "text-blue-500",
+  READING: "text-emerald-500",
+  SPECIAL: "text-purple-500",
+};
+
 // --- Helpers ---
 
 function formatDate(y: number, m: number, d: number): string {
@@ -70,6 +95,33 @@ function dayOfWeekSun(y: number, m: number, d: number): number {
 
 function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split("T")[0];
+}
+
+/** Returns a Map of "YYYY-MM-DD" → holiday name */
+function getHolidayDatesForYear(year: number): Map<string, string> {
+  const map = new Map<string, string>();
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  map.set(fmt(new Date(year, 0, 1)), "New Year's Day");
+  map.set(fmt(new Date(year, 6, 4)), "Independence Day");
+  map.set(fmt(new Date(year, 11, 24)), "Christmas Eve");
+  map.set(fmt(new Date(year, 11, 25)), "Christmas Day");
+
+  const memDay = new Date(year, 4, 31);
+  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
+  map.set(fmt(memDay), "Memorial Day");
+
+  const labDay = new Date(year, 8, 1);
+  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
+  map.set(fmt(labDay), "Labor Day");
+
+  const tg = new Date(year, 10, 1);
+  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
+  tg.setDate(tg.getDate() + 21);
+  map.set(fmt(tg), "Thanksgiving");
+
+  return map;
 }
 
 // --- Component ---
@@ -92,6 +144,9 @@ export function PhysicianCalendar({
     now.getFullYear() === year ? now.getMonth() : 0
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // Holiday lookup
+  const holidays = useMemo(() => getHolidayDatesForYear(year), [year]);
 
   // Index assignments by date
   const assignmentsByDate = useMemo(() => {
@@ -129,11 +184,14 @@ export function PhysicianCalendar({
 
   // Summary stats
   const roleCounts = useMemo(() => {
-    const counts: Record<string, number> = {};
+    const counts: Record<string, { count: number; category: string }> = {};
     for (const a of assignments) {
-      counts[a.roleDisplayName] = (counts[a.roleDisplayName] ?? 0) + 1;
+      if (!counts[a.roleDisplayName]) {
+        counts[a.roleDisplayName] = { count: 0, category: a.roleCategory };
+      }
+      counts[a.roleDisplayName].count++;
     }
-    return Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    return Object.entries(counts).sort((a, b) => b[1].count - a[1].count);
   }, [assignments]);
 
   const totalVacationDays = vacationDays.size;
@@ -156,6 +214,7 @@ export function PhysicianCalendar({
     const dayAssigns = assignmentsByDate.get(selectedDate) ?? [];
     const vacation = vacationDays.get(selectedDate);
     const noCall = noCallDaySet.get(selectedDate);
+    const holidayName = holidays.get(selectedDate);
 
     const d = new Date(selectedDate + "T12:00:00");
     const dayLabel = `${DAY_LABELS[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
@@ -164,19 +223,31 @@ export function PhysicianCalendar({
       <Sheet open={!!selectedDate} onOpenChange={() => setSelectedDate(null)}>
         <SheetContent className="overflow-y-auto">
           <SheetHeader>
-            <SheetTitle>{dayLabel}</SheetTitle>
+            <SheetTitle className="text-xl">{dayLabel}</SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-3">
+            {holidayName && (
+              <Card className="shadow-sm border-rose-300 bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40">
+                <CardContent className="p-3 flex items-center gap-2">
+                  <CalendarHeart className="h-4 w-4 text-rose-500 flex-shrink-0" />
+                  <span className="font-semibold text-rose-700 dark:text-rose-300">{holidayName}</span>
+                </CardContent>
+              </Card>
+            )}
+
             {vacation && (
-              <Card className="shadow-sm border-amber-300 bg-amber-50">
+              <Card className="shadow-sm border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
                 <CardContent className="p-3">
-                  <div className="font-medium text-amber-800">Vacation</div>
+                  <div className="flex items-center gap-2">
+                    <Palmtree className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                    <span className="font-semibold text-amber-700 dark:text-amber-300">Vacation</span>
+                  </div>
                   {vacation.reason && (
-                    <div className="text-sm text-amber-700 mt-0.5">
+                    <div className="text-sm text-amber-600 dark:text-amber-400 mt-1 ml-6">
                       {vacation.reason}
                     </div>
                   )}
-                  <div className="text-xs text-amber-600 mt-1">
+                  <div className="text-xs text-amber-500 mt-1 ml-6">
                     {vacation.startDate} — {vacation.endDate}
                   </div>
                 </CardContent>
@@ -184,11 +255,14 @@ export function PhysicianCalendar({
             )}
 
             {noCall && (
-              <Card className="shadow-sm border-slate-300 bg-slate-50">
+              <Card className="shadow-sm border-slate-300 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-950/40 dark:to-gray-950/40">
                 <CardContent className="p-3">
-                  <div className="font-medium text-slate-700">No Call Day</div>
+                  <div className="flex items-center gap-2">
+                    <PhoneOff className="h-4 w-4 text-slate-500 flex-shrink-0" />
+                    <span className="font-semibold text-slate-700 dark:text-slate-300">No Call Day</span>
+                  </div>
                   {noCall.reason && (
-                    <div className="text-sm text-slate-600 mt-0.5">
+                    <div className="text-sm text-slate-500 mt-1 ml-6">
                       {noCall.reason}
                     </div>
                   )}
@@ -198,8 +272,9 @@ export function PhysicianCalendar({
 
             {dayAssigns.length > 0 ? (
               dayAssigns.map((a) => (
-                <Card key={a.id} className="shadow-sm">
-                  <CardContent className="p-3">
+                <Card key={a.id} className={`shadow-sm border ${CATEGORY_BG[a.roleCategory] ?? ""}`}>
+                  <CardContent className="p-3 flex items-center gap-2">
+                    <span className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${CATEGORY_DOT[a.roleCategory] ?? "bg-gray-400"}`} />
                     <Badge
                       variant="outline"
                       className={`text-xs ${CATEGORY_COLORS[a.roleCategory] ?? ""}`}
@@ -207,7 +282,7 @@ export function PhysicianCalendar({
                       {a.roleDisplayName}
                     </Badge>
                     {a.source === "MANUAL" && (
-                      <span className="text-xs text-amber-600 ml-2">
+                      <span className="text-xs text-amber-600 ml-1">
                         (manually assigned)
                       </span>
                     )}
@@ -216,8 +291,9 @@ export function PhysicianCalendar({
               ))
             ) : (
               !vacation &&
-              !noCall && (
-                <p className="text-muted-foreground text-sm">
+              !noCall &&
+              !holidayName && (
+                <p className="text-muted-foreground text-sm py-4 text-center">
                   No assignments for this day.
                 </p>
               )
@@ -229,66 +305,82 @@ export function PhysicianCalendar({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {/* Print button */}
       <div className="flex justify-end no-print">
-        <Button variant="outline" size="sm" onClick={() => window.print()}>
-          <Printer className="h-4 w-4 mr-1.5" />
-          Print as PDF
+        <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5">
+          <Printer className="h-4 w-4" />
+          Print
         </Button>
       </div>
 
-      {/* Summary stats */}
-      <Card className="shadow-sm">
-        <CardContent className="p-4">
-          <h3 className="text-sm font-medium text-muted-foreground mb-2">
-            {physicianName} — {year} Summary
-          </h3>
-          <div className="flex flex-wrap gap-3">
-            {roleCounts.map(([role, count]) => (
-              <div key={role} className="text-center">
-                <div className="text-xl font-bold">{count}</div>
-                <div className="text-xs text-muted-foreground">{role}</div>
-              </div>
-            ))}
-            {totalVacationDays > 0 && (
-              <div className="text-center border-l pl-3">
-                <div className="text-xl font-bold text-amber-600">
-                  {totalVacationDays}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Vacation Days
-                </div>
-              </div>
-            )}
-            <div className="text-center border-l pl-3">
-              <div className="text-xl font-bold">{assignments.length}</div>
-              <div className="text-xs text-muted-foreground">Total Duties</div>
+      {/* Summary stats — colorful metric cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+        {roleCounts.map(([role, { count, category }]) => (
+          <div
+            key={role}
+            className={`rounded-xl border p-3.5 ${CATEGORY_BG[category] ?? "bg-muted/30"} transition-shadow hover:shadow-md`}
+          >
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className={`w-2.5 h-2.5 rounded-full ${CATEGORY_DOT[category] ?? "bg-gray-400"}`} />
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground truncate">
+                {role}
+              </span>
+            </div>
+            <div className={`text-2xl font-bold tabular-nums ${CATEGORY_ICON_COLOR[category] ?? ""}`}>
+              {count}
             </div>
           </div>
-        </CardContent>
-      </Card>
+        ))}
 
-      {/* Month navigation */}
-      <div className="flex items-center justify-center gap-1">
+        {totalVacationDays > 0 && (
+          <div className="rounded-xl border p-3.5 bg-amber-50 dark:bg-amber-950/30 transition-shadow hover:shadow-md">
+            <div className="flex items-center gap-2 mb-1.5">
+              <Palmtree className="w-3.5 h-3.5 text-amber-500" />
+              <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                Vacation
+              </span>
+            </div>
+            <div className="text-2xl font-bold tabular-nums text-amber-600">
+              {totalVacationDays}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-xl border p-3.5 bg-primary/5 dark:bg-primary/10 transition-shadow hover:shadow-md">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Activity className="w-3.5 h-3.5 text-primary" />
+            <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+              Total
+            </span>
+          </div>
+          <div className="text-2xl font-bold tabular-nums text-primary">
+            {assignments.length}
+          </div>
+        </div>
+      </div>
+
+      {/* Month navigation — large styled header */}
+      <div className="flex items-center justify-center gap-2 pt-2">
         <Button
           variant="ghost"
-          size="sm"
-          className="no-print"
+          size="icon"
+          className="h-9 w-9 rounded-full no-print"
           onClick={() => setMonth((m) => Math.max(0, m - 1))}
           disabled={month === 0}
         >
-          <ChevronLeft className="h-4 w-4" />
+          <ChevronLeft className="h-5 w-5" />
         </Button>
-        <div className="flex items-center gap-2">
-          <h3 className="text-lg font-semibold">
-            {MONTH_NAMES[month]} {year}
+        <div className="flex items-center gap-3">
+          <h3 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-primary to-blue-600 bg-clip-text text-transparent">
+            {MONTH_NAMES[month]}
           </h3>
+          <span className="text-2xl font-light text-muted-foreground/60">{year}</span>
           {now.getFullYear() === year && month !== now.getMonth() && (
             <Button
               variant="outline"
               size="sm"
-              className="text-xs h-7 no-print"
+              className="text-xs h-7 rounded-full px-3 no-print"
               onClick={() => setMonth(now.getMonth())}
             >
               Today
@@ -297,21 +389,23 @@ export function PhysicianCalendar({
         </div>
         <Button
           variant="ghost"
-          size="sm"
-          className="no-print"
+          size="icon"
+          className="h-9 w-9 rounded-full no-print"
           onClick={() => setMonth((m) => Math.min(11, m + 1))}
           disabled={month === 11}
         >
-          <ChevronRight className="h-4 w-4" />
+          <ChevronRight className="h-5 w-5" />
         </Button>
       </div>
 
-      {/* Day headers */}
+      {/* Day-of-week headers */}
       <div className="grid grid-cols-7 gap-px">
-        {DAY_LABELS.map((d) => (
+        {DAY_LABELS.map((d, i) => (
           <div
             key={d}
-            className="text-center text-xs font-medium text-muted-foreground py-1"
+            className={`text-center text-xs font-semibold uppercase tracking-wider py-2 ${
+              i === 0 || i === 6 ? "text-slate-400 dark:text-slate-500" : "text-muted-foreground"
+            }`}
           >
             {d}
           </div>
@@ -319,10 +413,10 @@ export function PhysicianCalendar({
       </div>
 
       {/* Calendar grid */}
-      <div className="grid grid-cols-7 gap-px bg-border rounded-lg overflow-hidden">
+      <div className="grid grid-cols-7 gap-[1px] bg-border/50 rounded-xl overflow-hidden shadow-sm">
         {cells.map((day, idx) => {
           if (day === null) {
-            return <div key={idx} className="bg-muted/30 min-h-[80px]" />;
+            return <div key={idx} className="bg-muted/20 min-h-[90px]" />;
           }
 
           const dateStr = formatDate(year, month, day);
@@ -332,83 +426,122 @@ export function PhysicianCalendar({
           const today = isToday(dateStr);
           const colIdx = idx % 7;
           const isWeekend = colIdx === 0 || colIdx === 6;
+          const holidayName = holidays.get(dateStr);
+
+          // Determine cell background — layered priority
+          let cellBg = "bg-white dark:bg-background";
+          if (vacation) cellBg = "bg-gradient-to-br from-amber-50 to-yellow-50/80 dark:from-amber-950/30 dark:to-yellow-950/20";
+          else if (holidayName) cellBg = "bg-gradient-to-br from-rose-50 to-pink-50/80 dark:from-rose-950/30 dark:to-pink-950/20";
+          else if (noCall) cellBg = "bg-slate-50/80 dark:bg-slate-900/30";
+          else if (isWeekend) cellBg = "bg-slate-50 dark:bg-slate-900/20";
 
           return (
             <button
               key={idx}
-              className={`min-h-[80px] p-1 text-left hover:bg-accent/50 transition-colors cursor-pointer
-                ${vacation ? "bg-amber-50" : noCall ? "bg-slate-50" : isWeekend ? "bg-muted/20" : "bg-background"}
-                ${today ? "ring-2 ring-primary ring-inset" : ""}`}
+              className={`min-h-[90px] p-1.5 text-left hover:bg-accent/40 transition-all cursor-pointer relative group
+                ${cellBg}
+                ${today ? "ring-2 ring-primary ring-inset shadow-[inset_0_0_12px_rgba(59,130,246,0.08)]" : ""}`}
               onClick={() => setSelectedDate(dateStr)}
             >
-              <div
-                className={`text-xs font-medium mb-0.5 ${
-                  today ? "text-primary font-bold" : "text-muted-foreground"
-                }`}
-              >
-                {day}
+              {/* Day number */}
+              <div className="flex items-center justify-between mb-1">
+                <span
+                  className={`text-sm font-semibold inline-flex items-center justify-center ${
+                    today
+                      ? "bg-primary text-white w-7 h-7 rounded-full"
+                      : isWeekend
+                        ? "text-slate-400 dark:text-slate-500"
+                        : "text-foreground"
+                  }`}
+                >
+                  {day}
+                </span>
+                {holidayName && !vacation && (
+                  <CalendarHeart className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+                )}
               </div>
-              <div className="space-y-px">
-                {/* Vacation label */}
-                {vacation && (
-                  <div className="text-[10px] leading-tight font-medium text-amber-700 truncate">
+
+              {/* Holiday label */}
+              {holidayName && (
+                <div className="text-[10px] leading-tight font-semibold text-rose-500 dark:text-rose-400 truncate mb-0.5">
+                  {holidayName}
+                </div>
+              )}
+
+              {/* Vacation label */}
+              {vacation && (
+                <div className="flex items-center gap-0.5 mb-0.5">
+                  <Palmtree className="w-2.5 h-2.5 text-amber-500 flex-shrink-0" />
+                  <span className="text-[10px] leading-tight font-semibold text-amber-600 dark:text-amber-400 truncate">
                     Vacation
-                  </div>
-                )}
+                  </span>
+                </div>
+              )}
 
-                {/* No-call label */}
-                {noCall && !vacation && (
-                  <div className="text-[10px] leading-tight font-medium text-slate-500 truncate">
+              {/* No-call label */}
+              {noCall && !vacation && (
+                <div className="flex items-center gap-0.5 mb-0.5">
+                  <PhoneOff className="w-2.5 h-2.5 text-slate-400 flex-shrink-0" />
+                  <span className="text-[10px] leading-tight font-medium text-slate-500 dark:text-slate-400 truncate">
                     No Call
-                  </div>
-                )}
+                  </span>
+                </div>
+              )}
 
-                {/* Call assignments */}
+              {/* Assignments */}
+              <div className="space-y-0.5">
                 {dayAssigns.slice(0, 3).map((a) => (
                   <div
                     key={a.id}
-                    className="flex items-center gap-1 text-[10px] leading-tight truncate"
+                    className={`flex items-center gap-1 text-[10px] leading-tight truncate rounded-sm px-1 py-[1px] ${CATEGORY_BG[a.roleCategory] ?? ""}`}
                   >
                     <span
                       className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                         CATEGORY_DOT[a.roleCategory] ?? "bg-gray-400"
                       }`}
                     />
-                    <span className="truncate">{a.roleDisplayName}</span>
+                    <span className="truncate font-medium">{a.roleDisplayName}</span>
                   </div>
                 ))}
                 {dayAssigns.length > 3 && (
-                  <div className="text-[10px] text-muted-foreground">
+                  <div className="text-[10px] text-muted-foreground font-medium pl-1">
                     +{dayAssigns.length - 3} more
                   </div>
                 )}
               </div>
+
+              {/* Hover indicator */}
+              <div className="absolute inset-0 rounded-none border-2 border-transparent group-hover:border-primary/20 transition-colors pointer-events-none" />
             </button>
           );
         })}
       </div>
 
-      {/* Legend */}
-      <div className="flex gap-4 mt-2 text-xs text-muted-foreground flex-wrap">
-        <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm bg-amber-50 border border-amber-300" />
-          Vacation
+      {/* Legend — styled with colored pills */}
+      <div className="flex gap-3 mt-3 text-xs flex-wrap">
+        <div className="flex items-center gap-1.5 bg-rose-50 dark:bg-rose-950/30 rounded-full px-2.5 py-1 border border-rose-200 dark:border-rose-800">
+          <CalendarHeart className="w-3 h-3 text-rose-500" />
+          <span className="text-rose-700 dark:text-rose-300 font-medium">Holiday</span>
         </div>
-        <div className="flex items-center gap-1">
-          <span className="w-3 h-3 rounded-sm bg-slate-50 border border-slate-300" />
-          No Call Day
+        <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 rounded-full px-2.5 py-1 border border-amber-200 dark:border-amber-800">
+          <Palmtree className="w-3 h-3 text-amber-500" />
+          <span className="text-amber-700 dark:text-amber-300 font-medium">Vacation</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-full px-2.5 py-1 border border-slate-200 dark:border-slate-700">
+          <PhoneOff className="w-3 h-3 text-slate-400" />
+          <span className="text-slate-600 dark:text-slate-300 font-medium">No Call</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-red-50 dark:bg-red-950/30 rounded-full px-2.5 py-1 border border-red-200 dark:border-red-800">
           <span className="w-2 h-2 rounded-full bg-red-500" />
-          On-Call
+          <span className="text-red-700 dark:text-red-300 font-medium">On-Call</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-full px-2.5 py-1 border border-blue-200 dark:border-blue-800">
           <span className="w-2 h-2 rounded-full bg-blue-500" />
-          Daytime
+          <span className="text-blue-700 dark:text-blue-300 font-medium">Daytime</span>
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/30 rounded-full px-2.5 py-1 border border-emerald-200 dark:border-emerald-800">
           <span className="w-2 h-2 rounded-full bg-emerald-500" />
-          Reading
+          <span className="text-emerald-700 dark:text-emerald-300 font-medium">Reading</span>
         </div>
       </div>
 
