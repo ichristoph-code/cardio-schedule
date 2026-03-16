@@ -16,8 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Save, ArrowLeft, Eye, EyeOff } from "lucide-react";
-import Link from "next/link";
+import { Save, Eye, EyeOff } from "lucide-react";
 
 interface RoleType {
   id: string;
@@ -151,12 +150,7 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="flex items-center gap-4">
-        <Link href="/dashboard/physicians">
-          <Button variant="ghost" size="icon" type="button">
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-        </Link>
-        <div className="flex-1" />
+        <h2 className="text-lg font-semibold tracking-tight flex-1">Edit Profile</h2>
         {error && <p className="text-sm text-destructive">{error}</p>}
         {success && (
           <p className="text-sm text-green-600">Saved successfully</p>
