@@ -1,14 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
 import { AddRuleDialog } from "@/components/rules/AddRuleDialog";
-import { RuleRow } from "@/components/rules/RuleRow";
+import { DraggableRulesTable } from "@/components/rules/DraggableRulesTable";
 
 export default async function RulesPage() {
   const [rules, roleTypes, physicians] = await Promise.all([
@@ -63,37 +55,11 @@ export default async function RulesPage() {
         <AddRuleDialog roleTypes={roleTypes} physicians={physicians} />
       </div>
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead className="hidden md:table-cell">Role</TableHead>
-              <TableHead className="hidden md:table-cell">Priority</TableHead>
-              <TableHead>Active</TableHead>
-              <TableHead className="w-[60px]"></TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {serializedRules.length === 0 ? (
-              <TableRow>
-                <TableCell
-                  colSpan={6}
-                  className="h-24 text-center text-muted-foreground"
-                >
-                  No scheduling rules configured. Click &quot;Add Rule&quot; to
-                  create one.
-                </TableCell>
-              </TableRow>
-            ) : (
-              serializedRules.map((rule) => (
-                <RuleRow key={rule.id} rule={rule} roleTypes={roleTypes} physicians={physicians} />
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DraggableRulesTable
+        rules={serializedRules}
+        roleTypes={roleTypes}
+        physicians={physicians}
+      />
 
       {/* Reading Distribution Methodology */}
       <div className="rounded-xl border bg-gradient-to-br from-emerald-50/80 via-white to-blue-50/80 dark:from-emerald-950/20 dark:via-background dark:to-blue-950/20 p-5 shadow-sm">

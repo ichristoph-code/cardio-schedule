@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { Switch } from "@/components/ui/switch";
 import { TableCell, TableRow } from "@/components/ui/table";
 import {
@@ -20,7 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
+import { Copy, GripVertical, MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { EditRuleDialog } from "./EditRuleDialog";
 
@@ -37,7 +39,7 @@ interface PhysicianOption {
   lastName: string;
 }
 
-interface RuleData {
+export interface RuleData {
   id: string;
   name: string;
   description: string | null;
@@ -75,6 +77,21 @@ export function RuleRow({ rule, roleTypes, physicians }: RuleRowProps) {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: rule.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
   async function handleToggle(checked: boolean) {
     setToggling(true);
     try {
@@ -95,6 +112,33 @@ export function RuleRow({ rule, roleTypes, physicians }: RuleRowProps) {
     setToggling(false);
   }
 
+  async function handleCopy() {
+    try {
+      const res = await fetch("/api/rules", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${rule.name} (Copy)`,
+          description: rule.description,
+          ruleType: rule.ruleType,
+          roleTypeId: rule.roleTypeId,
+          physicianId: rule.physicianId,
+          parameters: rule.parameters,
+          priority: rule.priority,
+          isActive: rule.isActive,
+        }),
+      });
+      if (!res.ok) {
+        toast.error("Failed to copy rule");
+      } else {
+        toast.success("Rule copied");
+        router.refresh();
+      }
+    } catch {
+      toast.error("Network error");
+    }
+  }
+
   async function handleDelete() {
     setDeleting(true);
     try {
@@ -113,7 +157,16 @@ export function RuleRow({ rule, roleTypes, physicians }: RuleRowProps) {
   }
 
   return (
-      <TableRow>
+      <TableRow ref={setNodeRef} style={style} {...attributes}>
+        <TableCell className="w-[40px]">
+          <button
+            type="button"
+            className="cursor-grab touch-none text-muted-foreground hover:text-foreground active:cursor-grabbing"
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4" />
+          </button>
+        </TableCell>
         <TableCell>
           <div className="font-medium">{rule.name}</div>
           {rule.description && (
@@ -157,6 +210,10 @@ export function RuleRow({ rule, roleTypes, physicians }: RuleRowProps) {
               <DropdownMenuItem onClick={() => setEditOpen(true)}>
                 <Pencil className="mr-2 h-4 w-4" />
                 Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleCopy}>
+                <Copy className="mr-2 h-4 w-4" />
+                Duplicate
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem

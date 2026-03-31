@@ -317,6 +317,16 @@ export function MyScheduleView({
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
+            {(now.getFullYear() !== year || month !== now.getMonth()) && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="text-xs h-7 rounded-full px-3 ml-1"
+                onClick={() => setMonth(now.getFullYear() === year ? now.getMonth() : 0)}
+              >
+                {now.getFullYear() === year ? "Today" : `Jan ${year}`}
+              </Button>
+            )}
           </div>
         )}
       </div>

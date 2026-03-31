@@ -32,8 +32,8 @@ export async function PATCH(
     if (request.physicianId !== physicianId) {
       return NextResponse.json({ error: "Can only cancel your own requests" }, { status: 403 });
     }
-    if (request.status !== "PENDING") {
-      return NextResponse.json({ error: "Can only cancel pending requests" }, { status: 400 });
+    if (request.status !== "PENDING" && request.status !== "APPROVED") {
+      return NextResponse.json({ error: "Can only cancel pending or approved requests" }, { status: 400 });
     }
   }
 

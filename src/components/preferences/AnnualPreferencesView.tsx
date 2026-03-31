@@ -10,6 +10,14 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   ChevronLeft,
   ChevronRight,
   Palmtree,
@@ -122,6 +130,101 @@ export function AnnualPreferencesView({
     return { approved, pending };
   }, [existingNoCallDays]);
 
+  // Lookup: date → vacation request info (for cancellation / day removal)
+  const vacationDateToRequest = useMemo(() => {
+    const map = new Map<string, { id: string; status: string; startDate: string; endDate: string; isMultiDay: boolean }>();
+    for (const v of existingVacations) {
+      const isMultiDay = v.startDate !== v.endDate;
+      const start = new Date(v.startDate + "T12:00:00");
+      const end = new Date(v.endDate + "T12:00:00");
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        map.set(ds, { id: v.id, status: v.status, startDate: v.startDate, endDate: v.endDate, isMultiDay });
+      }
+    }
+    return map;
+  }, [existingVacations]);
+
+  // Lookup: date → no-call request ID (for cancellation)
+  const noCallDateToRequest = useMemo(() => {
+    const map = new Map<string, { id: string; status: string }>();
+    for (const nc of existingNoCallDays) {
+      map.set(nc.date, { id: nc.id, status: nc.status });
+    }
+    return map;
+  }, [existingNoCallDays]);
+
+  // Cancel dialog state
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelTarget, setCancelTarget] = useState<{
+    date: string;
+    type: "vacation" | "nocall";
+    requestId: string;
+    status: string;
+    isMultiDay?: boolean;
+    startDate?: string;
+    endDate?: string;
+  } | null>(null);
+  const [cancelling, setCancelling] = useState(false);
+
+  async function handleCancelEntireRequest() {
+    if (!cancelTarget) return;
+    setCancelling(true);
+    try {
+      const endpoint =
+        cancelTarget.type === "vacation"
+          ? `/api/vacation-requests/${cancelTarget.requestId}`
+          : `/api/no-call-day-requests/${cancelTarget.requestId}`;
+
+      const res = await fetch(endpoint, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "CANCELLED" }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to cancel request");
+      }
+
+      const label = cancelTarget.type === "vacation" ? "Vacation" : "No-call day";
+      toast.success(`${label} request cancelled`);
+      setCancelDialogOpen(false);
+      setCancelTarget(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Cancel failed");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
+  async function handleRemoveSingleDay() {
+    if (!cancelTarget || cancelTarget.type !== "vacation") return;
+    setCancelling(true);
+    try {
+      const res = await fetch(`/api/vacation-requests/${cancelTarget.requestId}/remove-day`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: cancelTarget.date }),
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || "Failed to remove day");
+      }
+
+      toast.success(`Removed ${cancelTarget.date} from vacation`);
+      setCancelDialogOpen(false);
+      setCancelTarget(null);
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Remove failed");
+    } finally {
+      setCancelling(false);
+    }
+  }
+
   // Summary counts
   const summary = useMemo(() => {
     return {
@@ -154,13 +257,29 @@ export function AnnualPreferencesView({
   function handleDayClick(dateStr: string, shiftKey: boolean) {
     const status = getDateStatus(dateStr);
 
-    // Can't click on existing approved/pending dates
-    if (
-      status === "vacation-approved" ||
-      status === "vacation-pending" ||
-      status === "nocall-approved" ||
-      status === "nocall-pending"
-    ) {
+    // Existing dates — open cancel dialog
+    if (status === "vacation-approved" || status === "vacation-pending") {
+      const req = vacationDateToRequest.get(dateStr);
+      if (req) {
+        setCancelTarget({
+          date: dateStr,
+          type: "vacation",
+          requestId: req.id,
+          status: req.status,
+          isMultiDay: req.isMultiDay,
+          startDate: req.startDate,
+          endDate: req.endDate,
+        });
+        setCancelDialogOpen(true);
+      }
+      return;
+    }
+    if (status === "nocall-approved" || status === "nocall-pending") {
+      const req = noCallDateToRequest.get(dateStr);
+      if (req) {
+        setCancelTarget({ date: dateStr, type: "nocall", requestId: req.id, status: req.status });
+        setCancelDialogOpen(true);
+      }
       return;
     }
 
@@ -386,6 +505,125 @@ export function AnnualPreferencesView({
           />
         ))}
       </div>
+
+      {/* Cancel request confirmation dialog */}
+      <Dialog
+        open={cancelDialogOpen}
+        onOpenChange={(open) => {
+          setCancelDialogOpen(open);
+          if (!open) setCancelTarget(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Cancel {cancelTarget?.type === "vacation" ? "Vacation" : "No-Call Day"} Request
+            </DialogTitle>
+            <DialogDescription>
+              {cancelTarget && (
+                <>
+                  Your{" "}
+                  <strong>
+                    {cancelTarget.status === "APPROVED" ? "approved" : "pending"}
+                  </strong>{" "}
+                  {cancelTarget.type === "vacation" ? "vacation" : "no-call day"}{" "}
+                  {cancelTarget.isMultiDay ? (
+                    <>
+                      runs from <strong>{cancelTarget.startDate}</strong> to{" "}
+                      <strong>{cancelTarget.endDate}</strong>. You clicked on{" "}
+                      <strong>{cancelTarget.date}</strong>.
+                    </>
+                  ) : (
+                    <>
+                      is on <strong>{cancelTarget.date}</strong>.
+                    </>
+                  )}
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+
+          {cancelTarget?.isMultiDay && cancelTarget.type === "vacation" ? (
+            <div className="space-y-2 pt-2">
+              <Button
+                variant="outline"
+                className="w-full justify-start h-auto py-3"
+                onClick={handleRemoveSingleDay}
+                disabled={cancelling}
+              >
+                <div className="text-left">
+                  <div className="font-medium">
+                    {cancelling ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Processing...
+                      </span>
+                    ) : (
+                      "Remove just this day"
+                    )}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-0.5">
+                    Cancel only <strong>{cancelTarget.date}</strong> and keep the rest of the vacation
+                  </div>
+                </div>
+              </Button>
+              <Button
+                variant="destructive"
+                className="w-full justify-start h-auto py-3"
+                onClick={handleCancelEntireRequest}
+                disabled={cancelling}
+              >
+                <div className="text-left">
+                  <div className="font-medium">
+                    {cancelling ? (
+                      <span className="flex items-center gap-1.5">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Processing...
+                      </span>
+                    ) : (
+                      "Cancel entire vacation"
+                    )}
+                  </div>
+                  <div className="text-xs text-destructive-foreground/80 mt-0.5">
+                    Cancel the full {cancelTarget.startDate} – {cancelTarget.endDate} request
+                  </div>
+                </div>
+              </Button>
+              <DialogFooter className="pt-2">
+                <Button
+                  variant="ghost"
+                  onClick={() => setCancelDialogOpen(false)}
+                >
+                  Never mind
+                </Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => setCancelDialogOpen(false)}
+              >
+                Keep It
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleCancelEntireRequest}
+                disabled={cancelling}
+              >
+                {cancelling ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    Cancelling...
+                  </>
+                ) : (
+                  "Cancel Request"
+                )}
+              </Button>
+            </DialogFooter>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
@@ -411,8 +649,6 @@ function MonthCalendar({
 }) {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
   const popoverRef = useRef<HTMLDivElement>(null);
 
   // Close dropdown when clicking outside
@@ -460,26 +696,21 @@ function MonthCalendar({
             }
 
             const dateStr = formatDate(year, month, day);
-            const cellDate = new Date(year, month, day);
-            const isPast = cellDate < today;
             const weekend = isWeekend(year, month, day);
             const status = getDateStatus(dateStr);
-            const isExisting = status.includes("approved") || status.includes("pending");
-            const disabled = isPast || isExisting;
 
-            const cellClasses = getCellClasses(status, weekend, isPast);
+            const cellClasses = getCellClasses(status, weekend);
             const showDropdown = popoverDate === dateStr;
 
             return (
               <div key={dateStr} className="relative">
                 <button
-                  disabled={disabled}
                   className={`aspect-square w-full flex items-center justify-center text-xs rounded-md transition-colors cursor-pointer
                     ${cellClasses}
-                    ${disabled ? "cursor-not-allowed opacity-60" : "hover:ring-2 hover:ring-primary/40"}
+                    hover:ring-2 hover:ring-primary/40
                   `}
                   onClick={(e) => {
-                    if (!disabled) onDayClick(dateStr, e.shiftKey);
+                    onDayClick(dateStr, e.shiftKey);
                   }}
                   title={getTooltip(status, dateStr)}
                 >
@@ -517,11 +748,7 @@ function MonthCalendar({
 
 // --- Styling Helpers ---
 
-function getCellClasses(status: string, weekend: boolean, isPast: boolean): string {
-  if (isPast) {
-    return "bg-gray-50 text-gray-400";
-  }
-
+function getCellClasses(status: string, weekend: boolean): string {
   switch (status) {
     case "vacation-approved":
       return "bg-green-500 text-white font-semibold";
@@ -543,15 +770,15 @@ function getCellClasses(status: string, weekend: boolean, isPast: boolean): stri
 function getTooltip(status: string, dateStr: string): string {
   switch (status) {
     case "vacation-approved":
-      return `${dateStr}: Approved vacation`;
+      return `${dateStr}: Approved vacation — click to cancel`;
     case "vacation-pending":
-      return `${dateStr}: Vacation (pending approval)`;
+      return `${dateStr}: Vacation (pending) — click to cancel`;
     case "vacation-new":
       return `${dateStr}: New vacation (unsaved) — click to remove`;
     case "nocall-approved":
-      return `${dateStr}: Approved no-call day`;
+      return `${dateStr}: Approved no-call day — click to cancel`;
     case "nocall-pending":
-      return `${dateStr}: No-call day (pending approval)`;
+      return `${dateStr}: No-call day (pending) — click to cancel`;
     case "nocall-new":
       return `${dateStr}: New no-call day (unsaved) — click to remove`;
     default:

@@ -394,14 +394,14 @@ export function PhysicianCalendar({
             {MONTH_NAMES[month]}
           </h3>
           <span className="text-2xl font-light text-muted-foreground/60">{year}</span>
-          {now.getFullYear() === year && month !== now.getMonth() && (
+          {(now.getFullYear() !== year || month !== now.getMonth()) && (
             <Button
               variant="outline"
               size="sm"
               className="text-xs h-7 rounded-full px-3 no-print"
-              onClick={() => setMonth(now.getMonth())}
+              onClick={() => setMonth(now.getFullYear() === year ? now.getMonth() : 0)}
             >
-              Today
+              {now.getFullYear() === year ? "Today" : `Jan ${year}`}
             </Button>
           )}
         </div>
