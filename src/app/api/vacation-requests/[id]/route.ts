@@ -37,10 +37,16 @@ export async function PATCH(
     }
   }
 
-  // Admins can approve or deny
-  if (isAdmin && (status === "APPROVED" || status === "DENIED")) {
-    if (request.status !== "PENDING") {
-      return NextResponse.json({ error: "Request is not pending" }, { status: 400 });
+  // Admins can approve or deny pending requests, or cancel any active request
+  if (isAdmin) {
+    if (status === "APPROVED" || status === "DENIED") {
+      if (request.status !== "PENDING") {
+        return NextResponse.json({ error: "Request is not pending" }, { status: 400 });
+      }
+    } else if (status === "CANCELLED") {
+      if (request.status !== "PENDING" && request.status !== "APPROVED") {
+        return NextResponse.json({ error: "Nothing to cancel" }, { status: 400 });
+      }
     }
   }
 

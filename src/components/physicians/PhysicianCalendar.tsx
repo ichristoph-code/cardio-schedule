@@ -4,12 +4,23 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { DatePicker } from "@/components/ui/date-picker";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   ChevronLeft,
   ChevronRight,
@@ -21,7 +32,11 @@ import {
   PhoneOff,
   CalendarHeart,
   Activity,
+  Plus,
+  Loader2,
+  Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 // --- Types ---
 
@@ -146,12 +161,16 @@ function getHolidayDatesForYear(year: number): Map<string, string> {
 export function PhysicianCalendar({
   year,
   physicianName,
+  physicianId,
+  isAdmin = false,
   assignments,
-  vacations = [],
+  vacations: initialVacations = [],
   noCallDays = [],
 }: {
   year: number;
   physicianName: string;
+  physicianId?: string;
+  isAdmin?: boolean;
   assignments: Assignment[];
   vacations?: VacationInfo[];
   noCallDays?: NoCallDayInfo[];
@@ -161,6 +180,127 @@ export function PhysicianCalendar({
     now.getFullYear() === year ? now.getMonth() : 0
   );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [vacations, setVacations] = useState<VacationInfo[]>(initialVacations);
+
+  // Add vacation range dialog state (header button)
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [addStartDate, setAddStartDate] = useState("");
+  const [addEndDate, setAddEndDate] = useState("");
+  const [addReason, setAddReason] = useState("");
+  const [addSubmitting, setAddSubmitting] = useState(false);
+
+  // Per-day action loading state
+  const [dayActionLoading, setDayActionLoading] = useState(false);
+
+  async function handleAddVacation() {
+    if (!addStartDate || !addEndDate) {
+      toast.error("Please select start and end dates");
+      return;
+    }
+    setAddSubmitting(true);
+    try {
+      const res = await fetch("/api/vacation-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startDate: addStartDate,
+          endDate: addEndDate,
+          reason: addReason || undefined,
+          physicianId,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add vacation");
+      }
+      const created = await res.json();
+      setVacations((prev) => [
+        ...prev,
+        {
+          id: created.id,
+          startDate: created.startDate.split("T")[0],
+          endDate: created.endDate.split("T")[0],
+          reason: created.reason,
+        },
+      ]);
+      toast.success("Vacation added");
+      setAddDialogOpen(false);
+      setAddStartDate("");
+      setAddEndDate("");
+      setAddReason("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add vacation");
+    } finally {
+      setAddSubmitting(false);
+    }
+  }
+
+  // Add a single vacation day directly from the day sheet
+  async function handleAddVacationDay(date: string) {
+    setDayActionLoading(true);
+    try {
+      const res = await fetch("/api/vacation-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ startDate: date, endDate: date, physicianId }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add vacation day");
+      }
+      const created = await res.json();
+      setVacations((prev) => [
+        ...prev,
+        {
+          id: created.id,
+          startDate: created.startDate.split("T")[0],
+          endDate: created.endDate.split("T")[0],
+          reason: created.reason,
+        },
+      ]);
+      toast.success("Vacation day added");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to add vacation day");
+    } finally {
+      setDayActionLoading(false);
+    }
+  }
+
+  // Remove a single day from a vacation (splits the range if needed)
+  async function handleRemoveVacationDay(vacationId: string, date: string) {
+    setDayActionLoading(true);
+    try {
+      const res = await fetch(`/api/vacation-requests/${vacationId}/remove-day`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to remove vacation day");
+      }
+      const result = await res.json();
+      // Remove the original vacation and add any replacement ranges
+      setVacations((prev) => {
+        const without = prev.filter((v) => v.id !== vacationId);
+        const replacements: VacationInfo[] = (result.newRequests ?? []).map(
+          (r: { id: string; startDate: string; endDate: string }) => ({
+            id: r.id,
+            startDate: r.startDate,
+            endDate: r.endDate,
+            reason: null,
+          })
+        );
+        return [...without, ...replacements];
+      });
+      setSelectedDate(null);
+      toast.success("Vacation day removed");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to remove vacation day");
+    } finally {
+      setDayActionLoading(false);
+    }
+  }
 
   // Holiday lookup
   const holidays = useMemo(() => getHolidayDatesForYear(year), [year]);
@@ -255,9 +395,27 @@ export function PhysicianCalendar({
             {vacation && (
               <Card className="shadow-sm border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
                 <CardContent className="p-3">
-                  <div className="flex items-center gap-2">
-                    <Palmtree className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                    <span className="font-semibold text-amber-700 dark:text-amber-300">Vacation</span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <Palmtree className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                      <span className="font-semibold text-amber-700 dark:text-amber-300">Vacation</span>
+                    </div>
+                    {isAdmin && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-6 px-2 text-xs text-red-600 hover:text-red-700 hover:bg-red-50"
+                        disabled={dayActionLoading}
+                        onClick={() => handleRemoveVacationDay(vacation.id, selectedDate!)}
+                      >
+                        {dayActionLoading ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3 w-3 mr-1" />
+                        )}
+                        Remove Day
+                      </Button>
+                    )}
                   </div>
                   {vacation.reason && (
                     <div className="text-sm text-amber-600 dark:text-amber-400 mt-1 ml-6">
@@ -287,6 +445,24 @@ export function PhysicianCalendar({
               </Card>
             )}
 
+            {/* Admin: add vacation day button when no vacation exists */}
+            {isAdmin && physicianId && !vacation && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full gap-1.5 border-amber-300 text-amber-700 hover:bg-amber-50"
+                disabled={dayActionLoading}
+                onClick={() => handleAddVacationDay(selectedDate!)}
+              >
+                {dayActionLoading ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Palmtree className="h-3.5 w-3.5" />
+                )}
+                Add Vacation Day
+              </Button>
+            )}
+
             {dayAssigns.length > 0 ? (
               dayAssigns.map((a) => (
                 <Card key={a.id} className={`shadow-sm border ${CATEGORY_BG[a.roleCategory] ?? ""}`}>
@@ -309,7 +485,8 @@ export function PhysicianCalendar({
             ) : (
               !vacation &&
               !noCall &&
-              !holidayName && (
+              !holidayName &&
+              !isAdmin && (
                 <p className="text-muted-foreground text-sm py-4 text-center">
                   No assignments for this day.
                 </p>
@@ -328,10 +505,22 @@ export function PhysicianCalendar({
         <h4 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
           {year} Summary
         </h4>
-        <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5 h-7 text-xs">
-          <Printer className="h-3.5 w-3.5" />
-          Print
-        </Button>
+        <div className="flex items-center gap-2">
+          {isAdmin && physicianId && (
+            <Button
+              size="sm"
+              className="gap-1.5 h-7 text-xs"
+              onClick={() => setAddDialogOpen(true)}
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add Vacation
+            </Button>
+          )}
+          <Button variant="outline" size="sm" onClick={() => window.print()} className="gap-1.5 h-7 text-xs">
+            <Printer className="h-3.5 w-3.5" />
+            Print
+          </Button>
+        </div>
       </div>
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-2">
         {roleCounts.map(([role, { count, category }]) => (
@@ -573,6 +762,57 @@ export function PhysicianCalendar({
 
       {/* Day detail sheet */}
       {renderDaySheet()}
+
+      {/* Add Vacation dialog (admin only) */}
+      {isAdmin && (
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Vacation — {physicianName}</DialogTitle>
+              <DialogDescription>
+                Vacation will be immediately approved and shown on the calendar.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3 py-2">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Start Date</Label>
+                  <DatePicker
+                    value={addStartDate}
+                    onChange={setAddStartDate}
+                    placeholder="Start date"
+                  />
+                </div>
+                <div>
+                  <Label>End Date</Label>
+                  <DatePicker
+                    value={addEndDate}
+                    onChange={setAddEndDate}
+                    placeholder="End date"
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>Reason (optional)</Label>
+                <Input
+                  placeholder="e.g., Family vacation, CME conference"
+                  value={addReason}
+                  onChange={(e) => setAddReason(e.target.value)}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={handleAddVacation} disabled={addSubmitting}>
+                {addSubmitting && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                Add
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

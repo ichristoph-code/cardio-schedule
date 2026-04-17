@@ -127,6 +127,8 @@ export default async function PhysicianCalendarPage({
         key={schedule.year}
         year={schedule.year}
         physicianName={`${physician.firstName} ${physician.lastName}`}
+        physicianId={physician.id}
+        isAdmin={isAdmin}
         assignments={assignments.map((a) => ({
           id: a.id,
           date: a.date.toISOString().split("T")[0],

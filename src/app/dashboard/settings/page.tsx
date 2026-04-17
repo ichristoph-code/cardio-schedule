@@ -6,6 +6,7 @@ import { RoleTypesTab } from "@/components/settings/RoleTypesTab";
 import { HolidaysTab } from "@/components/settings/HolidaysTab";
 import { UsersTab } from "@/components/settings/UsersTab";
 import { AuditLogTab } from "@/components/settings/AuditLogTab";
+import { VacationImportTab } from "@/components/settings/VacationImportTab";
 
 export default async function SettingsPage() {
   const session = await auth();
@@ -64,6 +65,7 @@ export default async function SettingsPage() {
           <TabsTrigger value="role-types">Role Types</TabsTrigger>
           <TabsTrigger value="holidays">Holidays</TabsTrigger>
           <TabsTrigger value="users">Users</TabsTrigger>
+          <TabsTrigger value="vacation-import">Vacation Import</TabsTrigger>
           <TabsTrigger value="audit-log">Audit Log</TabsTrigger>
         </TabsList>
 
@@ -77,6 +79,10 @@ export default async function SettingsPage() {
 
         <TabsContent value="users" className="mt-6">
           <UsersTab users={serializedUsers} currentUserId={currentUserId} />
+        </TabsContent>
+
+        <TabsContent value="vacation-import" className="mt-6">
+          <VacationImportTab />
         </TabsContent>
 
         <TabsContent value="audit-log" className="mt-6">

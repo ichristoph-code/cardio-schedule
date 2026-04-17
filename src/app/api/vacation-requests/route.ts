@@ -31,12 +31,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const physicianId = (session.user as Record<string, unknown>).physicianId as string | null;
-  if (!physicianId) {
+  const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
+  const sessionPhysicianId = (session.user as Record<string, unknown>).physicianId as string | null;
+
+  const { startDate, endDate, reason, physicianId: targetPhysicianId } = await req.json();
+
+  // Determine which physician this is for
+  let physicianId: string;
+  if (isAdmin && targetPhysicianId) {
+    physicianId = targetPhysicianId;
+  } else if (sessionPhysicianId) {
+    physicianId = sessionPhysicianId;
+  } else {
     return NextResponse.json({ error: "Only physicians can request vacations" }, { status: 403 });
   }
-
-  const { startDate, endDate, reason } = await req.json();
 
   if (!startDate || !endDate) {
     return NextResponse.json({ error: "Start and end dates required" }, { status: 400 });
@@ -66,13 +74,22 @@ export async function POST(req: Request) {
     );
   }
 
+  // Admin-entered vacations are immediately approved
+  const status = isAdmin && targetPhysicianId ? "APPROVED" : "PENDING";
+
   const request = await prisma.vacationRequest.create({
     data: {
       physicianId,
       startDate: start,
       endDate: end,
       reason: reason || null,
-      status: "PENDING",
+      status,
+      ...(isAdmin && targetPhysicianId
+        ? {
+            reviewedBy: (session.user as Record<string, unknown>).id as string,
+            reviewedAt: new Date(),
+          }
+        : {}),
     },
     include: {
       physician: { select: { id: true, firstName: true, lastName: true } },
@@ -81,10 +98,10 @@ export async function POST(req: Request) {
 
   await auditLog(
     (session.user as Record<string, unknown>).id as string,
-    "CREATE_VACATION_REQUEST",
+    isAdmin && targetPhysicianId ? "ADMIN_CREATE_VACATION" : "CREATE_VACATION_REQUEST",
     "VacationRequest",
     request.id,
-    { startDate, endDate, reason }
+    { startDate, endDate, reason, physicianId }
   );
 
   return NextResponse.json(request, { status: 201 });

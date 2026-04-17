@@ -25,7 +25,6 @@ export default async function PhysiciansPage({
   const physicians = await prisma.physician.findMany({
     include: {
       user: { select: { email: true } },
-      eligibilities: { include: { roleType: true } },
       officeDays: true,
     },
     orderBy: { lastName: "asc" },
@@ -110,7 +109,6 @@ export default async function PhysiciansPage({
               <TableHead className="hidden md:table-cell">FTE</TableHead>
               <TableHead className="hidden md:table-cell">Subspecialty</TableHead>
               <TableHead className="hidden lg:table-cell">Office Days</TableHead>
-              <TableHead className="hidden lg:table-cell">Eligible Roles</TableHead>
               <TableHead className="hidden xl:table-cell">
                 <div className="flex flex-col items-center gap-1">
                   <span>Weekday General Call</span>
@@ -139,7 +137,7 @@ export default async function PhysiciansPage({
           <TableBody>
             {physicians.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                   No physicians added yet. Click &quot;Add Physician&quot; to get started.
                 </TableCell>
               </TableRow>
@@ -178,11 +176,6 @@ export default async function PhysiciansPage({
                           </Badge>
                         ))}
                     </div>
-                  </TableCell>
-                  <TableCell className="hidden lg:table-cell">
-                    <span className="text-sm text-muted-foreground">
-                      {doc.eligibilities.length} roles
-                    </span>
                   </TableCell>
                   <TableCell className="hidden xl:table-cell text-center">
                     {(() => {

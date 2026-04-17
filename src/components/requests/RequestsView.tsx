@@ -145,6 +145,7 @@ export function RequestsView({
   const [vacStartDate, setVacStartDate] = useState("");
   const [vacEndDate, setVacEndDate] = useState("");
   const [vacReason, setVacReason] = useState("");
+  const [vacTargetPhysicianId, setVacTargetPhysicianId] = useState("");
   const [vacSubmitting, setVacSubmitting] = useState(false);
   const [vacDialogOpen, setVacDialogOpen] = useState(false);
 
@@ -185,6 +186,10 @@ export function RequestsView({
       toast.error("Please select start and end dates");
       return;
     }
+    if (isAdmin && !vacTargetPhysicianId) {
+      toast.error("Please select a physician");
+      return;
+    }
     setVacSubmitting(true);
     try {
       const res = await fetch("/api/vacation-requests", {
@@ -194,17 +199,19 @@ export function RequestsView({
           startDate: vacStartDate,
           endDate: vacEndDate,
           reason: vacReason || undefined,
+          ...(isAdmin ? { physicianId: vacTargetPhysicianId } : {}),
         }),
       });
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to submit");
       }
-      toast.success("Vacation request submitted");
+      toast.success(isAdmin ? "Vacation added and approved" : "Vacation request submitted");
       setVacDialogOpen(false);
       setVacStartDate("");
       setVacEndDate("");
       setVacReason("");
+      setVacTargetPhysicianId("");
       router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Submission failed");
@@ -489,21 +496,42 @@ export function RequestsView({
 
         {/* VACATIONS TAB */}
         <TabsContent value="vacations" className="mt-4 space-y-4">
-          {physicianId && (
+          {(physicianId || isAdmin) && (
             <Dialog open={vacDialogOpen} onOpenChange={setVacDialogOpen}>
               <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 text-sm font-medium hover:bg-primary/90">
                 <Plus className="mr-2 h-4 w-4" />
-                Request Vacation
+                {isAdmin ? "Add Vacation" : "Request Vacation"}
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
-                  <DialogTitle>Request Vacation</DialogTitle>
+                  <DialogTitle>{isAdmin ? "Add Vacation" : "Request Vacation"}</DialogTitle>
                   <DialogDescription>
-                    Submit a vacation request for admin approval. Approved
-                    vacations will be considered when generating schedules.
+                    {isAdmin
+                      ? "Enter a vacation for a physician. It will be immediately approved."
+                      : "Submit a vacation request for admin approval. Approved vacations will be considered when generating schedules."}
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-3 py-2">
+                  {isAdmin && (
+                    <div>
+                      <Label>Physician</Label>
+                      <select
+                        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
+                        value={vacTargetPhysicianId}
+                        onChange={(e) => setVacTargetPhysicianId(e.target.value)}
+                      >
+                        <option value="">Select physician</option>
+                        {physicians
+                          .slice()
+                          .sort((a, b) => a.lastName.localeCompare(b.lastName))
+                          .map((p) => (
+                            <option key={p.id} value={p.id}>
+                              {p.lastName}, {p.firstName}
+                            </option>
+                          ))}
+                      </select>
+                    </div>
+                  )}
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <Label>Start Date</Label>
@@ -539,7 +567,7 @@ export function RequestsView({
                     {vacSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin mr-2" />
                     ) : null}
-                    Submit
+                    {isAdmin ? "Add" : "Submit"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
