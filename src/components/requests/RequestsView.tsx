@@ -33,6 +33,7 @@ import {
   Plus,
 } from "lucide-react";
 import { toast } from "sonner";
+import { UploadVacationDialog } from "./UploadVacationDialog";
 
 // --- Types ---
 
@@ -497,6 +498,7 @@ export function RequestsView({
         {/* VACATIONS TAB */}
         <TabsContent value="vacations" className="mt-4 space-y-4">
           {(physicianId || isAdmin) && (
+            <div className="flex gap-2 flex-wrap">
             <Dialog open={vacDialogOpen} onOpenChange={setVacDialogOpen}>
               <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 text-sm font-medium hover:bg-primary/90">
                 <Plus className="mr-2 h-4 w-4" />
@@ -572,6 +574,10 @@ export function RequestsView({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+            {!isAdmin && physicianId && (
+              <UploadVacationDialog onSuccess={() => router.refresh()} />
+            )}
+            </div>
           )}
 
           {/* Vacation list */}
