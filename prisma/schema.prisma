@@ -173,12 +173,19 @@ enum RequestStatus {
   CANCELLED
 }
 
+enum HalfDay {
+  NONE
+  MORNING
+  AFTERNOON
+}
+
 model VacationRequest {
   id               String        @id @default(cuid())
   physicianId      String
   physician        Physician     @relation(fields: [physicianId], references: [id])
   startDate        DateTime      @db.Date
   endDate          DateTime      @db.Date
+  halfDay          HalfDay       @default(NONE)
   reason           String?
   status           RequestStatus @default(PENDING)
   reviewedBy       String?

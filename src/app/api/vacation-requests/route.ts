@@ -34,7 +34,7 @@ export async function POST(req: Request) {
   const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
   const sessionPhysicianId = (session.user as Record<string, unknown>).physicianId as string | null;
 
-  const { startDate, endDate, reason, physicianId: targetPhysicianId } = await req.json();
+  const { startDate, endDate, reason, halfDay, physicianId: targetPhysicianId } = await req.json();
 
   // Determine which physician this is for
   let physicianId: string;
@@ -77,11 +77,19 @@ export async function POST(req: Request) {
   // Admin-entered vacations are immediately approved
   const status = isAdmin && targetPhysicianId ? "APPROVED" : "PENDING";
 
+  // halfDay only valid for single-day requests
+  const isSingleDay = start.getTime() === end.getTime();
+  const halfDayValue =
+    isSingleDay && (halfDay === "MORNING" || halfDay === "AFTERNOON")
+      ? halfDay
+      : "NONE";
+
   const request = await prisma.vacationRequest.create({
     data: {
       physicianId,
       startDate: start,
       endDate: end,
+      halfDay: halfDayValue,
       reason: reason || null,
       status,
       ...(isAdmin && targetPhysicianId

@@ -43,6 +43,7 @@ interface VacationRequest {
   physicianName: string;
   startDate: string;
   endDate: string;
+  halfDay: "NONE" | "MORNING" | "AFTERNOON";
   reason: string | null;
   status: string;
   reviewNote: string | null;
@@ -145,6 +146,7 @@ export function RequestsView({
   // Vacation form state
   const [vacStartDate, setVacStartDate] = useState("");
   const [vacEndDate, setVacEndDate] = useState("");
+  const [vacHalfDay, setVacHalfDay] = useState<"NONE" | "MORNING" | "AFTERNOON">("NONE");
   const [vacReason, setVacReason] = useState("");
   const [vacTargetPhysicianId, setVacTargetPhysicianId] = useState("");
   const [vacSubmitting, setVacSubmitting] = useState(false);
@@ -199,6 +201,7 @@ export function RequestsView({
         body: JSON.stringify({
           startDate: vacStartDate,
           endDate: vacEndDate,
+          halfDay: vacStartDate === vacEndDate ? vacHalfDay : "NONE",
           reason: vacReason || undefined,
           ...(isAdmin ? { physicianId: vacTargetPhysicianId } : {}),
         }),
@@ -211,6 +214,7 @@ export function RequestsView({
       setVacDialogOpen(false);
       setVacStartDate("");
       setVacEndDate("");
+      setVacHalfDay("NONE");
       setVacReason("");
       setVacTargetPhysicianId("");
       router.refresh();
@@ -431,7 +435,13 @@ export function RequestsView({
                 <div className="text-sm">
                   <Badge variant="outline" className="mr-2 text-xs">Vacation</Badge>
                   <strong>{v.physicianName}</strong>{" "}
-                  {formatDateShort(v.startDate)} &ndash; {formatDateShort(v.endDate)}
+                  {formatDateShort(v.startDate)}
+                  {v.startDate !== v.endDate && <> &ndash; {formatDateShort(v.endDate)}</>}
+                  {v.halfDay !== "NONE" && (
+                    <Badge variant="outline" className="ml-1 text-xs">
+                      {v.halfDay === "MORNING" ? "AM Half" : "PM Half"}
+                    </Badge>
+                  )}
                   {v.reason && (
                     <span className="text-muted-foreground ml-1">
                       &mdash; {v.reason}
@@ -539,7 +549,10 @@ export function RequestsView({
                       <Label>Start Date</Label>
                       <DatePicker
                         value={vacStartDate}
-                        onChange={setVacStartDate}
+                        onChange={(v) => {
+                          setVacStartDate(v);
+                          if (v !== vacEndDate) setVacHalfDay("NONE");
+                        }}
                         placeholder="Start date"
                       />
                     </div>
@@ -547,11 +560,35 @@ export function RequestsView({
                       <Label>End Date</Label>
                       <DatePicker
                         value={vacEndDate}
-                        onChange={setVacEndDate}
+                        onChange={(v) => {
+                          setVacEndDate(v);
+                          if (vacStartDate !== v) setVacHalfDay("NONE");
+                        }}
                         placeholder="End date"
                       />
                     </div>
                   </div>
+                  {vacStartDate && vacEndDate && vacStartDate === vacEndDate && (
+                    <div>
+                      <Label>Duration</Label>
+                      <div className="flex gap-2 mt-1">
+                        {(["NONE", "MORNING", "AFTERNOON"] as const).map((opt) => (
+                          <button
+                            key={opt}
+                            type="button"
+                            onClick={() => setVacHalfDay(opt)}
+                            className={`flex-1 rounded-md border px-3 py-1.5 text-sm font-medium transition-colors ${
+                              vacHalfDay === opt
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background border-input hover:bg-accent"
+                            }`}
+                          >
+                            {opt === "NONE" ? "Full Day" : opt === "MORNING" ? "AM Half" : "PM Half"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <Label>Reason (optional)</Label>
                     <Input
@@ -600,11 +637,19 @@ export function RequestsView({
                           </div>
                         )}
                         <div className="text-sm">
-                          {formatDateShort(v.startDate)} &ndash;{" "}
-                          {formatDateShort(v.endDate)}
-                          <span className="text-muted-foreground ml-2">
-                            ({daysBetween(v.startDate, v.endDate)} days)
-                          </span>
+                          {formatDateShort(v.startDate)}
+                          {v.startDate !== v.endDate && (
+                            <> &ndash; {formatDateShort(v.endDate)}</>
+                          )}
+                          {v.halfDay !== "NONE" ? (
+                            <Badge variant="outline" className="ml-2 text-xs">
+                              {v.halfDay === "MORNING" ? "AM Half" : "PM Half"}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground ml-2">
+                              ({daysBetween(v.startDate, v.endDate, v.halfDay)} days)
+                            </span>
+                          )}
                         </div>
                         {v.reason && (
                           <div className="text-sm text-muted-foreground mt-0.5">
@@ -947,8 +992,9 @@ export function RequestsView({
   );
 }
 
-function daysBetween(start: string, end: string): number {
+function daysBetween(start: string, end: string, halfDay?: "NONE" | "MORNING" | "AFTERNOON"): number {
   const s = new Date(start + "T12:00:00");
   const e = new Date(end + "T12:00:00");
-  return Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  const days = Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+  return halfDay && halfDay !== "NONE" ? 0.5 : days;
 }

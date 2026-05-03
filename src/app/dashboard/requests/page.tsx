@@ -115,6 +115,7 @@ export default async function RequestsPage() {
           physicianName: `${v.physician.firstName} ${v.physician.lastName}`,
           startDate: v.startDate.toISOString().split("T")[0],
           endDate: v.endDate.toISOString().split("T")[0],
+          halfDay: v.halfDay,
           reason: v.reason,
           status: v.status,
           reviewNote: v.reviewNote,
