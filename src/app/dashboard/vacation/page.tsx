@@ -82,7 +82,8 @@ export default async function VacationPage({
           id: v.id,
           startDate: v.startDate.toISOString().split("T")[0],
           endDate: v.endDate.toISOString().split("T")[0],
-          reason: v.reason ?? undefined,
+          reason: v.reason,
+          halfDay: v.halfDay,
         }))}
       />
     </div>

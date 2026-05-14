@@ -10,7 +10,8 @@ interface VacationInfo {
   id: string;
   startDate: string;
   endDate: string;
-  reason?: string | null;
+  reason: string | null;
+  halfDay?: string | null;
 }
 
 interface Props {

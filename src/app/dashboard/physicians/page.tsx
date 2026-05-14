@@ -14,11 +14,12 @@ import { Plus, Pencil, Calendar } from "lucide-react";
 import { AddPhysicianDialog } from "@/components/physicians/AddPhysicianDialog";
 import { DeletePhysicianButton } from "@/components/physicians/DeletePhysicianButton";
 import { CallStatsYearSelect } from "@/components/physicians/CallStatsYearSelect";
+import { ActivityRoleSelect } from "@/components/physicians/ActivityRoleSelect";
 
 export default async function PhysiciansPage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ year?: string; actRole?: string }>;
 }) {
   const params = await searchParams;
 
@@ -43,6 +44,17 @@ export default async function PhysiciansPage({
   const selectedYear = params.year
     ? parseInt(params.year, 10)
     : currentYear;
+
+  // All role types for activity dropdown
+  const allRoleTypes = await prisma.roleType.findMany({
+    select: { name: true, displayName: true, category: true },
+    orderBy: { sortOrder: "asc" },
+  });
+
+  const defaultActivityRole = allRoleTypes.find((r) => r.category === "READING")?.name
+    ?? allRoleTypes[0]?.name
+    ?? "";
+  const selectedActivityRole = params.actRole ?? defaultActivityRole;
 
   // Find the schedule for the selected year
   const schedule = allSchedules.find((s) => s.year === selectedYear);
@@ -83,6 +95,24 @@ export default async function PhysiciansPage({
       if (dow === 5 && a.roleType.name === "GENERAL_CALL") {
         stats.weekends++;
       }
+    }
+  }
+
+  // Activity stats: count assignments for selected role type
+  const activityCountMap = new Map<string, number>();
+
+  if (schedule && selectedActivityRole) {
+    const activityAssignments = await prisma.scheduleAssignment.findMany({
+      where: {
+        scheduleId: schedule.id,
+        isActive: true,
+        roleType: { name: selectedActivityRole },
+      },
+      select: { physicianId: true },
+    });
+
+    for (const a of activityAssignments) {
+      activityCountMap.set(a.physicianId, (activityCountMap.get(a.physicianId) ?? 0) + 1);
     }
   }
 
@@ -131,13 +161,30 @@ export default async function PhysiciansPage({
                   )}
                 </div>
               </TableHead>
+              <TableHead className="hidden xl:table-cell">
+                <div className="flex flex-col items-center gap-1">
+                  <span>Activity Count</span>
+                  <div className="flex gap-1">
+                    <ActivityRoleSelect
+                      roles={allRoleTypes}
+                      selectedRole={selectedActivityRole}
+                    />
+                    {availableYears.length > 0 && (
+                      <CallStatsYearSelect
+                        years={availableYears}
+                        selectedYear={selectedYear}
+                      />
+                    )}
+                  </div>
+                </div>
+              </TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {physicians.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
                   No physicians added yet. Click &quot;Add Physician&quot; to get started.
                 </TableCell>
               </TableRow>
@@ -192,6 +239,16 @@ export default async function PhysiciansPage({
                       const stats = callStatsMap.get(doc.id);
                       return stats ? (
                         <span className="text-sm font-medium">{stats.weekends}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {(() => {
+                      const count = activityCountMap.get(doc.id);
+                      return count !== undefined ? (
+                        <span className="text-sm font-medium">{count}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       );
