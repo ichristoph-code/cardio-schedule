@@ -19,13 +19,15 @@ export function PhysicianPicker({ physicians, selectedId, year }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  function onPhysicianChange(id: string) {
+  function onPhysicianChange(id: string | null) {
+    if (!id) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("physician", id);
     router.push(`/dashboard/vacation?${params.toString()}`);
   }
 
-  function onYearChange(y: string) {
+  function onYearChange(y: string | null) {
+    if (!y) return;
     const params = new URLSearchParams(searchParams.toString());
     params.set("year", y);
     router.push(`/dashboard/vacation?${params.toString()}`);
