@@ -161,6 +161,15 @@ export async function generateSchedule(year: number): Promise<{
     noCallDaySet.set(nc.physicianId, dates);
   }
 
+  // Weekly recurring days off (block all roles on that day of week)
+  const weeklyDaysOffRecords = await prisma.physicianWeeklyDayOff.findMany();
+  const weeklyDayOffMap = new Map<string, Set<number>>();
+  for (const wd of weeklyDaysOffRecords) {
+    const days = weeklyDayOffMap.get(wd.physicianId) ?? new Set<number>();
+    days.add(wd.dayOfWeek);
+    weeklyDayOffMap.set(wd.physicianId, days);
+  }
+
   // Historical holiday burden (prior years)
   const priorHA = await prisma.holidayAssignment.findMany({
     where: { year: { lt: year } },
@@ -415,6 +424,8 @@ export async function generateSchedule(year: number): Promise<{
         if (vacationDays.get(p.id)?.has(dateStr)) return false;
         // No-call days block ON_CALL roles only (physician still available for daytime/reading)
         if (role.category === "ON_CALL" && noCallDaySet.get(p.id)?.has(dateStr)) return false;
+        // Weekly recurring day off blocks all roles on that day of week
+        if (weeklyDayOffMap.get(p.id)?.has(dow)) return false;
 
         // Prerequisite rules
         for (const rule of prerequisiteRules) {

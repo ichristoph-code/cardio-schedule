@@ -143,7 +143,13 @@ export function RequestsView({
   useEffect(() => setSwaps(initialSwaps), [initialSwaps]);
   useEffect(() => setNoCallDays(initialNoCallDays), [initialNoCallDays]);
 
-  // Vacation form state
+  // Quick-add vacation state (admin only)
+  const [quickPhysicianId, setQuickPhysicianId] = useState("");
+  const [quickDate, setQuickDate] = useState("");
+  const [quickHalfDay, setQuickHalfDay] = useState<"NONE" | "MORNING" | "AFTERNOON">("NONE");
+  const [quickSubmitting, setQuickSubmitting] = useState(false);
+
+  // Vacation form state (full dialog)
   const [vacStartDate, setVacStartDate] = useState("");
   const [vacEndDate, setVacEndDate] = useState("");
   const [vacHalfDay, setVacHalfDay] = useState<"NONE" | "MORNING" | "AFTERNOON">("NONE");
@@ -161,6 +167,9 @@ export function RequestsView({
   // Bulk action state (for no-call days)
   const [bulkApproving, setBulkApproving] = useState(false);
 
+  // Bulk approve state for vacation requests (keyed by physician name)
+  const [vacBulkApproving, setVacBulkApproving] = useState<string | false>(false);
+
   // Pending counts
   const pendingVacations = vacations.filter((v) => v.status === "PENDING");
   const pendingNoCallDays = noCallDays.filter((nc) => nc.status === "PENDING");
@@ -175,6 +184,13 @@ export function RequestsView({
       s.toPhysicianId === physicianId
   );
 
+  // Group pending vacations by physician (for admin bulk approve)
+  const pendingVacByPhysician = pendingVacations.reduce((acc, v) => {
+    if (!acc[v.physicianName]) acc[v.physicianName] = [];
+    acc[v.physicianName].push(v);
+    return acc;
+  }, {} as Record<string, VacationRequest[]>);
+
   // Group pending no-call days by physician (for admin bulk actions)
   const pendingNoCallByPhysician = pendingNoCallDays.reduce((acc, nc) => {
     if (!acc[nc.physicianName]) acc[nc.physicianName] = [];
@@ -183,6 +199,38 @@ export function RequestsView({
   }, {} as Record<string, NoCallDayRequest[]>);
 
   // --- Handlers ---
+
+  async function submitQuickVacation() {
+    if (!quickPhysicianId || !quickDate) {
+      toast.error("Select a physician and date");
+      return;
+    }
+    setQuickSubmitting(true);
+    try {
+      const res = await fetch("/api/vacation-requests", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          startDate: quickDate,
+          endDate: quickDate,
+          halfDay: quickHalfDay,
+          physicianId: quickPhysicianId,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to add vacation");
+      }
+      toast.success("Vacation day added");
+      setQuickDate("");
+      setQuickHalfDay("NONE");
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed");
+    } finally {
+      setQuickSubmitting(false);
+    }
+  }
 
   async function submitVacation() {
     if (!vacStartDate || !vacEndDate) {
@@ -251,6 +299,33 @@ export function RequestsView({
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
+    }
+  }
+
+  async function handleBulkApproveVacations(physicianName: string, ids: string[]) {
+    setVacBulkApproving(physicianName);
+    let succeeded = 0;
+    try {
+      for (const id of ids) {
+        const res = await fetch(`/api/vacation-requests/${id}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "APPROVED" }),
+        });
+        if (res.ok) {
+          succeeded++;
+          setVacations((prev) =>
+            prev.map((v) => (v.id === id ? { ...v, status: "APPROVED" } : v))
+          );
+        }
+      }
+      toast.success(
+        `${succeeded} vacation request${succeeded !== 1 ? "s" : ""} approved for ${physicianName}`
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Bulk approve failed");
+    } finally {
+      setVacBulkApproving(false);
     }
   }
 
@@ -427,46 +502,71 @@ export function RequestsView({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {pendingVacations.map((v) => (
-              <div
-                key={v.id}
-                className="flex items-center justify-between gap-2 p-2 bg-white rounded border"
-              >
-                <div className="text-sm">
-                  <Badge variant="outline" className="mr-2 text-xs">Vacation</Badge>
-                  <strong>{v.physicianName}</strong>{" "}
-                  {formatDateShort(v.startDate)}
-                  {v.startDate !== v.endDate && <> &ndash; {formatDateShort(v.endDate)}</>}
-                  {v.halfDay !== "NONE" && (
-                    <Badge variant="outline" className="ml-1 text-xs">
-                      {v.halfDay === "MORNING" ? "AM Half" : "PM Half"}
-                    </Badge>
-                  )}
-                  {v.reason && (
-                    <span className="text-muted-foreground ml-1">
-                      &mdash; {v.reason}
-                    </span>
+            {Object.entries(pendingVacByPhysician).map(([physicianName, reqs]) => (
+              <div key={physicianName} className="space-y-1">
+                <div className="flex items-center justify-between px-1">
+                  <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    {physicianName}
+                  </span>
+                  {reqs.length > 1 && (
+                    <Button
+                      size="sm"
+                      className="h-6 text-xs px-2"
+                      disabled={vacBulkApproving === physicianName}
+                      onClick={() =>
+                        handleBulkApproveVacations(physicianName, reqs.map((r) => r.id))
+                      }
+                    >
+                      {vacBulkApproving === physicianName ? (
+                        <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                      ) : (
+                        <Check className="h-3 w-3 mr-1" />
+                      )}
+                      Approve All ({reqs.length})
+                    </Button>
                   )}
                 </div>
-                <div className="flex gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    className="h-7"
-                    onClick={() => handleVacationAction(v.id, "APPROVED")}
+                {reqs.map((v) => (
+                  <div
+                    key={v.id}
+                    className="flex items-center justify-between gap-2 p-2 bg-white rounded border"
                   >
-                    <Check className="h-3 w-3 mr-1" />
-                    Approve
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    className="h-7"
-                    onClick={() => handleVacationAction(v.id, "DENIED")}
-                  >
-                    <X className="h-3 w-3 mr-1" />
-                    Deny
-                  </Button>
-                </div>
+                    <div className="text-sm">
+                      <Badge variant="outline" className="mr-2 text-xs">Vacation</Badge>
+                      {formatDateShort(v.startDate)}
+                      {v.startDate !== v.endDate && <> &ndash; {formatDateShort(v.endDate)}</>}
+                      {v.halfDay !== "NONE" && (
+                        <Badge variant="outline" className="ml-1 text-xs">
+                          {v.halfDay === "MORNING" ? "AM Half" : "PM Half"}
+                        </Badge>
+                      )}
+                      {v.reason && (
+                        <span className="text-muted-foreground ml-1">
+                          &mdash; {v.reason}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex gap-1 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        className="h-7"
+                        onClick={() => handleVacationAction(v.id, "APPROVED")}
+                      >
+                        <Check className="h-3 w-3 mr-1" />
+                        Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        className="h-7"
+                        onClick={() => handleVacationAction(v.id, "DENIED")}
+                      >
+                        <X className="h-3 w-3 mr-1" />
+                        Deny
+                      </Button>
+                    </div>
+                  </div>
+                ))}
               </div>
             ))}
           </CardContent>
@@ -507,19 +607,92 @@ export function RequestsView({
 
         {/* VACATIONS TAB */}
         <TabsContent value="vacations" className="mt-4 space-y-4">
+          {/* Admin quick-add bar */}
+          {isAdmin && (
+            <Card className="border-dashed">
+              <CardContent className="pt-4 pb-3">
+                <div className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wide">
+                  Quick Add Single Day
+                </div>
+                <div className="flex flex-wrap gap-2 items-end">
+                  <div className="flex-1 min-w-[160px]">
+                    <Label className="text-xs">Physician</Label>
+                    <select
+                      className="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1.5 text-sm mt-1"
+                      value={quickPhysicianId}
+                      onChange={(e) => setQuickPhysicianId(e.target.value)}
+                    >
+                      <option value="">Select physician</option>
+                      {physicians
+                        .slice()
+                        .sort((a, b) => a.lastName.localeCompare(b.lastName))
+                        .map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.lastName}, {p.firstName}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <div className="min-w-[140px]">
+                    <Label className="text-xs">Date</Label>
+                    <div className="mt-1">
+                      <DatePicker
+                        value={quickDate}
+                        onChange={setQuickDate}
+                        placeholder="Pick date"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Duration</Label>
+                    <div className="flex gap-1 mt-1">
+                      {(["NONE", "MORNING", "AFTERNOON"] as const).map((opt) => (
+                        <button
+                          key={opt}
+                          type="button"
+                          onClick={() => setQuickHalfDay(opt)}
+                          className={`rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                            quickHalfDay === opt
+                              ? "bg-primary text-primary-foreground border-primary"
+                              : "bg-background border-input hover:bg-accent"
+                          }`}
+                        >
+                          {opt === "NONE" ? "Full" : opt === "MORNING" ? "AM" : "PM"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={submitQuickVacation}
+                    disabled={quickSubmitting || !quickPhysicianId || !quickDate}
+                    className="h-9"
+                  >
+                    {quickSubmitting ? (
+                      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    ) : (
+                      <Plus className="h-4 w-4 mr-1" />
+                    )}
+                    Add
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           {(physicianId || isAdmin) && (
             <div className="flex gap-2 flex-wrap">
             <Dialog open={vacDialogOpen} onOpenChange={setVacDialogOpen}>
               <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 text-sm font-medium hover:bg-primary/90">
                 <Plus className="mr-2 h-4 w-4" />
-                {isAdmin ? "Add Vacation" : "Request Vacation"}
+                {isAdmin ? "Add Multi-Day Vacation" : "Request Vacation"}
               </DialogTrigger>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>{isAdmin ? "Add Vacation" : "Request Vacation"}</DialogTitle>
                   <DialogDescription>
                     {isAdmin
-                      ? "Enter a vacation for a physician. It will be immediately approved."
+                      ? "Enter a vacation range for a physician. It will be immediately approved."
                       : "Submit a vacation request for admin approval. Approved vacations will be considered when generating schedules."}
                   </DialogDescription>
                 </DialogHeader>

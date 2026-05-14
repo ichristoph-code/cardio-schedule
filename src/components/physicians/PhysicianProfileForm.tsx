@@ -35,6 +35,7 @@ interface PhysicianData {
   isInterventionalist: boolean;
   isEP: boolean;
   officeDays: number[];
+  weeklyDaysOff: number[];
   eligibleRoleIds: string[];
 }
 
@@ -43,12 +44,18 @@ interface Props {
   roleTypes: RoleType[];
 }
 
-const DAYS = [
+const WEEKDAYS = [
   { value: 1, label: "Monday" },
   { value: 2, label: "Tuesday" },
   { value: 3, label: "Wednesday" },
   { value: 4, label: "Thursday" },
   { value: 5, label: "Friday" },
+];
+
+const ALL_DAYS = [
+  ...WEEKDAYS,
+  { value: 6, label: "Saturday" },
+  { value: 7, label: "Sunday" },
 ];
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -84,12 +91,19 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
   );
   const [isEP, setIsEP] = useState(physician.isEP);
   const [officeDays, setOfficeDays] = useState<number[]>(physician.officeDays);
+  const [weeklyDaysOff, setWeeklyDaysOff] = useState<number[]>(physician.weeklyDaysOff);
   const [eligibleRoleIds, setEligibleRoleIds] = useState<string[]>(
     physician.eligibleRoleIds
   );
 
   function toggleOfficeDay(day: number) {
     setOfficeDays((prev) =>
+      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
+    );
+  }
+
+  function toggleWeeklyDayOff(day: number) {
+    setWeeklyDaysOff((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
   }
@@ -130,6 +144,7 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
         isInterventionalist,
         isEP,
         officeDays,
+        weeklyDaysOff,
         eligibleRoleIds,
         ...(newPassword ? { newPassword } : {}),
       }),
@@ -275,7 +290,7 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {DAYS.map((day) => (
+                {WEEKDAYS.map((day) => (
                   <div key={day.value} className="flex items-center gap-3">
                     <Checkbox
                       id={`day-${day.value}`}
@@ -284,6 +299,34 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
                     />
                     <Label
                       htmlFor={`day-${day.value}`}
+                      className="cursor-pointer"
+                    >
+                      {day.label}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Regular Days Off</CardTitle>
+              <CardDescription>
+                Days this physician is never available. The scheduler will never assign them on these days.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {ALL_DAYS.map((day) => (
+                  <div key={day.value} className="flex items-center gap-3">
+                    <Checkbox
+                      id={`dayoff-${day.value}`}
+                      checked={weeklyDaysOff.includes(day.value)}
+                      onCheckedChange={() => toggleWeeklyDayOff(day.value)}
+                    />
+                    <Label
+                      htmlFor={`dayoff-${day.value}`}
                       className="cursor-pointer"
                     >
                       {day.label}

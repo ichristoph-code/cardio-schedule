@@ -23,6 +23,7 @@ export async function PUT(
     isInterventionalist,
     isEP,
     officeDays,
+    weeklyDaysOff,
     eligibleRoleIds,
     newPassword,
   } = body;
@@ -88,6 +89,17 @@ export async function PUT(
       });
     }
 
+    // Replace weekly days off
+    await tx.physicianWeeklyDayOff.deleteMany({ where: { physicianId: id } });
+    if (weeklyDaysOff?.length) {
+      await tx.physicianWeeklyDayOff.createMany({
+        data: weeklyDaysOff.map((dayOfWeek: number) => ({
+          physicianId: id,
+          dayOfWeek,
+        })),
+      });
+    }
+
     // Replace role eligibilities
     await tx.physicianEligibility.deleteMany({ where: { physicianId: id } });
     if (eligibleRoleIds?.length) {
@@ -141,6 +153,7 @@ export async function DELETE(
     await tx.holidayAssignment.deleteMany({ where: { physicianId: id } });
     await tx.physicianEligibility.deleteMany({ where: { physicianId: id } });
     await tx.physicianOfficeDay.deleteMany({ where: { physicianId: id } });
+    await tx.physicianWeeklyDayOff.deleteMany({ where: { physicianId: id } });
     await tx.physician.delete({ where: { id } });
     await tx.user.delete({ where: { id: existing.userId } });
   });

@@ -37,6 +37,7 @@ model Physician {
 
   eligibilities        PhysicianEligibility[]
   officeDays           PhysicianOfficeDay[]
+  weeklyDaysOff        PhysicianWeeklyDayOff[]
   assignments          ScheduleAssignment[]
   vacationRequests     VacationRequest[]
   noCallDayRequests    NoCallDayRequest[]
@@ -87,6 +88,15 @@ model PhysicianEligibility {
 }
 
 model PhysicianOfficeDay {
+  id          String    @id @default(cuid())
+  physicianId String
+  physician   Physician @relation(fields: [physicianId], references: [id], onDelete: Cascade)
+  dayOfWeek   Int
+
+  @@unique([physicianId, dayOfWeek])
+}
+
+model PhysicianWeeklyDayOff {
   id          String    @id @default(cuid())
   physicianId String
   physician   Physician @relation(fields: [physicianId], references: [id], onDelete: Cascade)

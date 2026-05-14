@@ -25,6 +25,7 @@ export default async function PhysicianDetailPage({ params }: PageProps) {
       user: { select: { email: true, role: true } },
       eligibilities: { include: { roleType: true } },
       officeDays: true,
+      weeklyDaysOff: true,
     },
   });
 
@@ -135,6 +136,7 @@ export default async function PhysicianDetailPage({ params }: PageProps) {
           isInterventionalist: physician.isInterventionalist,
           isEP: physician.isEP,
           officeDays: physician.officeDays.map((d) => d.dayOfWeek),
+          weeklyDaysOff: physician.weeklyDaysOff.map((d) => d.dayOfWeek),
           eligibleRoleIds: physician.eligibilities.map((e) => e.roleTypeId),
         }}
         roleTypes={roleTypes.map((r) => ({

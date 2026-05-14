@@ -41,6 +41,7 @@ import {
   Pencil,
   Printer,
   Filter,
+  LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -674,6 +675,77 @@ export function ScheduleViewer({
     );
   }
 
+  // --- Year View ---
+
+  function renderYearView() {
+    const DAY_MINI = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+    const todayStr = new Date().toISOString().split("T")[0];
+
+    return (
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+        {Array.from({ length: 12 }, (_, m) => {
+          const daysInMonth = new Date(schedule.year, m + 1, 0).getDate();
+          const firstDow = new Date(schedule.year, m, 1).getDay();
+          const cells: (number | null)[] = [
+            ...Array(firstDow).fill(null),
+            ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
+          ];
+          while (cells.length % 7 !== 0) cells.push(null);
+
+          return (
+            <div key={m} className="bg-white dark:bg-card rounded-xl border p-4 shadow-sm">
+              <h3 className="text-sm font-semibold text-center mb-3 text-foreground">
+                {MONTH_NAMES[m]}
+              </h3>
+              <div className="grid grid-cols-7 gap-px">
+                {DAY_MINI.map((d) => (
+                  <div key={d} className="text-[10px] text-center text-muted-foreground font-medium pb-1">
+                    {d}
+                  </div>
+                ))}
+                {cells.map((day, i) => {
+                  if (!day) return <div key={i} />;
+                  const dateStr = formatDate(schedule.year, m, day);
+                  const dayAssigns = filteredAssignmentsByDate.get(dateStr) ?? [];
+                  const isT = dateStr === todayStr;
+                  const dow = new Date(schedule.year, m, day).getDay();
+                  const isWeekend = dow === 0 || dow === 6;
+                  const uniquePids = [...new Set(dayAssigns.map((a) => a.physicianId))].slice(0, 4);
+
+                  return (
+                    <button
+                      key={i}
+                      onClick={() => dayAssigns.length > 0 ? setSelectedDate(dateStr) : undefined}
+                      title={dayAssigns.length > 0 ? `${dayAssigns.length} assignment${dayAssigns.length !== 1 ? "s" : ""}` : undefined}
+                      className={[
+                        "flex flex-col items-center rounded py-[2px] leading-none select-none",
+                        dayAssigns.length > 0 ? "cursor-pointer hover:bg-muted/50" : "cursor-default",
+                        isT ? "ring-1 ring-primary" : "",
+                        isWeekend && !isT ? "opacity-50" : "",
+                      ].join(" ")}
+                    >
+                      <span className={`text-[10px] ${isT ? "text-primary font-bold" : "text-foreground"}`}>
+                        {day}
+                      </span>
+                      {uniquePids.length > 0 && (
+                        <span className="flex gap-[2px] mt-[2px] flex-wrap justify-center">
+                          {uniquePids.map((pid) => {
+                            const color = physicianColors.get(pid);
+                            return <span key={pid} className={`w-[5px] h-[5px] rounded-full ${color?.dot ?? "bg-gray-400"}`} />;
+                          })}
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   // --- Day Detail Sheet ---
 
   function renderDaySheet() {
@@ -879,12 +951,13 @@ export function ScheduleViewer({
       {/* Stats */}
       {renderStats()}
 
-      {/* Tabs: Month / Week */}
+      {/* Tabs: Month / Week / Year */}
       <Tabs defaultValue="week">
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="week">Week View</TabsTrigger>
             <TabsTrigger value="month">Month View</TabsTrigger>
+            <TabsTrigger value="year"><LayoutGrid className="h-3.5 w-3.5 mr-1.5" />Year View</TabsTrigger>
           </TabsList>
           <Button
             variant={hiddenRoles.size > 0 ? "default" : "outline"}
@@ -984,6 +1057,9 @@ export function ScheduleViewer({
         </TabsContent>
         <TabsContent value="month" className="mt-4">
           {renderMonthView()}
+        </TabsContent>
+        <TabsContent value="year" className="mt-4">
+          {renderYearView()}
         </TabsContent>
       </Tabs>
 
