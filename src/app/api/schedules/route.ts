@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { generateSchedule } from "@/lib/scheduler";
 import { auditLog } from "@/lib/audit";
 
+export const maxDuration = 60;
+
 // GET /api/schedules — list all schedules
 export async function GET() {
   const session = await auth();
