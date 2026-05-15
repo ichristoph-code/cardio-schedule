@@ -283,11 +283,7 @@ export function ScheduleViewer({
     return map;
   }, [localAssignments]);
 
-  // Active role types (ones that actually have assignments)
-  const activeRoleTypes = useMemo(() => {
-    const ids = new Set(localAssignments.map((a) => a.roleTypeId));
-    return roleTypes.filter((r) => ids.has(r.id));
-  }, [localAssignments, roleTypes]);
+  const activeRoleTypes = useMemo(() => roleTypes, [roleTypes]);
 
   // Visible role types (filtered by checkboxes)
   const visibleRoleTypes = useMemo(
