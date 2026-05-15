@@ -28,13 +28,43 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
-  const { year } = await req.json();
+  const { year, roleTypeIds, resetOnly } = await req.json();
   if (!year || typeof year !== "number" || year < 2024 || year > 2100) {
     return NextResponse.json({ error: "Invalid year" }, { status: 400 });
   }
+  if (roleTypeIds !== undefined && (!Array.isArray(roleTypeIds) || roleTypeIds.some((id: unknown) => typeof id !== "string"))) {
+    return NextResponse.json({ error: "Invalid roleTypeIds" }, { status: 400 });
+  }
+
+  // Reset-only: delete assignments for the given roles without regenerating
+  if (resetOnly) {
+    if (!Array.isArray(roleTypeIds) || roleTypeIds.length === 0) {
+      return NextResponse.json({ error: "roleTypeIds required for reset" }, { status: 400 });
+    }
+    try {
+      const schedule = await prisma.schedule.findUnique({ where: { year } });
+      if (!schedule) {
+        return NextResponse.json({ error: "No schedule found for that year" }, { status: 404 });
+      }
+      const { count } = await prisma.scheduleAssignment.deleteMany({
+        where: { scheduleId: schedule.id, roleTypeId: { in: roleTypeIds } },
+      });
+      await auditLog(
+        (session.user as Record<string, unknown>).id as string,
+        "RESET_ROLES",
+        "Schedule",
+        schedule.id,
+        { year, roleTypeIds, deletedCount: count }
+      );
+      return NextResponse.json({ deletedCount: count });
+    } catch (error) {
+      console.error("Schedule reset error:", error);
+      return NextResponse.json({ error: "Failed to reset assignments" }, { status: 500 });
+    }
+  }
 
   try {
-    const result = await generateSchedule(year);
+    const result = await generateSchedule(year, roleTypeIds);
 
     await auditLog(
       (session.user as Record<string, unknown>).id as string,

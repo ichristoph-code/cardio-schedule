@@ -247,4 +247,16 @@
     size: landscape;
     margin: 0.5in;
   }
+
+  /* Hide Radix UI portals (dialogs, popovers, sheets) during print */
+  [data-radix-popper-content-wrapper],
+  [data-radix-dialog-overlay],
+  [data-radix-dialog-content] {
+    display: none !important;
+  }
+
+  /* Multi-month print: each month on its own page */
+  .print-month-page + .print-month-page {
+    page-break-before: always;
+  }
 }

@@ -17,14 +17,31 @@ export default async function SchedulePage({
   const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
   const query = await searchParams;
 
-  // Load all available schedules (admin sees any, physician sees published only)
-  const allSchedules = await prisma.schedule.findMany({
-    where: isAdmin ? {} : { status: "PUBLISHED" },
-    select: { id: true, year: true, status: true, generatedAt: true, publishedAt: true },
-    orderBy: { year: "desc" },
-  });
+  // Load schedules and role types in parallel — role types needed for generate dialog
+  const [allSchedules, allRoleTypes] = await Promise.all([
+    prisma.schedule.findMany({
+      where: isAdmin ? {} : { status: "PUBLISHED" },
+      select: { id: true, year: true, status: true, generatedAt: true, publishedAt: true },
+      orderBy: { year: "desc" },
+    }),
+    prisma.roleType.findMany({ orderBy: { sortOrder: "asc" } }),
+  ]);
 
-  // No schedule exists — show empty state with generate button
+  const generateButton = isAdmin ? (
+    <ScheduleGenerateButton
+      roleTypes={allRoleTypes.map((r) => ({
+        id: r.id,
+        displayName: r.displayName,
+        category: r.category,
+      }))}
+      existingSchedules={allSchedules.map((s) => ({
+        year: s.year,
+        status: s.status,
+      }))}
+    />
+  ) : null;
+
+  // No schedule exists — show empty state
   if (allSchedules.length === 0) {
     return (
       <div className="space-y-6">
@@ -37,7 +54,7 @@ export default async function SchedulePage({
                 : "View published schedules."}
             </p>
           </div>
-          {isAdmin && <ScheduleGenerateButton />}
+          {generateButton}
         </div>
 
         <div className="py-12 text-center">
@@ -56,7 +73,6 @@ export default async function SchedulePage({
   const availableYears = allSchedules.map((s) => s.year);
   const currentYear = new Date().getFullYear();
 
-  // Selected year: URL param > current year > latest available
   const selectedYear = query.year
     ? parseInt(query.year, 10)
     : availableYears.includes(currentYear)
@@ -65,8 +81,7 @@ export default async function SchedulePage({
 
   const selectedSchedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
 
-  // Load full data for the selected schedule
-  const [assignments, physicians, roleTypes] = await Promise.all([
+  const [assignments, physicians] = await Promise.all([
     prisma.scheduleAssignment.findMany({
       where: { scheduleId: selectedSchedule.id, isActive: true },
       include: {
@@ -87,7 +102,6 @@ export default async function SchedulePage({
       select: { id: true, firstName: true, lastName: true },
       orderBy: { lastName: "asc" },
     }),
-    prisma.roleType.findMany({ orderBy: { sortOrder: "asc" } }),
   ]);
 
   const serializedAssignments = assignments.map((a) => ({
@@ -106,7 +120,6 @@ export default async function SchedulePage({
 
   return (
     <div className="space-y-4">
-      {/* Toolbar — year selector + generate button */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-sm text-muted-foreground">Year:</span>
@@ -115,7 +128,7 @@ export default async function SchedulePage({
             selectedYear={selectedSchedule.year}
           />
         </div>
-        {isAdmin && <ScheduleGenerateButton />}
+        {generateButton}
       </div>
 
       <ScheduleViewer
@@ -129,7 +142,7 @@ export default async function SchedulePage({
         }}
         assignments={serializedAssignments}
         physicians={physicians}
-        roleTypes={roleTypes.map((r) => ({
+        roleTypes={allRoleTypes.map((r) => ({
           id: r.id,
           name: r.name,
           displayName: r.displayName,

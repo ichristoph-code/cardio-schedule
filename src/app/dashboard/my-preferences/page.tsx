@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { AnnualPreferencesView } from "@/components/preferences/AnnualPreferencesView";
 import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
+import { PreferredTaskDay } from "@/components/preferences/PreferredTaskDay";
 
 export default async function MyPreferencesPage() {
   const session = await auth();
@@ -31,6 +32,11 @@ export default async function MyPreferencesPage() {
   // Load existing requests for the current year
   const yearStart = new Date(`${currentYear}-01-01`);
   const yearEnd = new Date(`${currentYear}-12-31`);
+
+  const physician = await prisma.physician.findUnique({
+    where: { id: physicianId },
+    select: { preferredTaskDay: true },
+  });
 
   const [vacations, noCallDays, mpiRoleType] = await Promise.all([
     prisma.vacationRequest.findMany({
@@ -91,6 +97,10 @@ export default async function MyPreferencesPage() {
           be assigned night call.
         </p>
       </div>
+
+      <PreferredTaskDay
+        initialPreferredDay={physician?.preferredTaskDay ?? null}
+      />
 
       <MpiDayPreference
         initialPreferredDay={mpiPreferredDay}

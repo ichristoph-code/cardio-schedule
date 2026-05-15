@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +227,43 @@ export function ScheduleViewer({
   const [localAssignments, setLocalAssignments] = useState(assignments);
   const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
   const [showRoleFilter, setShowRoleFilter] = useState(false);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
+  const [printMonths, setPrintMonths] = useState<Set<number>>(() => new Set([new Date().getMonth()]));
+
+  function executePrint() {
+    const content = document.getElementById("month-print-content");
+    if (!content) return;
+
+    const styleContent = Array.from(document.styleSheets)
+      .map((sheet) => {
+        try { return Array.from(sheet.cssRules).map((r) => r.cssText).join("\n"); }
+        catch { return ""; }
+      })
+      .filter(Boolean)
+      .join("\n");
+
+    const iframe = document.createElement("iframe");
+    iframe.style.cssText = "position:fixed;top:-9999px;left:-9999px;width:11in;height:8.5in;border:none;";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentDocument!;
+    doc.open();
+    doc.write(`<!DOCTYPE html><html><head>
+      <style>${styleContent}</style>
+      <style>
+        @page { size: landscape; margin: 0.5in; }
+        body { margin: 0; padding: 16px; background: white; }
+        .print-month-page + .print-month-page { page-break-before: always; }
+      </style>
+    </head><body>${content.innerHTML}</body></html>`);
+    doc.close();
+
+    setTimeout(() => {
+      iframe.contentWindow!.focus();
+      iframe.contentWindow!.print();
+      setTimeout(() => document.body.removeChild(iframe), 1000);
+    }, 150);
+  }
 
   // Build physician → color mapping
   const physicianColors = useMemo(() => buildPhysicianColorMap(physicians), [physicians]);
@@ -371,41 +408,54 @@ export function ScheduleViewer({
     return (
       <div>
         {/* Month navigation */}
-        <div className="flex items-center justify-center gap-1 mb-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMonth((m) => Math.max(0, m - 1))}
-            disabled={month === 0}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2">
-            <h3 className="text-lg font-semibold">
-              {MONTH_NAMES[month]} {schedule.year}
-            </h3>
-            {new Date().getFullYear() === schedule.year && month !== new Date().getMonth() && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="text-xs h-7"
-                onClick={() => setMonth(new Date().getMonth())}
-              >
-                Today
-              </Button>
-            )}
+        <div className="flex items-center justify-between mb-4 no-print">
+          <div className="flex-1" />
+          <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMonth((m) => Math.max(0, m - 1))}
+              disabled={month === 0}
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">
+                {MONTH_NAMES[month]} {schedule.year}
+              </h3>
+              {new Date().getFullYear() === schedule.year && month !== new Date().getMonth() && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-xs h-7"
+                  onClick={() => setMonth(new Date().getMonth())}
+                >
+                  Today
+                </Button>
+              )}
+            </div>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setMonth((m) => Math.min(11, m + 1))}
+              disabled={month === 11}
+            >
+              <ChevronRight className="h-4 w-4" />
+            </Button>
           </div>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setMonth((m) => Math.min(11, m + 1))}
-            disabled={month === 11}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          <div className="flex-1 flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowPrintDialog(true)}
+            >
+              <Printer className="h-4 w-4 mr-1.5" />
+              Print Months
+            </Button>
+          </div>
         </div>
 
-        {/* Day headers */}
+        {/* Day headers + Calendar grid */}
         <div className="grid grid-cols-7 gap-px mb-1">
           {DAY_LABELS.map((d) => (
             <div
@@ -476,7 +526,7 @@ export function ScheduleViewer({
         </div>
 
         {/* Physician color legend */}
-        <div className="flex gap-2 mt-3 text-xs flex-wrap">
+        <div className="flex gap-2 mt-3 text-xs flex-wrap no-print">
           {[...physicianColors.entries()]
             .sort((a, b) => {
               const pA = physicians.find(p => p.id === a[0]);
@@ -494,6 +544,124 @@ export function ScheduleViewer({
               );
             })}
         </div>
+
+      </div>
+    );
+  }
+
+  function renderPrintMonthDialog() {
+    return (
+      <Dialog open={showPrintDialog} onOpenChange={setShowPrintDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Print Months</DialogTitle>
+            <DialogDescription>Select which months to include in the printout.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-3 gap-2 py-2">
+            {MONTH_NAMES.map((name, i) => (
+              <label key={i} className="flex items-center gap-2 cursor-pointer rounded-md border px-3 py-2 hover:bg-muted/50 transition-colors">
+                <Checkbox
+                  checked={printMonths.has(i)}
+                  onCheckedChange={(checked) => {
+                    setPrintMonths((prev) => {
+                      const next = new Set(prev);
+                      if (checked) next.add(i); else next.delete(i);
+                      return next;
+                    });
+                  }}
+                />
+                <span className="text-sm">{name}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-between items-center text-xs text-muted-foreground">
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+              onClick={() => setPrintMonths(new Set(Array.from({ length: 12 }, (_, i) => i)))}
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              className="underline underline-offset-2 hover:text-foreground transition-colors"
+              onClick={() => setPrintMonths(new Set())}
+            >
+              Clear
+            </button>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowPrintDialog(false)}>Cancel</Button>
+            <Button
+              disabled={printMonths.size === 0}
+              onClick={() => {
+                setShowPrintDialog(false);
+                setTimeout(executePrint, 300);
+              }}
+            >
+              <Printer className="h-4 w-4 mr-1.5" />
+              Print
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  function renderPrintMonths() {
+    return (
+      <div id="month-print-content" className="hidden">
+        {Array.from(printMonths).sort((a, b) => a - b).map((m) => {
+          const dim = new Date(schedule.year, m + 1, 0).getDate();
+          const firstDow = dayOfWeekSun(schedule.year, m, 1);
+          const cells: (number | null)[] = [
+            ...Array(firstDow).fill(null),
+            ...Array.from({ length: dim }, (_, i) => i + 1),
+          ];
+          while (cells.length % 7 !== 0) cells.push(null);
+
+          return (
+            <div key={m} className="print-month-page">
+              <h2 className="text-lg font-bold text-center mb-3">
+                {MONTH_NAMES[m]} {schedule.year}
+              </h2>
+              <div className="grid grid-cols-7 gap-px mb-1">
+                {DAY_LABELS.map((d) => (
+                  <div key={d} className="text-center text-xs font-medium text-gray-500 py-1">{d}</div>
+                ))}
+              </div>
+              <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200 rounded overflow-hidden">
+                {cells.map((day, idx) => {
+                  if (!day) return <div key={idx} className="bg-gray-50 min-h-[70px]" />;
+                  const dateStr = formatDate(schedule.year, m, day);
+                  const dayAssignments = filteredAssignmentsByDate.get(dateStr) ?? [];
+                  const colIdx = idx % 7;
+                  const isWeekend = colIdx === 0 || colIdx === 6;
+                  return (
+                    <div
+                      key={idx}
+                      className={`bg-white min-h-[70px] p-1 text-left ${isWeekend ? "bg-gray-50" : ""}`}
+                    >
+                      <div className="text-xs font-medium text-gray-500 mb-0.5">{day}</div>
+                      <div className="space-y-px">
+                        {dayAssignments.map((a) => {
+                          const pColor = physicianColors.get(a.physicianId);
+                          return (
+                            <div key={a.id} className="flex items-center gap-1 text-[9px] leading-tight">
+                              <span className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${pColor?.dot ?? "bg-gray-400"}`} />
+                              <span className="truncate font-medium">{a.physicianLastName}</span>
+                              <span className="text-gray-400 truncate">{a.roleDisplayName}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </div>
     );
   }
@@ -948,9 +1116,6 @@ export function ScheduleViewer({
         </div>
       </div>
 
-      {/* Stats */}
-      {renderStats()}
-
       {/* Tabs: Month / Week / Year */}
       <Tabs defaultValue="week">
         <div className="flex items-center justify-between">
@@ -1068,6 +1233,12 @@ export function ScheduleViewer({
 
       {/* Override dialog */}
       {renderOverrideDialog()}
+
+      {/* Print month selection dialog */}
+      {renderPrintMonthDialog()}
+
+      {/* Print-only multi-month layout */}
+      {renderPrintMonths()}
     </div>
   );
 }

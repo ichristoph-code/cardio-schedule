@@ -35,6 +35,8 @@ model Physician {
   isInterventionalist Boolean @default(false)
   isEP                Boolean @default(false)
 
+  preferredTaskDay Int?
+
   eligibilities        PhysicianEligibility[]
   officeDays           PhysicianOfficeDay[]
   weeklyDaysOff        PhysicianWeeklyDayOff[]

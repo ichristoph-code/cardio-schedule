@@ -206,7 +206,7 @@ function extractColorCalendarRanges(ws: any, year: number): DateRange[] {
         const belowCell = ws[belowAddr];
         const code = belowCell ? String(belowCell.v ?? "").trim().toUpperCase() : "";
 
-        if (code === "V") {
+        if (code === "V" || code === "OFF") {
           fullDays.push(dateStr);
         } else if (code === "0.5V") {
           halfDays.push(dateStr);
@@ -284,7 +284,7 @@ function isColorCalendarSheet(ws: any): boolean {
       if (!cell) continue;
       const val = String(cell.v ?? "").toLowerCase().trim();
       if (MONTH_NAMES_LC.includes(val)) monthCount++;
-      if (val === "v" || val === "0.5v") vacationIndicators++;
+      if (val === "v" || val === "0.5v" || val === "off") vacationIndicators++;
       if (isVacationRed(getCellRgb(cell as Record<string, unknown>))) vacationIndicators++;
     }
   }
@@ -293,7 +293,7 @@ function isColorCalendarSheet(ws: any): boolean {
 
 // ─── Legacy grid format (V codes) ───────────────────────────────────────────
 
-const GRID_LEGEND_CODES = new Set(["V", "W", "H", "F", "_", "Call", "0.5V", "1.5W"]);
+const GRID_LEGEND_CODES = new Set(["V", "OFF", "W", "H", "F", "_", "Call", "0.5V", "1.5W"]);
 const GRID_MONTH_COLS = [
   [4, 5, 6, 7, 8, 9, 10],
   [12, 13, 14, 15, 16, 17, 18],
@@ -327,7 +327,7 @@ function extractCalendarGridRanges(rows: unknown[][]): string[] {
           typeof nextRow[c] === "string"
             ? (nextRow[c] as string).trim().toUpperCase()
             : null;
-        if (ds && code === "V") fullDays.push(ds);
+        if (ds && (code === "V" || code === "OFF")) fullDays.push(ds);
         if (ds && code === "0.5V") halfDays.push(ds);
       }
     }

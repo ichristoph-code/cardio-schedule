@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { notFound } from "next/navigation";
 import { PhysicianProfileForm } from "@/components/physicians/PhysicianProfileForm";
 import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
+import { PreferredTaskDay } from "@/components/preferences/PreferredTaskDay";
 import { PhysicianProfileHeader } from "@/components/physicians/PhysicianProfileHeader";
 
 interface PageProps {
@@ -145,6 +146,11 @@ export default async function PhysicianDetailPage({ params }: PageProps) {
           displayName: r.displayName,
           category: r.category,
         }))}
+      />
+
+      <PreferredTaskDay
+        initialPreferredDay={physician.preferredTaskDay ?? null}
+        physicianId={id}
       />
 
       <MpiDayPreference

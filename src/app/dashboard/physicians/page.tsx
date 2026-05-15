@@ -130,11 +130,11 @@ export default async function PhysiciansPage({
         <AddPhysicianDialog />
       </div>
 
-      <div className="rounded-md border">
+      <div className="rounded-md border overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
+              <TableHead className="sticky left-0 z-10 bg-background shadow-[1px_0_0_0_hsl(var(--border))]">Name</TableHead>
               <TableHead className="hidden sm:table-cell">Email</TableHead>
               <TableHead className="hidden md:table-cell">FTE</TableHead>
               <TableHead className="hidden md:table-cell">Subspecialty</TableHead>
@@ -191,7 +191,7 @@ export default async function PhysiciansPage({
             ) : (
               physicians.map((doc) => (
                 <TableRow key={doc.id}>
-                  <TableCell className="font-medium">
+                  <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_hsl(var(--border))]">
                     {doc.lastName}, {doc.firstName}
                   </TableCell>
                   <TableCell className="hidden sm:table-cell text-muted-foreground">

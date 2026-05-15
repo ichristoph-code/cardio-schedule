@@ -11,6 +11,12 @@ function parseDate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
+// Prisma returns Date objects as UTC midnight. Convert to local-midnight so that
+// formatDate() (which uses local getters) produces the correct calendar date string.
+function toLocalMidnight(d: Date): Date {
+  return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+}
+
 /** 1=Mon … 7=Sun */
 function dayOfWeek(dateStr: string): number {
   const d = parseDate(dateStr);
@@ -67,6 +73,7 @@ interface PhysicianData {
   isEP: boolean;
   officeDays: number[];
   eligibleRoleIds: Set<string>;
+  preferredTaskDay: number | null;
 }
 
 interface RoleData {
@@ -87,15 +94,31 @@ export interface ScheduleStats {
 
 // --- Main Engine ---
 
-export async function generateSchedule(year: number): Promise<{
+export async function generateSchedule(
+  year: number,
+  roleTypeIds?: string[]
+): Promise<{
   scheduleId: string;
   stats: ScheduleStats;
   assignmentCount: number;
 }> {
+  const isPartial = roleTypeIds && roleTypeIds.length > 0;
+
   // Check for existing schedule
   const existing = await prisma.schedule.findUnique({ where: { year } });
-  if (existing) {
-    // Delete old schedule and its assignments
+
+  if (isPartial && existing) {
+    // Partial regeneration: delete only the selected roles' assignments
+    await prisma.scheduleAssignment.deleteMany({
+      where: { scheduleId: existing.id, roleTypeId: { in: roleTypeIds } },
+    });
+    // Reset to DRAFT so the admin knows it needs review
+    await prisma.schedule.update({
+      where: { id: existing.id },
+      data: { status: "DRAFT", generatedAt: new Date() },
+    });
+  } else if (existing) {
+    // Full regeneration: wipe everything
     await prisma.holidayAssignment.deleteMany({ where: { year } });
     await prisma.scheduleAssignment.deleteMany({
       where: { scheduleId: existing.id },
@@ -139,8 +162,8 @@ export async function generateSchedule(year: number): Promise<{
   const vacationDays = new Map<string, Set<string>>();
   for (const v of vacations) {
     const dates = vacationDays.get(v.physicianId) ?? new Set<string>();
-    const s = new Date(Math.max(v.startDate.getTime(), yearStart.getTime()));
-    const e = new Date(Math.min(v.endDate.getTime(), yearEnd.getTime()));
+    const s = new Date(Math.max(toLocalMidnight(v.startDate).getTime(), yearStart.getTime()));
+    const e = new Date(Math.min(toLocalMidnight(v.endDate).getTime(), yearEnd.getTime()));
     for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
       dates.add(formatDate(d));
     }
@@ -157,7 +180,7 @@ export async function generateSchedule(year: number): Promise<{
   const noCallDaySet = new Map<string, Set<string>>();
   for (const nc of noCallDays) {
     const dates = noCallDaySet.get(nc.physicianId) ?? new Set<string>();
-    dates.add(formatDate(nc.date));
+    dates.add(formatDate(toLocalMidnight(nc.date)));
     noCallDaySet.set(nc.physicianId, dates);
   }
 
@@ -191,6 +214,7 @@ export async function generateSchedule(year: number): Promise<{
     isEP: p.isEP,
     officeDays: p.officeDays.map((od) => od.dayOfWeek),
     eligibleRoleIds: new Set(p.eligibilities.map((e) => e.roleTypeId)),
+    preferredTaskDay: p.preferredTaskDay ?? null,
   }));
 
   const roleData: RoleData[] = roleTypes.map((r) => ({
@@ -201,64 +225,35 @@ export async function generateSchedule(year: number): Promise<{
     sortOrder: r.sortOrder,
   }));
 
-  // Sort roles: most constrained first (fewest eligible physicians),
-  // then by category priority (ON_CALL > DAYTIME > READING > SPECIAL)
-  const categoryOrder: Record<string, number> = {
-    ON_CALL: 0,
-    DAYTIME: 1,
-    READING: 2,
-    SPECIAL: 3,
-  };
-  const sortedRoles = [...roleData].sort((a, b) => {
-    const poolA = physData.filter((p) => p.eligibleRoleIds.has(a.id)).length;
-    const poolB = physData.filter((p) => p.eligibleRoleIds.has(b.id)).length;
-    if (poolA !== poolB) return poolA - poolB;
-    return (categoryOrder[a.category] ?? 9) - (categoryOrder[b.category] ?? 9);
-  });
+  // Tracking structures (declared before pre-seed so partial regen can populate them)
+  const assignmentCount: Record<string, Record<string, number>> = {};
+  const dailyPhysicianRoles = new Map<string, Set<string>>();
+  const lastAssigned: Record<string, Record<string, string>> = {};
+  const handledRoleDays = new Set<string>();
+  const weekendCallBlocks = new Map<string, string>();
+  const weekendBlockCount: Record<string, Record<string, number>> = {};
+  const weekdayCallCount: Record<string, Record<string, number>> = {};
+  const weeklyRounderBlocks = new Map<string, string>();
+  const fteShareByRole: Record<string, Record<string, number>> = {};
+  const monthlyReadingCount: Record<string, Record<string, number>> = {};
 
-  const holidayDates = getHolidayDatesForYear(year);
-
-  // Parse rules
-  const exclusionRules = rules.filter((r) => r.ruleType === "EXCLUSION");
-  const prerequisiteRules = rules.filter((r) => r.ruleType === "PREREQUISITE");
-  const conflictRules = rules.filter((r) => r.ruleType === "CONFLICT");
-
-  // IC coupling rule: when interventionalist gets General Call, also gets IC
-  const icCouplingRule = prerequisiteRules.find(
-    (r) => (r.parameters as Record<string, unknown>).coupleWithGeneralCall === true
-  );
-  const interventionalCallRole = roleData.find((r) => r.name === "INTERVENTIONAL_CALL");
-  const generalCallRole = roleData.find((r) => r.name === "GENERAL_CALL");
-
-  // When IC coupling is active, reorder so IC is processed right after General Call
-  // (normally IC comes first since fewer eligible physicians = higher priority)
-  if (icCouplingRule && interventionalCallRole && generalCallRole) {
-    const icIdx = sortedRoles.findIndex((r) => r.name === "INTERVENTIONAL_CALL");
-    const gcIdx = sortedRoles.findIndex((r) => r.name === "GENERAL_CALL");
-    if (icIdx !== -1 && gcIdx !== -1 && icIdx < gcIdx) {
-      const [ic] = sortedRoles.splice(icIdx, 1);
-      const newGcIdx = sortedRoles.findIndex((r) => r.name === "GENERAL_CALL");
-      sortedRoles.splice(newGcIdx + 1, 0, ic);
-    }
+  for (const role of roleData) {
+    assignmentCount[role.id] = {};
+    weekendBlockCount[role.id] = {};
+    weekdayCallCount[role.id] = {};
   }
 
-  // Preferred physician rules (e.g., Ginwalla for ICU Rounder)
-  const preferredPhysicianRules = prerequisiteRules.filter(
-    (r) => (r.parameters as Record<string, unknown>).preferredPhysician === true && r.physicianId
-  );
-
-  // Preferred day-of-week rules (e.g., Christoph reads MPI on Mondays)
-  const preferredDayRules = prerequisiteRules.filter(
-    (r) => (r.parameters as Record<string, unknown>).preferredDayOfWeek != null && r.physicianId
-  );
-
-  // Tracking structures
-  const assignmentCount: Record<string, Record<string, number>> = {};
-  const dailyPhysicianRoles = new Map<string, Set<string>>(); // "date:physId" -> roleIds
-  const lastAssigned: Record<string, Record<string, string>> = {}; // physId -> roleId -> dateStr
-  const handledRoleDays = new Set<string>(); // "dateStr:roleId" — roles already assigned via coupling
-
-  for (const role of roleData) assignmentCount[role.id] = {};
+  for (const role of roleData) {
+    if (role.category !== "READING") continue;
+    const eligiblePhys = physData.filter((p) => p.eligibleRoleIds.has(role.id));
+    const totalFte = eligiblePhys.reduce((sum, p) => sum + p.fteDays, 0);
+    if (totalFte > 0) {
+      fteShareByRole[role.id] = {};
+      for (const p of eligiblePhys) {
+        fteShareByRole[role.id][p.id] = p.fteDays / totalFte;
+      }
+    }
+  }
 
   const assignments: { date: string; roleTypeId: string; physicianId: string }[] = [];
   const stats: ScheduleStats = {
@@ -269,46 +264,107 @@ export async function generateSchedule(year: number): Promise<{
     unfilledSlots: [],
   };
 
-  // Track weekend call blocks: "Fri dateStr:roleId" -> physicianId
-  // Weekend call is a 3-day block (Fri-Sat-Sun) covered by the same MD
-  const weekendCallBlocks = new Map<string, string>();
+  // For partial regeneration, pre-seed tracking state from the assignments we're keeping
+  // so the scheduler respects already-assigned roles when placing new ones.
+  if (isPartial && existing) {
+    const keptAssignments = await prisma.scheduleAssignment.findMany({
+      where: {
+        scheduleId: existing.id,
+        isActive: true,
+        roleTypeId: { notIn: roleTypeIds },
+      },
+    });
 
-  // Track weekend call block counts per role per physician for equalization
-  // roleId -> physicianId -> count (so each ON_CALL role equalizes independently)
-  const weekendBlockCount: Record<string, Record<string, number>> = {};
-  for (const role of roleData) weekendBlockCount[role.id] = {};
+    for (const a of keptAssignments) {
+      const dateStr = formatDate(toLocalMidnight(a.date));
+      const dow = dayOfWeek(dateStr);
+      const roleInfo = roleData.find((r) => r.id === a.roleTypeId);
+      if (!roleInfo) continue;
 
-  // Track weekday call counts separately per role per physician for independent equalization
-  // roleId -> physicianId -> count of weekday-only (Mon-Thu) call assignments
-  const weekdayCallCount: Record<string, Record<string, number>> = {};
-  for (const role of roleData) weekdayCallCount[role.id] = {};
+      const key = `${dateStr}:${a.physicianId}`;
+      if (!dailyPhysicianRoles.has(key)) dailyPhysicianRoles.set(key, new Set());
+      dailyPhysicianRoles.get(key)!.add(a.roleTypeId);
 
-  // Track weekly rounder blocks: "Mon dateStr:roleId" -> physicianId
-  // Hospital/ICU rounders are assigned Mon-Fri as a week-long block (same MD)
-  const weeklyRounderBlocks = new Map<string, string>();
+      if (!assignmentCount[a.roleTypeId]) assignmentCount[a.roleTypeId] = {};
+      assignmentCount[a.roleTypeId][a.physicianId] = (assignmentCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
 
-  // --- FTE-proportional allocation for READING roles ---
-  // Pre-compute each eligible physician's FTE share per reading role.
-  // If a role has 3 eligible MDs with FTE 200, 200, and 100, their shares
-  // are 0.4, 0.4, 0.2 — so the half-time doc gets ~half the days.
-  // fteShareByRole: roleId -> physId -> proportional share (0-1, sums to 1)
-  const fteShareByRole: Record<string, Record<string, number>> = {};
-  // Monthly assignment tracking for READING roles: "roleId:month" -> physId -> count
-  const monthlyReadingCount: Record<string, Record<string, number>> = {};
+      if (!lastAssigned[a.physicianId]) lastAssigned[a.physicianId] = {};
+      const prev = lastAssigned[a.physicianId][a.roleTypeId];
+      if (!prev || dateStr > prev) lastAssigned[a.physicianId][a.roleTypeId] = dateStr;
 
-  for (const role of roleData) {
-    if (role.category !== "READING") continue;
-
-    const eligiblePhys = physData.filter((p) => p.eligibleRoleIds.has(role.id));
-    const totalFte = eligiblePhys.reduce((sum, p) => sum + p.fteDays, 0);
-
-    if (totalFte > 0) {
-      fteShareByRole[role.id] = {};
-      for (const p of eligiblePhys) {
-        fteShareByRole[role.id][p.id] = p.fteDays / totalFte;
+      if (roleInfo.category === "ON_CALL" && dow === 5) {
+        weekendCallBlocks.set(`${dateStr}:${a.roleTypeId}`, a.physicianId);
+        if (!weekendBlockCount[a.roleTypeId]) weekendBlockCount[a.roleTypeId] = {};
+        weekendBlockCount[a.roleTypeId][a.physicianId] = (weekendBlockCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
+      }
+      if (roleInfo.category === "ON_CALL" && dow >= 1 && dow <= 4) {
+        if (!weekdayCallCount[a.roleTypeId]) weekdayCallCount[a.roleTypeId] = {};
+        weekdayCallCount[a.roleTypeId][a.physicianId] = (weekdayCallCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
+      }
+      if ((roleInfo.name === "HOSPITAL_ROUNDER" || roleInfo.name === "ICU_ROUNDER") && dow === 1) {
+        weeklyRounderBlocks.set(`${dateStr}:${a.roleTypeId}`, a.physicianId);
+      }
+      if (roleInfo.category === "READING") {
+        const monthKey = `${a.roleTypeId}:${a.date.getUTCMonth()}`;
+        if (!monthlyReadingCount[monthKey]) monthlyReadingCount[monthKey] = {};
+        monthlyReadingCount[monthKey][a.physicianId] = (monthlyReadingCount[monthKey][a.physicianId] ?? 0) + 1;
       }
     }
   }
+
+  // Sort roles: category first (ON_CALL → DAYTIME → READING → SPECIAL),
+  // then by pool size within each category (most constrained first).
+  // DAYTIME must precede READING so hospital/ICU rounders are assigned before
+  // reading roles run — otherwise the "skip readers who are rounders" check
+  // fires too late and rounders end up with reading assignments on the same day.
+  const categoryOrder: Record<string, number> = {
+    ON_CALL: 0,
+    DAYTIME: 1,
+    READING: 2,
+    SPECIAL: 3,
+  };
+  const sortedRoles = [...roleData]
+    .filter((r) => !isPartial || roleTypeIds!.includes(r.id))
+    .sort((a, b) => {
+      const catA = categoryOrder[a.category] ?? 9;
+      const catB = categoryOrder[b.category] ?? 9;
+      if (catA !== catB) return catA - catB;
+      const poolA = physData.filter((p) => p.eligibleRoleIds.has(a.id)).length;
+      const poolB = physData.filter((p) => p.eligibleRoleIds.has(b.id)).length;
+      if (poolA !== poolB) return poolA - poolB;
+      return a.sortOrder - b.sortOrder;
+    });
+
+  const holidayDates = getHolidayDatesForYear(year);
+
+  // Parse rules
+  const exclusionRules = rules.filter((r) => r.ruleType === "EXCLUSION");
+  const prerequisiteRules = rules.filter((r) => r.ruleType === "PREREQUISITE");
+  const conflictRules = rules.filter((r) => r.ruleType === "CONFLICT");
+
+  const icCouplingRule = prerequisiteRules.find(
+    (r) => (r.parameters as Record<string, unknown>).coupleWithGeneralCall === true
+  );
+  const interventionalCallRole = roleData.find((r) => r.name === "INTERVENTIONAL_CALL");
+  const generalCallRole = roleData.find((r) => r.name === "GENERAL_CALL");
+
+  if (icCouplingRule && interventionalCallRole && generalCallRole) {
+    const icIdx = sortedRoles.findIndex((r) => r.name === "INTERVENTIONAL_CALL");
+    const gcIdx = sortedRoles.findIndex((r) => r.name === "GENERAL_CALL");
+    if (icIdx !== -1 && gcIdx !== -1 && icIdx < gcIdx) {
+      const [ic] = sortedRoles.splice(icIdx, 1);
+      const newGcIdx = sortedRoles.findIndex((r) => r.name === "GENERAL_CALL");
+      sortedRoles.splice(newGcIdx + 1, 0, ic);
+    }
+  }
+
+  const preferredPhysicianRules = prerequisiteRules.filter(
+    (r) => (r.parameters as Record<string, unknown>).preferredPhysician === true && r.physicianId
+  );
+
+  const preferredDayRules = prerequisiteRules.filter(
+    (r) => (r.parameters as Record<string, unknown>).preferredDayOfWeek != null && r.physicianId
+  );
 
   // Seeded random for deterministic tiebreaking
   let seed = year * 31337;
@@ -560,6 +616,16 @@ export async function generateSchedule(year: number): Promise<{
           }
         }
 
+        // Physician-level preferred task day: soft bonus for DAYTIME/READING roles
+        // Does not override hard constraints or large assignment count disparities
+        if (
+          (role.category === "DAYTIME" || role.category === "READING") &&
+          p.preferredTaskDay != null &&
+          dow === p.preferredTaskDay
+        ) {
+          score -= 800;
+        }
+
         // ON_CALL equalization: track weekday and weekend separately
         // so one pool doesn't penalize the other
         if (role.category === "ON_CALL" && dow === 5) {
@@ -719,10 +785,13 @@ export async function generateSchedule(year: number): Promise<{
     }
   }
 
-  // Save to database
-  const schedule = await prisma.schedule.create({
-    data: { year, status: "DRAFT", generatedAt: new Date() },
-  });
+  // Save to database — reuse existing schedule row for partial regeneration
+  const schedule =
+    isPartial && existing
+      ? existing
+      : await prisma.schedule.create({
+          data: { year, status: "DRAFT", generatedAt: new Date() },
+        });
 
   // Batch insert assignments
   const chunkSize = 500;
