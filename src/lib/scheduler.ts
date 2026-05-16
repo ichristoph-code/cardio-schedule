@@ -32,6 +32,27 @@ function isLeapYear(y: number): boolean {
   return y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0);
 }
 
+// --- Hamilton (Largest-Remainder) Allocator ---
+
+function hamiltonAllocate(
+  weights: { id: string; weight: number }[],
+  total: number
+): Record<string, number> {
+  const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
+  if (totalWeight === 0 || total === 0) return {};
+  const raw = weights.map((w) => {
+    const exact = (w.weight / totalWeight) * total;
+    return { id: w.id, floor: Math.floor(exact), rem: exact - Math.floor(exact) };
+  });
+  let remaining = total - raw.reduce((s, r) => s + r.floor, 0);
+  raw.sort((a, b) => b.rem - a.rem || a.id.localeCompare(b.id));
+  const result: Record<string, number> = {};
+  raw.forEach((r, i) => {
+    result[r.id] = r.floor + (i < remaining ? 1 : 0);
+  });
+  return result;
+}
+
 // --- Holiday Date Calculator ---
 
 function getHolidayDatesForYear(year: number): Map<string, string> {
@@ -234,7 +255,6 @@ export async function generateSchedule(
   const weekendBlockCount: Record<string, Record<string, number>> = {};
   const weekdayCallCount: Record<string, Record<string, number>> = {};
   const weeklyRounderBlocks = new Map<string, string>();
-  const fteShareByRole: Record<string, Record<string, number>> = {};
   const monthlyReadingCount: Record<string, Record<string, number>> = {};
 
   for (const role of roleData) {
@@ -243,16 +263,26 @@ export async function generateSchedule(
     weekdayCallCount[role.id] = {};
   }
 
+  // Hamilton (largest-remainder) integer quotas for READING roles.
+  // Count assignable weekdays for the year (weekdays minus holidays), then
+  // allocate proportionally by fteDays so the final tallies match FTE.
+  const totalDaysInYear = isLeapYear(year) ? 366 : 365;
+  const readingDaysInYear = Array.from({ length: totalDaysInYear }, (_, i) => {
+    const d = new Date(year, 0, 1 + i);
+    const ds = formatDate(d);
+    const dw = dayOfWeek(ds);
+    return !isWeekend(dw) && !holidayDates.has(ds);
+  }).filter(Boolean).length;
+
+  const hamiltonTargets: Record<string, Record<string, number>> = {};
   for (const role of roleData) {
     if (role.category !== "READING") continue;
-    const eligiblePhys = physData.filter((p) => p.eligibleRoleIds.has(role.id));
-    const totalFte = eligiblePhys.reduce((sum, p) => sum + p.fteDays, 0);
-    if (totalFte > 0) {
-      fteShareByRole[role.id] = {};
-      for (const p of eligiblePhys) {
-        fteShareByRole[role.id][p.id] = p.fteDays / totalFte;
-      }
-    }
+    const eligible = physData.filter((p) => p.eligibleRoleIds.has(role.id));
+    if (eligible.length === 0) continue;
+    hamiltonTargets[role.id] = hamiltonAllocate(
+      eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
+      readingDaysInYear
+    );
   }
 
   const assignments: { date: string; roleTypeId: string; physicianId: string }[] = [];
@@ -374,9 +404,7 @@ export async function generateSchedule(
   }
 
   // Iterate each day
-  const totalDays = isLeapYear(year) ? 366 : 365;
-
-  for (let dayIdx = 0; dayIdx < totalDays; dayIdx++) {
+  for (let dayIdx = 0; dayIdx < totalDaysInYear; dayIdx++) {
     const date = new Date(year, 0, 1 + dayIdx);
     const dateStr = formatDate(date);
     const dow = dayOfWeek(dateStr);
@@ -640,20 +668,23 @@ export async function generateSchedule(
 
         // Assignment count equity (main factor for non-ON_CALL roles)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
-        if (role.category === "READING" && fteShareByRole[role.id]?.[p.id]) {
-          // FTE-proportional equity: normalize count by physician's target share.
-          // A physician with 40% share who has 10 assignments scores the same as
-          // one with 20% share who has 5 — both are "on pace" relative to FTE.
-          const share = fteShareByRole[role.id][p.id];
-          const normalized = cnt / share; // higher = more "over quota"
-          score += normalized * 100;
+        if (role.category === "READING") {
+          const target = hamiltonTargets[role.id]?.[p.id] ?? 0;
+          if (target > 0) {
+            if (cnt >= target) {
+              // Over Hamilton quota — large penalty; only assignable if all others also exceeded
+              score += (cnt - target + 1) * 10000;
+            } else {
+              // Under quota — prefer physicians furthest below their target
+              score += (cnt / target) * 100;
+            }
 
-          // Monthly balancing: within the current month, nudge toward FTE-proportional
-          // distribution so assignments spread evenly across the year, not just annually.
-          const monthKey = `${role.id}:${date.getMonth()}`;
-          const monthlyCnt = monthlyReadingCount[monthKey]?.[p.id] ?? 0;
-          const monthlyNormalized = monthlyCnt / share;
-          score += monthlyNormalized * 40; // softer weight — monthly is a nudge, yearly is precise
+            // Monthly nudge: soft push toward hitting 1/12 of annual target each month
+            const monthKey = `${role.id}:${date.getMonth()}`;
+            const monthlyCnt = monthlyReadingCount[monthKey]?.[p.id] ?? 0;
+            const monthlyTarget = target / 12;
+            score += (monthlyCnt / monthlyTarget) * 40;
+          }
         } else if (role.category !== "ON_CALL") {
           score += cnt * 100;
         } else {
