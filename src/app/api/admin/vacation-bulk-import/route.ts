@@ -60,8 +60,8 @@ export async function POST(req: Request) {
     const { startDate: startStr, endDate: endStr, reason, halfDay } = r;
     const halfDayValue = halfDay === "MORNING" ? "MORNING" : halfDay === "AFTERNOON" ? "AFTERNOON" : "NONE";
 
-    const startDate = new Date(startStr + "T12:00:00Z");
-    const endDate = new Date(endStr + "T12:00:00Z");
+    const startDate = new Date(startStr + "T00:00:00Z");
+    const endDate = new Date(endStr + "T00:00:00Z");
 
     if (isNaN(startDate.valueOf()) || isNaN(endDate.valueOf())) {
       results.push({ startDate: startStr, endDate: endStr, status: "error", error: "Invalid date format" });
