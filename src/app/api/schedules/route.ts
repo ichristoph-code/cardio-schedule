@@ -30,12 +30,21 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
 
-  const { year, roleTypeIds, resetOnly } = await req.json();
+  const { year, roleTypeIds, resetOnly, startMonth, endMonth } = await req.json();
   if (!year || typeof year !== "number" || year < 2024 || year > 2100) {
     return NextResponse.json({ error: "Invalid year" }, { status: 400 });
   }
   if (roleTypeIds !== undefined && (!Array.isArray(roleTypeIds) || roleTypeIds.some((id: unknown) => typeof id !== "string"))) {
     return NextResponse.json({ error: "Invalid roleTypeIds" }, { status: 400 });
+  }
+  if (startMonth !== undefined && (typeof startMonth !== "number" || startMonth < 1 || startMonth > 12)) {
+    return NextResponse.json({ error: "Invalid startMonth" }, { status: 400 });
+  }
+  if (endMonth !== undefined && (typeof endMonth !== "number" || endMonth < 1 || endMonth > 12)) {
+    return NextResponse.json({ error: "Invalid endMonth" }, { status: 400 });
+  }
+  if (startMonth !== undefined && endMonth !== undefined && startMonth > endMonth) {
+    return NextResponse.json({ error: "startMonth must be ≤ endMonth" }, { status: 400 });
   }
 
   // Reset-only: delete assignments for the given roles without regenerating
@@ -66,7 +75,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await generateSchedule(year, roleTypeIds);
+    const result = await generateSchedule(year, roleTypeIds, startMonth, endMonth);
 
     await auditLog(
       (session.user as Record<string, unknown>).id as string,

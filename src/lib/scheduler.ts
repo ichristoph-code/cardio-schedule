@@ -119,34 +119,42 @@ export interface ScheduleStats {
 
 export async function generateSchedule(
   year: number,
-  roleTypeIds?: string[]
+  roleTypeIds?: string[],
+  startMonth?: number, // 1–12, inclusive
+  endMonth?: number,   // 1–12, inclusive
 ): Promise<{
   scheduleId: string;
   stats: ScheduleStats;
   assignmentCount: number;
 }> {
   const isPartial = roleTypeIds && roleTypeIds.length > 0;
+  const hasDateRange = startMonth !== undefined || endMonth !== undefined;
+  const rangeStart = new Date(year, (startMonth ?? 1) - 1, 1);
+  const rangeEnd = new Date(year, endMonth ?? 12, 0); // last day of endMonth
 
   // Check for existing schedule
   const existing = await prisma.schedule.findUnique({ where: { year } });
 
-  if (isPartial && existing) {
-    // Partial regeneration: delete only the selected roles' assignments
-    await prisma.scheduleAssignment.deleteMany({
-      where: { scheduleId: existing.id, roleTypeId: { in: roleTypeIds } },
-    });
-    // Reset to DRAFT so the admin knows it needs review
-    await prisma.schedule.update({
-      where: { id: existing.id },
-      data: { status: "DRAFT", generatedAt: new Date() },
-    });
-  } else if (existing) {
-    // Full regeneration: wipe everything
-    await prisma.holidayAssignment.deleteMany({ where: { year } });
-    await prisma.scheduleAssignment.deleteMany({
-      where: { scheduleId: existing.id },
-    });
-    await prisma.schedule.delete({ where: { id: existing.id } });
+  if (existing) {
+    if (!isPartial && !hasDateRange) {
+      // Full regeneration: wipe everything
+      await prisma.holidayAssignment.deleteMany({ where: { year } });
+      await prisma.scheduleAssignment.deleteMany({ where: { scheduleId: existing.id } });
+      await prisma.schedule.delete({ where: { id: existing.id } });
+    } else {
+      // Scoped regeneration: delete only selected roles within date range
+      await prisma.scheduleAssignment.deleteMany({
+        where: {
+          scheduleId: existing.id,
+          ...(isPartial ? { roleTypeId: { in: roleTypeIds } } : {}),
+          ...(hasDateRange ? { date: { gte: rangeStart, lte: rangeEnd } } : {}),
+        },
+      });
+      await prisma.schedule.update({
+        where: { id: existing.id },
+        data: { status: "DRAFT", generatedAt: new Date() },
+      });
+    }
   }
 
   // Load data
@@ -279,16 +287,24 @@ export async function generateSchedule(
     unfilledSlots: [],
   };
 
-  // For partial regeneration, pre-seed tracking state from the assignments we're keeping
-  // so the scheduler respects already-assigned roles when placing new ones.
-  if (isPartial && existing) {
-    const keptAssignments = await prisma.scheduleAssignment.findMany({
-      where: {
-        scheduleId: existing.id,
-        isActive: true,
-        roleTypeId: { notIn: roleTypeIds },
-      },
-    });
+  // Pre-seed tracking state from assignments we're keeping (different role or outside date range)
+  // so the scheduler respects already-assigned slots when placing new ones.
+  if ((isPartial || hasDateRange) && existing) {
+    const keptWhere: Record<string, unknown> = { scheduleId: existing.id, isActive: true };
+    if (isPartial && hasDateRange) {
+      keptWhere.OR = [
+        { roleTypeId: { notIn: roleTypeIds } },
+        { date: { lt: rangeStart } },
+        { date: { gt: rangeEnd } },
+      ];
+    } else if (isPartial) {
+      keptWhere.roleTypeId = { notIn: roleTypeIds };
+    } else {
+      // date range only — keep everything outside the range
+      keptWhere.OR = [{ date: { lt: rangeStart } }, { date: { gt: rangeEnd } }];
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const keptAssignments = await (prisma.scheduleAssignment.findMany as any)({ where: keptWhere });
 
     for (const a of keptAssignments) {
       const dateStr = formatDate(toLocalMidnight(a.date));
@@ -348,9 +364,10 @@ export async function generateSchedule(
   const holidayDates = getHolidayDatesForYear(year);
 
   // Hamilton (largest-remainder) integer quotas for READING roles.
-  // Must come after holidayDates so the weekday count correctly excludes holidays.
-  const readingDaysInYear = Array.from({ length: totalDaysInYear }, (_, i) => {
+  // Scoped to the date range being generated so proportions are correct for that window.
+  const readingDaysInRange = Array.from({ length: totalDaysInYear }, (_, i) => {
     const d = new Date(year, 0, 1 + i);
+    if (hasDateRange && (d < rangeStart || d > rangeEnd)) return false;
     const ds = formatDate(d);
     const dw = dayOfWeek(ds);
     return !isWeekend(dw) && !holidayDates.has(ds);
@@ -366,7 +383,7 @@ export async function generateSchedule(
     if (eligible.length === 0) continue;
     const quotas = hamiltonAllocate(
       eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
-      readingDaysInYear
+      readingDaysInRange
     );
     hamiltonTargets[role.id] = quotas;
     remainingQuota[role.id] = { ...quotas };
@@ -418,8 +435,15 @@ export async function generateSchedule(
     return seed / 0x7fffffff;
   }
 
-  // Iterate each day
-  for (let dayIdx = 0; dayIdx < totalDaysInYear; dayIdx++) {
+  const firstDayIdx = hasDateRange
+    ? Math.round((rangeStart.getTime() - new Date(year, 0, 1).getTime()) / 86400000)
+    : 0;
+  const lastDayIdx = hasDateRange
+    ? Math.round((rangeEnd.getTime() - new Date(year, 0, 1).getTime()) / 86400000)
+    : totalDaysInYear - 1;
+
+  // Iterate each day in the target range
+  for (let dayIdx = firstDayIdx; dayIdx <= lastDayIdx; dayIdx++) {
     const date = new Date(year, 0, 1 + dayIdx);
     const dateStr = formatDate(date);
     const dow = dayOfWeek(dateStr);
@@ -827,9 +851,9 @@ export async function generateSchedule(
     }
   }
 
-  // Save to database — reuse existing schedule row for partial regeneration
+  // Save to database — reuse existing schedule row for scoped regeneration
   const schedule =
-    isPartial && existing
+    (isPartial || hasDateRange) && existing
       ? existing
       : await prisma.schedule.create({
           data: { year, status: "DRAFT", generatedAt: new Date() },

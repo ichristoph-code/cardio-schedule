@@ -80,6 +80,8 @@ export function ScheduleGenerateButton({
   const existingByYear = new Map(existingSchedules.map((s) => [s.year, s.status]));
 
   const [selectedYear, setSelectedYear] = useState(String(currentYear));
+  const [startMonth, setStartMonth] = useState("1");
+  const [endMonth, setEndMonth] = useState("12");
   const [checkedRoleIds, setCheckedRoleIds] = useState<Set<string>>(
     () => new Set<string>()
   );
@@ -126,6 +128,13 @@ export function ScheduleGenerateButton({
       setCheckedRoleIds(new Set(roleTypes.map((r) => r.id)));
     }
   }
+
+  const MONTHS = [
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December",
+  ];
+
+  const isFullYear = startMonth === "1" && endMonth === "12";
 
   function handleDialogChange(open: boolean) {
     setDialogOpen(open);
@@ -174,6 +183,10 @@ export function ScheduleGenerateButton({
     try {
       const body: Record<string, unknown> = { year: Number(selectedYear) };
       if (isPartial) body.roleTypeIds = [...checkedRoleIds];
+      if (!isFullYear) {
+        body.startMonth = Number(startMonth);
+        body.endMonth = Number(endMonth);
+      }
 
       const res = await fetch("/api/schedules", {
         method: "POST",
@@ -281,6 +294,47 @@ export function ScheduleGenerateButton({
           </div>
         </div>
 
+        {/* Month range */}
+        <div>
+          <Label>Month Range</Label>
+          <div className="flex items-center gap-2 mt-1">
+            <Select value={startMonth} onValueChange={(v) => v && setStartMonth(v)}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)} disabled={i + 1 > Number(endMonth)}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <span className="text-sm text-muted-foreground">to</span>
+            <Select value={endMonth} onValueChange={(v) => v && setEndMonth(v)}>
+              <SelectTrigger className="w-36">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MONTHS.map((m, i) => (
+                  <SelectItem key={i + 1} value={String(i + 1)} disabled={i + 1 < Number(startMonth)}>
+                    {m}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {!isFullYear && (
+              <button
+                type="button"
+                onClick={() => { setStartMonth("1"); setEndMonth("12"); }}
+                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
+              >
+                Reset
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Role type checklist */}
         {roleTypes.length > 0 && (
           <div className="space-y-2">
@@ -344,7 +398,9 @@ export function ScheduleGenerateButton({
               <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
               <p className="text-sm text-muted-foreground">
                 {isPartial
-                  ? `The checked roles in the ${selectedYear} schedule will be replaced. Other roles are untouched.`
+                  ? `The checked roles${!isFullYear ? ` (${MONTHS[Number(startMonth)-1]}–${MONTHS[Number(endMonth)-1]})` : ""} in the ${selectedYear} schedule will be replaced. Other roles are untouched.`
+                  : !isFullYear
+                  ? `${MONTHS[Number(startMonth)-1]}–${MONTHS[Number(endMonth)-1]} ${selectedYear} will be replaced. Other months are untouched.`
                   : `The entire ${selectedYear} schedule will be replaced. This cannot be undone.`}
               </p>
             </div>
