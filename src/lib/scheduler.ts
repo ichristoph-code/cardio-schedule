@@ -263,27 +263,7 @@ export async function generateSchedule(
     weekdayCallCount[role.id] = {};
   }
 
-  // Hamilton (largest-remainder) integer quotas for READING roles.
-  // Count assignable weekdays for the year (weekdays minus holidays), then
-  // allocate proportionally by fteDays so the final tallies match FTE.
   const totalDaysInYear = isLeapYear(year) ? 366 : 365;
-  const readingDaysInYear = Array.from({ length: totalDaysInYear }, (_, i) => {
-    const d = new Date(year, 0, 1 + i);
-    const ds = formatDate(d);
-    const dw = dayOfWeek(ds);
-    return !isWeekend(dw) && !holidayDates.has(ds);
-  }).filter(Boolean).length;
-
-  const hamiltonTargets: Record<string, Record<string, number>> = {};
-  for (const role of roleData) {
-    if (role.category !== "READING") continue;
-    const eligible = physData.filter((p) => p.eligibleRoleIds.has(role.id));
-    if (eligible.length === 0) continue;
-    hamiltonTargets[role.id] = hamiltonAllocate(
-      eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
-      readingDaysInYear
-    );
-  }
 
   const assignments: { date: string; roleTypeId: string; physicianId: string }[] = [];
   const stats: ScheduleStats = {
@@ -366,6 +346,26 @@ export async function generateSchedule(
     });
 
   const holidayDates = getHolidayDatesForYear(year);
+
+  // Hamilton (largest-remainder) integer quotas for READING roles.
+  // Must come after holidayDates so the weekday count correctly excludes holidays.
+  const readingDaysInYear = Array.from({ length: totalDaysInYear }, (_, i) => {
+    const d = new Date(year, 0, 1 + i);
+    const ds = formatDate(d);
+    const dw = dayOfWeek(ds);
+    return !isWeekend(dw) && !holidayDates.has(ds);
+  }).filter(Boolean).length;
+
+  const hamiltonTargets: Record<string, Record<string, number>> = {};
+  for (const role of roleData) {
+    if (role.category !== "READING") continue;
+    const eligible = physData.filter((p) => p.eligibleRoleIds.has(role.id));
+    if (eligible.length === 0) continue;
+    hamiltonTargets[role.id] = hamiltonAllocate(
+      eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
+      readingDaysInYear
+    );
+  }
 
   // Parse rules
   const exclusionRules = rules.filter((r) => r.ruleType === "EXCLUSION");
