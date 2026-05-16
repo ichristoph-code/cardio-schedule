@@ -19,9 +19,10 @@ interface HeaderProps {
   userName: string;
   userRole: string;
   physicianId?: string | null;
+  version?: string;
 }
 
-export function Header({ userName, userRole, physicianId }: HeaderProps) {
+export function Header({ userName, userRole, physicianId, version }: HeaderProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const initials = userName
@@ -45,6 +46,11 @@ export function Header({ userName, userRole, physicianId }: HeaderProps) {
       </Sheet>
 
       <div className="flex-1" />
+      {version && (
+        <span className="hidden sm:inline text-xs text-muted-foreground/50 mr-3 select-none">
+          v{version}
+        </span>
+      )}
 
       <DropdownMenu>
         <DropdownMenuTrigger
