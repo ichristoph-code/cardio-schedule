@@ -671,13 +671,10 @@ export async function generateSchedule(
         if (role.category === "READING") {
           const target = hamiltonTargets[role.id]?.[p.id] ?? 0;
           if (target > 0) {
-            if (cnt >= target) {
-              // Over Hamilton quota — large penalty; only assignable if all others also exceeded
-              score += (cnt - target + 1) * 10000;
-            } else {
-              // Under quota — prefer physicians furthest below their target
-              score += (cnt / target) * 100;
-            }
+            // Weight of 1000 ensures FTE proportionality dominates gap spread and
+            // other soft factors. No hard cap — a hard cap causes feast-or-famine
+            // where whoever hits quota first blocks out for the rest of the year.
+            score += (cnt / target) * 1000;
 
             // Monthly nudge: soft push toward hitting 1/12 of annual target each month
             const monthKey = `${role.id}:${date.getMonth()}`;
@@ -704,8 +701,10 @@ export async function generateSchedule(
         }
 
         // Spread out assignments (prefer longer gap since last assignment of this role)
+        // Skip for READING roles — gap spread drives toward even rotation and
+        // fights the FTE-proportional Hamilton scoring.
         const last = lastAssigned[p.id]?.[role.id];
-        if (last) {
+        if (last && role.category !== "READING") {
           const gap = dayIdx - getDayIndex(last, year);
           score -= gap * 3;
         }
