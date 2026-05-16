@@ -34,18 +34,20 @@ function isLeapYear(y: number): boolean {
 
 // --- Hamilton (Largest-Remainder) Allocator ---
 
+// Caller should pre-sort the weights array by the desired tiebreak order
+// (e.g. lastName, firstName). Ties in remainder are broken by original input index.
 function hamiltonAllocate(
   weights: { id: string; weight: number }[],
   total: number
 ): Record<string, number> {
   const totalWeight = weights.reduce((s, w) => s + w.weight, 0);
   if (totalWeight === 0 || total === 0) return {};
-  const raw = weights.map((w) => {
+  const raw = weights.map((w, i) => {
     const exact = (w.weight / totalWeight) * total;
-    return { id: w.id, floor: Math.floor(exact), rem: exact - Math.floor(exact) };
+    return { id: w.id, floor: Math.floor(exact), rem: exact - Math.floor(exact), origIdx: i };
   });
-  let remaining = total - raw.reduce((s, r) => s + r.floor, 0);
-  raw.sort((a, b) => b.rem - a.rem || a.id.localeCompare(b.id));
+  const remaining = total - raw.reduce((s, r) => s + r.floor, 0);
+  raw.sort((a, b) => b.rem - a.rem || a.origIdx - b.origIdx);
   const result: Record<string, number> = {};
   raw.forEach((r, i) => {
     result[r.id] = r.floor + (i < remaining ? 1 : 0);
@@ -149,6 +151,7 @@ export async function generateSchedule(
 
   // Load data
   const physicians = await prisma.physician.findMany({
+    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
     include: { eligibilities: true, officeDays: true },
   });
 
@@ -255,7 +258,9 @@ export async function generateSchedule(
   const weekendBlockCount: Record<string, Record<string, number>> = {};
   const weekdayCallCount: Record<string, Record<string, number>> = {};
   const weeklyRounderBlocks = new Map<string, string>();
-  const monthlyReadingCount: Record<string, Record<string, number>> = {};
+  // remainingQuota[roleId][physicianId] counts down from Hamilton target to 0.
+  // Drives READING assignment — physicians with more remaining are preferred.
+  const remainingQuota: Record<string, Record<string, number>> = {};
 
   for (const role of roleData) {
     assignmentCount[role.id] = {};
@@ -314,11 +319,6 @@ export async function generateSchedule(
       if ((roleInfo.name === "HOSPITAL_ROUNDER" || roleInfo.name === "ICU_ROUNDER") && dow === 1) {
         weeklyRounderBlocks.set(`${dateStr}:${a.roleTypeId}`, a.physicianId);
       }
-      if (roleInfo.category === "READING") {
-        const monthKey = `${a.roleTypeId}:${a.date.getUTCMonth()}`;
-        if (!monthlyReadingCount[monthKey]) monthlyReadingCount[monthKey] = {};
-        monthlyReadingCount[monthKey][a.physicianId] = (monthlyReadingCount[monthKey][a.physicianId] ?? 0) + 1;
-      }
     }
   }
 
@@ -359,12 +359,27 @@ export async function generateSchedule(
   const hamiltonTargets: Record<string, Record<string, number>> = {};
   for (const role of roleData) {
     if (role.category !== "READING") continue;
-    const eligible = physData.filter((p) => p.eligibleRoleIds.has(role.id));
+    // Pre-sort by name so Hamilton remainder tiebreaks are alphabetical, not CUID-dependent.
+    const eligible = physData
+      .filter((p) => p.eligibleRoleIds.has(role.id))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
     if (eligible.length === 0) continue;
-    hamiltonTargets[role.id] = hamiltonAllocate(
+    const quotas = hamiltonAllocate(
       eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
       readingDaysInYear
     );
+    hamiltonTargets[role.id] = quotas;
+    remainingQuota[role.id] = { ...quotas };
+  }
+
+  // For partial regen: if a READING role was kept (not being regenerated), its
+  // assignments were pre-seeded into assignmentCount. Deduct those from remainingQuota
+  // so the quota tracker reflects how many slots still need to be filled.
+  for (const role of roleData) {
+    if (role.category !== "READING" || !remainingQuota[role.id]) continue;
+    for (const [physId, cnt] of Object.entries(assignmentCount[role.id] ?? {})) {
+      remainingQuota[role.id][physId] = Math.max(0, (remainingQuota[role.id][physId] ?? 0) - cnt);
+    }
   }
 
   // Parse rules
@@ -669,19 +684,17 @@ export async function generateSchedule(
         // Assignment count equity (main factor for non-ON_CALL roles)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
         if (role.category === "READING") {
-          const target = hamiltonTargets[role.id]?.[p.id] ?? 0;
-          if (target > 0) {
-            // Weight of 1000 ensures FTE proportionality dominates gap spread and
-            // other soft factors. No hard cap — a hard cap causes feast-or-famine
-            // where whoever hits quota first blocks out for the rest of the year.
-            score += (cnt / target) * 1000;
-
-            // Monthly nudge: soft push toward hitting 1/12 of annual target each month
-            const monthKey = `${role.id}:${date.getMonth()}`;
-            const monthlyCnt = monthlyReadingCount[monthKey]?.[p.id] ?? 0;
-            const monthlyTarget = target / 12;
-            score += (monthlyCnt / monthlyTarget) * 40;
+          // Hard remaining-quota allocation: physicians with more remaining days
+          // are strongly preferred. 1000 pts per day dwarfs all other score terms.
+          // Once quota is exhausted, the physician becomes last-resort only (1M penalty).
+          const rem = remainingQuota[role.id]?.[p.id] ?? 0;
+          if (rem > 0) {
+            score -= rem * 1000;
+          } else {
+            score += 1_000_000;
           }
+          // Deterministic alphabetical tiebreak — no DB-order or random dependency.
+          score += p.lastName.charCodeAt(0) * 0.01 + (p.firstName.charCodeAt(0) ?? 0) * 0.001;
         } else if (role.category !== "ON_CALL") {
           score += cnt * 100;
         } else {
@@ -709,8 +722,9 @@ export async function generateSchedule(
           score -= gap * 3;
         }
 
-        // Small deterministic tiebreaker
-        score += nextRandom() * 0.5;
+        // Small deterministic tiebreaker (non-READING only — READING uses name-based tiebreak)
+        const rnd = nextRandom() * 0.5;
+        if (role.category !== "READING") score += rnd;
 
         return { physician: p, score };
       });
@@ -745,11 +759,9 @@ export async function generateSchedule(
       // Update tracking
       assignmentCount[role.id][winner.id] = (assignmentCount[role.id][winner.id] ?? 0) + 1;
 
-      // Monthly reading count for FTE-proportional monthly balancing
-      if (role.category === "READING") {
-        const monthKey = `${role.id}:${date.getMonth()}`;
-        if (!monthlyReadingCount[monthKey]) monthlyReadingCount[monthKey] = {};
-        monthlyReadingCount[monthKey][winner.id] = (monthlyReadingCount[monthKey][winner.id] ?? 0) + 1;
+      // Decrement remaining quota for READING roles
+      if (role.category === "READING" && remainingQuota[role.id] !== undefined) {
+        remainingQuota[role.id][winner.id] = (remainingQuota[role.id][winner.id] ?? 0) - 1;
       }
 
       const todayKey = `${dateStr}:${winner.id}`;
