@@ -115,6 +115,18 @@ export interface ScheduleStats {
   unfilledSlots: { date: string; roleName: string }[];
 }
 
+function countReadingDaysInMonth(year: number, month: number, holidayDates: Map<string, string>): number {
+  let count = 0;
+  const d = new Date(year, month - 1, 1);
+  while (d.getMonth() === month - 1) {
+    const ds = formatDate(d);
+    const dw = dayOfWeek(ds);
+    if (!isWeekend(dw) && !holidayDates.has(ds)) count++;
+    d.setDate(d.getDate() + 1);
+  }
+  return count;
+}
+
 // --- Main Engine ---
 
 export async function generateSchedule(
@@ -269,6 +281,9 @@ export async function generateSchedule(
   // remainingQuota[roleId][physicianId] counts down from Hamilton target to 0.
   // Drives READING assignment — physicians with more remaining are preferred.
   const remainingQuota: Record<string, Record<string, number>> = {};
+  // monthlyRemaining[roleId][month][physicianId]: per-month Hamilton quota countdown.
+  // Prevents any physician from dominating a single month even if they have annual quota left.
+  const monthlyRemaining: Record<string, Record<number, Record<string, number>>> = {};
 
   for (const role of roleData) {
     assignmentCount[role.id] = {};
@@ -387,6 +402,26 @@ export async function generateSchedule(
     );
     hamiltonTargets[role.id] = quotas;
     remainingQuota[role.id] = { ...quotas };
+  }
+
+  // Monthly Hamilton quotas for READING roles.
+  // For each month in the generation range, run hamiltonAllocate against that month's
+  // echo-day count so no physician dominates any single month.
+  for (const role of roleData) {
+    if (role.category !== "READING") continue;
+    const eligible = physData
+      .filter((p) => p.eligibleRoleIds.has(role.id))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
+    if (eligible.length === 0) continue;
+    monthlyRemaining[role.id] = {};
+    for (let m = (startMonth ?? 1); m <= (endMonth ?? 12); m++) {
+      const mDays = countReadingDaysInMonth(year, m, holidayDates);
+      if (mDays === 0) continue;
+      monthlyRemaining[role.id][m] = hamiltonAllocate(
+        eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
+        mDays
+      );
+    }
   }
 
   // For partial regen: if a READING role was kept (not being regenerated), its
@@ -708,14 +743,22 @@ export async function generateSchedule(
         // Assignment count equity (main factor for non-ON_CALL roles)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
         if (role.category === "READING") {
-          // Hard remaining-quota allocation: physicians with more remaining days
-          // are strongly preferred. 1000 pts per day dwarfs all other score terms.
-          // Once quota is exhausted, the physician becomes last-resort only (1M penalty).
-          const rem = remainingQuota[role.id]?.[p.id] ?? 0;
-          if (rem > 0) {
-            score -= rem * 1000;
+          // Two-level quota scoring:
+          //   monthRem > 0 && annualRem > 0 → within both budgets, prefer greedily
+          //   monthRem == 0 && annualRem > 0 → monthly exhausted, soft penalty (can overflow)
+          //   monthRem > 0 && annualRem == 0 → annual exhausted, soft penalty
+          //   both == 0 → last resort
+          const annualRem = remainingQuota[role.id]?.[p.id] ?? 0;
+          const month = date.getMonth() + 1;
+          const monthRem = monthlyRemaining[role.id]?.[month]?.[p.id] ?? 0;
+          if (monthRem > 0 && annualRem > 0) {
+            score -= annualRem * 1000 + monthRem;
+          } else if (monthRem <= 0 && annualRem > 0) {
+            score += 500_000 - annualRem * 100; // soft penalty: overflowing this month
+          } else if (monthRem > 0 && annualRem <= 0) {
+            score += 500_000 + monthRem; // soft penalty: over annual but within month
           } else {
-            score += 1_000_000;
+            score += 1_000_000; // both exhausted: last resort
           }
           // Deterministic alphabetical tiebreak — no DB-order or random dependency.
           score += p.lastName.charCodeAt(0) * 0.01 + (p.firstName.charCodeAt(0) ?? 0) * 0.001;
@@ -783,9 +826,14 @@ export async function generateSchedule(
       // Update tracking
       assignmentCount[role.id][winner.id] = (assignmentCount[role.id][winner.id] ?? 0) + 1;
 
-      // Decrement remaining quota for READING roles
+      // Decrement remaining quota for READING roles (annual and monthly)
       if (role.category === "READING" && remainingQuota[role.id] !== undefined) {
         remainingQuota[role.id][winner.id] = (remainingQuota[role.id][winner.id] ?? 0) - 1;
+        const assignMonth = date.getMonth() + 1;
+        if (monthlyRemaining[role.id]?.[assignMonth] !== undefined) {
+          monthlyRemaining[role.id][assignMonth][winner.id] =
+            (monthlyRemaining[role.id][assignMonth][winner.id] ?? 0) - 1;
+        }
       }
 
       const todayKey = `${dateStr}:${winner.id}`;
