@@ -743,22 +743,18 @@ export async function generateSchedule(
         // Assignment count equity (main factor for non-ON_CALL roles)
         const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
         if (role.category === "READING") {
-          // Two-level quota scoring:
-          //   monthRem > 0 && annualRem > 0 → within both budgets, prefer greedily
-          //   monthRem == 0 && annualRem > 0 → monthly exhausted, soft penalty (can overflow)
-          //   monthRem > 0 && annualRem == 0 → annual exhausted, soft penalty
-          //   both == 0 → last resort
+          // Annual quota is the PRIMARY signal (1000 pts/day).
+          // Monthly is a secondary nudge only (≤500 pts) — never overrides even a 1-day
+          // annual difference, so the annual totals stay byte-identical to Hamilton targets.
           const annualRem = remainingQuota[role.id]?.[p.id] ?? 0;
           const month = date.getMonth() + 1;
           const monthRem = monthlyRemaining[role.id]?.[month]?.[p.id] ?? 0;
-          if (monthRem > 0 && annualRem > 0) {
-            score -= annualRem * 1000 + monthRem;
-          } else if (monthRem <= 0 && annualRem > 0) {
-            score += 500_000 - annualRem * 100; // soft penalty: overflowing this month
-          } else if (monthRem > 0 && annualRem <= 0) {
-            score += 500_000 + monthRem; // soft penalty: over annual but within month
+          if (annualRem <= 0) {
+            score += 1_000_000; // annual exhausted: hard block — identical to pre-monthly logic
           } else {
-            score += 1_000_000; // both exhausted: last resort
+            score -= annualRem * 1_000; // primary: more annual remaining → strongly preferred
+            // Monthly nudge: ±500 pts max, far below 1 day's annual weight (1000 pts)
+            score += monthRem > 0 ? -monthRem : 500;
           }
           // Deterministic alphabetical tiebreak — no DB-order or random dependency.
           score += p.lastName.charCodeAt(0) * 0.01 + (p.firstName.charCodeAt(0) ?? 0) * 0.001;
