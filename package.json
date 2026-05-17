@@ -1,6 +1,6 @@
 {
   "name": "cardio-schedule",
-  "version": "0.22",
+  "version": "2.3",
   "private": true,
   "scripts": {
     "dev": "next dev",
