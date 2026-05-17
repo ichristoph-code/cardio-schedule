@@ -1,4 +1,5 @@
 import { prisma } from "./prisma";
+import { computeMonthlyTargets, assignEchoDates, ReaderSpec } from "./echoAllocator";
 
 // --- Date Helpers ---
 
@@ -404,33 +405,158 @@ export async function generateSchedule(
     remainingQuota[role.id] = { ...quotas };
   }
 
-  // Monthly Hamilton quotas for READING roles.
-  // For each month in the generation range, run hamiltonAllocate against that month's
-  // echo-day count so no physician dominates any single month.
+  // Monthly targets for READING roles — Stage B.1 of the two-stage echo allocator.
+  // Uses computeMonthlyTargets() which:
+  //   1. Runs Hamilton LRM per month so each month's targets sum exactly to its echo-day count.
+  //   2. Reconciles per-reader annual sums to match Stage A quotas exactly.
+  //   3. Enforces min-2 per reader per month where their proportion warrants it.
+  // These targets replace the old soft monthly nudge with a hard cap in the scoring loop.
   for (const role of roleData) {
     if (role.category !== "READING") continue;
     const eligible = physData
       .filter((p) => p.eligibleRoleIds.has(role.id))
       .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
     if (eligible.length === 0) continue;
-    monthlyRemaining[role.id] = {};
+
+    const readerSpecs: ReaderSpec[] = eligible.map((p) => ({
+      id: p.id,
+      name: `${p.lastName}${p.firstName}`,
+      fte: p.fteDays,
+    }));
+
+    const monthEchoDays = new Map<number, number>();
     for (let m = (startMonth ?? 1); m <= (endMonth ?? 12); m++) {
       const mDays = countReadingDaysInMonth(year, m, holidayDates);
-      if (mDays === 0) continue;
-      monthlyRemaining[role.id][m] = hamiltonAllocate(
-        eligible.map((p) => ({ id: p.id, weight: p.fteDays })),
-        mDays
-      );
+      if (mDays > 0) monthEchoDays.set(m, mDays);
+    }
+
+    const readerAnnualQuotas = new Map(
+      readerSpecs.map((r) => [r.id, hamiltonTargets[role.id]?.[r.id] ?? 0])
+    );
+    const stageB1Targets = computeMonthlyTargets(readerSpecs, monthEchoDays, readerAnnualQuotas);
+
+    // Load into monthlyRemaining (same structure as before; scoring loop uses it)
+    monthlyRemaining[role.id] = {};
+    for (const r of readerSpecs) {
+      for (const [m, target] of (stageB1Targets.get(r.id) ?? new Map())) {
+        if (!monthlyRemaining[role.id][m]) monthlyRemaining[role.id][m] = {};
+        monthlyRemaining[role.id][m][r.id] = target;
+      }
     }
   }
 
-  // For partial regen: if a READING role was kept (not being regenerated), its
-  // assignments were pre-seeded into assignmentCount. Deduct those from remainingQuota
-  // so the quota tracker reflects how many slots still need to be filled.
+  // For partial regen: if a READING role was kept entirely (not being regenerated
+  // in this run), its pre-seeded assignments should reduce the remaining quota so
+  // the scoring loop doesn't try to add more.
+  //
+  // IMPORTANT: skip this deduction for roles that ARE being regenerated (even
+  // partially by date range).  Their quota is already sized to the generation
+  // window (readingDaysInRange only counts dates inside [rangeStart, rangeEnd]).
+  // Pre-seeded assignments for such a role are outside that window; deducting
+  // them from the window-scoped quota would starve high-FTE readers and inflate
+  // low-FTE ones (the "Angeja 41" bug).
   for (const role of roleData) {
     if (role.category !== "READING" || !remainingQuota[role.id]) continue;
+    // Skip if this role is being regenerated in this run.
+    const roleIsBeingRegenerated = !isPartial || roleTypeIds!.includes(role.id);
+    if (roleIsBeingRegenerated) continue;
     for (const [physId, cnt] of Object.entries(assignmentCount[role.id] ?? {})) {
       remainingQuota[role.id][physId] = Math.max(0, (remainingQuota[role.id][physId] ?? 0) - cnt);
+    }
+  }
+
+  // Seeded random — used as a tiebreaker in non-READING scoring, and for
+  // date-order shuffling inside assignEchoDates.
+  let seed = year * 31337;
+  function nextRandom(): number {
+    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+    return seed / 0x7fffffff;
+  }
+
+  // =========================================================================
+  // Pre-assign READING (echo) dates using assignEchoDates.
+  //
+  // This runs AFTER all other assignments are pre-seeded into dailyPhysicianRoles,
+  // so that rounder conflicts are already visible in isAvail.  For an echo-only
+  // clean-slate run, dailyPhysicianRoles is empty and only vacations/weeklyOff
+  // are checked.
+  //
+  // Result: echoPreAssigned maps "${dateStr}:${roleId}" → physicianId.
+  // The day-by-day loop below consults this map for READING roles and bypasses
+  // the scoring path entirely, falling back to annual-quota scoring only if the
+  // pre-assigned reader is ruled out by a constraint that wasn't visible yet
+  // (e.g., a same-day conflict created by a later assignment in the same pass).
+  // =========================================================================
+  const echoPreAssigned = new Map<string, string>();
+
+  for (const role of sortedRoles) {
+    if (role.category !== "READING") continue;
+
+    const eligibleReaders = physData
+      .filter((p) => p.eligibleRoleIds.has(role.id))
+      .sort((a, b) => a.lastName.localeCompare(b.lastName) || a.firstName.localeCompare(b.firstName));
+    if (eligibleReaders.length === 0) continue;
+
+    const readerSpecs2: ReaderSpec[] = eligibleReaders.map((p) => ({
+      id: p.id,
+      name: `${p.lastName}${p.firstName}`,
+      fte: p.fteDays,
+    }));
+
+    // Build month → available echo dates for the generation range
+    const availableDates2 = new Map<number, string[]>();
+    for (let m = (startMonth ?? 1); m <= (endMonth ?? 12); m++) {
+      const monthDates: string[] = [];
+      const cur = new Date(year, m - 1, 1);
+      while (cur.getMonth() === m - 1) {
+        const ds = formatDate(cur);
+        const dw = dayOfWeek(ds);
+        if (!isWeekend(dw) && !holidayDates.has(ds)) {
+          if (!hasDateRange || (cur >= rangeStart && cur <= rangeEnd)) {
+            monthDates.push(ds);
+          }
+        }
+        cur.setDate(cur.getDate() + 1);
+      }
+      if (monthDates.length > 0) availableDates2.set(m, monthDates);
+    }
+
+    // Availability: vacation, weekly day-off, and any already-assigned rounder conflicts
+    const isAvail2 = (physId: string, ds: string): boolean => {
+      if (vacationDays.get(physId)?.has(ds)) return false;
+      const dw = dayOfWeek(ds);
+      if (weeklyDayOffMap.get(physId)?.has(dw)) return false;
+      const todayRoles = dailyPhysicianRoles.get(`${ds}:${physId}`);
+      if (todayRoles) {
+        for (const rid of todayRoles) {
+          const rr = roleData.find((r) => r.id === rid);
+          if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER") return false;
+        }
+      }
+      return true;
+    };
+
+    // Monthly targets (from monthlyRemaining which was set by computeMonthlyTargets above)
+    const monthlyTargets2 = new Map<string, Map<number, number>>();
+    for (const r of readerSpecs2) {
+      const mmap = new Map<number, number>();
+      for (const [m, readers] of Object.entries(monthlyRemaining[role.id] ?? {})) {
+        const target = (readers as Record<string, number>)[r.id] ?? 0;
+        if (target > 0) mmap.set(Number(m), target);
+      }
+      monthlyTargets2.set(r.id, mmap);
+    }
+
+    const dateAssignments2 = assignEchoDates(
+      readerSpecs2,
+      monthlyTargets2,
+      availableDates2,
+      isAvail2,
+      nextRandom,
+    );
+
+    for (const [ds, physId] of dateAssignments2) {
+      echoPreAssigned.set(`${ds}:${role.id}`, physId);
     }
   }
 
@@ -462,13 +588,6 @@ export async function generateSchedule(
   const preferredDayRules = prerequisiteRules.filter(
     (r) => (r.parameters as Record<string, unknown>).preferredDayOfWeek != null && r.physicianId
   );
-
-  // Seeded random for deterministic tiebreaking
-  let seed = year * 31337;
-  function nextRandom(): number {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff;
-    return seed / 0x7fffffff;
-  }
 
   const firstDayIdx = hasDateRange
     ? Math.round((rangeStart.getTime() - new Date(year, 0, 1).getTime()) / 86400000)
@@ -697,103 +816,111 @@ export async function generateSchedule(
         continue;
       }
 
-      // Score candidates
-      const scored = eligible.map((p) => {
-        let score = 0;
+      // -----------------------------------------------------------------------
+      // Pick winner.
+      //
+      // READING roles: use the pre-computed echoPreAssigned map (Stage B.2).
+      //   The map was built by assignEchoDates() which satisfies exact monthly
+      //   targets from Stage B.1 while respecting vacation / weekly-off.
+      //   If the pre-assigned reader is not in `eligible` (rounder conflict added
+      //   later), fall back to highest annual-remaining → alphabetical.
+      //
+      // ON_CALL / DAYTIME / SPECIAL: equity-based scoring with seeded-random
+      //   tiebreaker (unchanged).
+      // -----------------------------------------------------------------------
+      let winner: PhysicianData;
 
-        // Preferred physician rule: strongly favor this physician for linked roles
-        const prefRule = preferredPhysicianRules.find((r) => r.roleTypeId === role.id);
-        if (prefRule && prefRule.physicianId === p.id) {
-          score -= 100000; // Overwhelming preference — always picked when available
-        }
-
-        // Preferred day-of-week rule: favor physician on their preferred day
-        const dayPrefRule = preferredDayRules.find(
-          (r) => r.roleTypeId === role.id && r.physicianId === p.id
-        );
-        if (dayPrefRule) {
-          const prefDay = (dayPrefRule.parameters as Record<string, unknown>).preferredDayOfWeek as number;
-          if (dow === prefDay) {
-            score -= 50000; // Strong day preference — picked on this day when available
-          }
-        }
-
-        // Physician-level preferred task day: soft bonus for DAYTIME/READING roles
-        // Does not override hard constraints or large assignment count disparities
-        if (
-          (role.category === "DAYTIME" || role.category === "READING") &&
-          p.preferredTaskDay != null &&
-          dow === p.preferredTaskDay
-        ) {
-          score -= 800;
-        }
-
-        // ON_CALL equalization: track weekday and weekend separately
-        // so one pool doesn't penalize the other
-        if (role.category === "ON_CALL" && dow === 5) {
-          // Weekend call equalization — highest priority for Fridays
-          const wkendCnt = weekendBlockCount[role.id]?.[p.id] ?? 0;
-          score += wkendCnt * 500;
-        } else if (role.category === "ON_CALL" && dow >= 1 && dow <= 4) {
-          // Weekday call equalization — equally strong for Mon-Thu
-          const wkdayCnt = weekdayCallCount[role.id]?.[p.id] ?? 0;
-          score += wkdayCnt * 500;
-        }
-
-        // Assignment count equity (main factor for non-ON_CALL roles)
-        const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
-        if (role.category === "READING") {
-          // Annual quota is the PRIMARY signal (1000 pts/day).
-          // Monthly is a secondary nudge only (≤500 pts) — never overrides even a 1-day
-          // annual difference, so the annual totals stay byte-identical to Hamilton targets.
-          const annualRem = remainingQuota[role.id]?.[p.id] ?? 0;
-          const month = date.getMonth() + 1;
-          const monthRem = monthlyRemaining[role.id]?.[month]?.[p.id] ?? 0;
-          if (annualRem <= 0) {
-            score += 1_000_000; // annual exhausted: hard block — identical to pre-monthly logic
-          } else {
-            score -= annualRem * 1_000; // primary: more annual remaining → strongly preferred
-            // Monthly nudge: ±500 pts max, far below 1 day's annual weight (1000 pts)
-            score += monthRem > 0 ? -monthRem : 500;
-          }
-          // Deterministic alphabetical tiebreak — no DB-order or random dependency.
-          score += p.lastName.charCodeAt(0) * 0.01 + (p.firstName.charCodeAt(0) ?? 0) * 0.001;
-        } else if (role.category !== "ON_CALL") {
-          score += cnt * 100;
+      if (role.category === "READING") {
+        const prePhysId = echoPreAssigned.get(`${dateStr}:${role.id}`);
+        const prePhys = prePhysId ? eligible.find((p) => p.id === prePhysId) : undefined;
+        if (prePhys) {
+          winner = prePhys;
         } else {
-          // For ON_CALL, still use a lighter general equity as tiebreaker
-          score += cnt * 10;
+          // Fallback: pre-assigned reader unavailable (rounder conflict or no pre-assignment).
+          // Pick the reader with the most annual remaining; alphabetical tiebreak.
+          winner = eligible.reduce((best, p) => {
+            const rem = remainingQuota[role.id]?.[p.id] ?? 0;
+            const bestRem = remainingQuota[role.id]?.[best.id] ?? 0;
+            if (rem !== bestRem) return rem > bestRem ? p : best;
+            const cmp = p.lastName.localeCompare(best.lastName) || p.firstName.localeCompare(best.firstName);
+            return cmp < 0 ? p : best;
+          });
         }
+      } else {
+        const scored = eligible.map((p) => {
+          let score = 0;
 
-        // Daily load (prefer physicians with fewer roles today)
-        const todayKey = `${dateStr}:${p.id}`;
-        const todayCount = dailyPhysicianRoles.get(todayKey)?.size ?? 0;
-        score += todayCount * 30;
+          // Preferred physician rule: strongly favor this physician for linked roles
+          const prefRule = preferredPhysicianRules.find((r) => r.roleTypeId === role.id);
+          if (prefRule && prefRule.physicianId === p.id) {
+            score -= 100000; // Overwhelming preference — always picked when available
+          }
 
-        // Holiday equity
-        if (holidayName) {
-          const burden = holidayBurden.get(p.id) ?? 0;
-          score += burden * 200;
-        }
+          // Preferred day-of-week rule: favor physician on their preferred day
+          const dayPrefRule = preferredDayRules.find(
+            (r) => r.roleTypeId === role.id && r.physicianId === p.id
+          );
+          if (dayPrefRule) {
+            const prefDay = (dayPrefRule.parameters as Record<string, unknown>).preferredDayOfWeek as number;
+            if (dow === prefDay) {
+              score -= 50000; // Strong day preference — picked on this day when available
+            }
+          }
 
-        // Spread out assignments (prefer longer gap since last assignment of this role)
-        // Skip for READING roles — gap spread drives toward even rotation and
-        // fights the FTE-proportional Hamilton scoring.
-        const last = lastAssigned[p.id]?.[role.id];
-        if (last && role.category !== "READING") {
-          const gap = dayIdx - getDayIndex(last, year);
-          score -= gap * 3;
-        }
+          // Physician-level preferred task day: soft bonus for DAYTIME roles
+          if (
+            role.category === "DAYTIME" &&
+            p.preferredTaskDay != null &&
+            dow === p.preferredTaskDay
+          ) {
+            score -= 800;
+          }
 
-        // Small deterministic tiebreaker (non-READING only — READING uses name-based tiebreak)
-        const rnd = nextRandom() * 0.5;
-        if (role.category !== "READING") score += rnd;
+          // ON_CALL equalization: track weekday and weekend separately
+          if (role.category === "ON_CALL" && dow === 5) {
+            const wkendCnt = weekendBlockCount[role.id]?.[p.id] ?? 0;
+            score += wkendCnt * 500;
+          } else if (role.category === "ON_CALL" && dow >= 1 && dow <= 4) {
+            const wkdayCnt = weekdayCallCount[role.id]?.[p.id] ?? 0;
+            score += wkdayCnt * 500;
+          }
 
-        return { physician: p, score };
-      });
+          // Assignment count equity
+          const cnt = assignmentCount[role.id]?.[p.id] ?? 0;
+          if (role.category !== "ON_CALL") {
+            score += cnt * 100;
+          } else {
+            score += cnt * 10;
+          }
 
-      scored.sort((a, b) => a.score - b.score);
-      const winner = scored[0].physician;
+          // Daily load (prefer physicians with fewer roles today)
+          const todayKey = `${dateStr}:${p.id}`;
+          const todayCount = dailyPhysicianRoles.get(todayKey)?.size ?? 0;
+          score += todayCount * 30;
+
+          // Holiday equity
+          if (holidayName) {
+            const burden = holidayBurden.get(p.id) ?? 0;
+            score += burden * 200;
+          }
+
+          // Spread out assignments (prefer longer gap since last assignment of this role)
+          const last = lastAssigned[p.id]?.[role.id];
+          if (last) {
+            const gap = dayIdx - getDayIndex(last, year);
+            score -= gap * 3;
+          }
+
+          // Small seeded-random tiebreaker
+          const rnd = nextRandom() * 0.5;
+          score += rnd;
+
+          return { physician: p, score };
+        });
+
+        scored.sort((a, b) => a.score - b.score);
+        winner = scored[0].physician;
+      }
 
       // Record assignment
       assignments.push({
