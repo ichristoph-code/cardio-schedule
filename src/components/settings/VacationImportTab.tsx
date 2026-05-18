@@ -95,10 +95,12 @@ function getCellRgb(cell: Record<string, unknown> | undefined): string | undefin
 
 interface DateRange { startDate: string; endDate: string; halfDay?: string }
 
+interface CalendarRanges { vacationRanges: DateRange[]; floatDays: string[] }
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractColorCalendarRanges(ws: any, year: number): DateRange[] {
+function extractColorCalendarRanges(ws: any, year: number): CalendarRanges {
   const ref: string | undefined = ws["!ref"];
-  if (!ref) { console.log("[vac-import] sheet has no !ref"); return []; }
+  if (!ref) { console.log("[vac-import] sheet has no !ref"); return { vacationRanges: [], floatDays: [] }; }
 
   // Dynamically import XLSX types
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -138,11 +140,12 @@ function extractColorCalendarRanges(ws: any, year: number): DateRange[] {
     }
   }
 
-  if (headers.length === 0) return [];
+  if (headers.length === 0) return { vacationRanges: [], floatDays: [] };
 
   // ── Step 2: for each month, find SMTWTFS row then extract vacation cells ────
   const fullDays: string[] = [];
   const halfDays: string[] = [];
+  const floatDays: string[] = [];
 
   for (const hdr of headers) {
     // Find the row that has day-of-week headers (S, M, T, etc.)
@@ -210,6 +213,8 @@ function extractColorCalendarRanges(ws: any, year: number): DateRange[] {
           fullDays.push(dateStr);
         } else if (code === "0.5V") {
           halfDays.push(dateStr);
+        } else if (code === "F") {
+          floatDays.push(dateStr);
         } else {
           // Fallback: color detection for red-highlighted cells
           const rgb = getCellRgb(cell as Record<string, unknown>);
@@ -221,14 +226,17 @@ function extractColorCalendarRanges(ws: any, year: number): DateRange[] {
 
   // Full days: deduplicate, merge consecutive days into ranges
   const uniqueFull = [...new Set(fullDays)].sort();
-  const result: DateRange[] = daysToRanges(uniqueFull);
+  const vacationRanges: DateRange[] = daysToRanges(uniqueFull);
 
   // Half days: always single-day entries, no merging
   for (const d of [...new Set(halfDays)].sort()) {
-    result.push({ startDate: d, endDate: d, halfDay: "MORNING" });
+    vacationRanges.push({ startDate: d, endDate: d, halfDay: "MORNING" });
   }
 
-  return result;
+  // Float days: deduplicated individual dates (no merging — each is a discrete assignment)
+  const uniqueFloat = [...new Set(floatDays)].sort();
+
+  return { vacationRanges, floatDays: uniqueFloat };
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -284,7 +292,7 @@ function isColorCalendarSheet(ws: any): boolean {
       if (!cell) continue;
       const val = String(cell.v ?? "").toLowerCase().trim();
       if (MONTH_NAMES_LC.includes(val)) monthCount++;
-      if (val === "v" || val === "0.5v" || val === "off") vacationIndicators++;
+      if (val === "v" || val === "0.5v" || val === "off" || val === "f") vacationIndicators++;
       if (isVacationRed(getCellRgb(cell as Record<string, unknown>))) vacationIndicators++;
     }
   }
@@ -410,13 +418,22 @@ interface ImportResponse {
   results: RowResult[];
 }
 
+interface FloatImportResponse {
+  physicianEmail: string;
+  dryRun: boolean;
+  counts: { created: number; skipped: number; errors: number; total: number };
+  results: Array<{ date: string; status: string; reason?: string; error?: string }>;
+}
+
 interface SheetEntry {
   sheetName: string;
   ranges: DateRange[];
+  floatDays: string[];
   physicianEmail: string;
   emailMatched: boolean;   // true = auto-matched from physician list
   skip: boolean;
   result?: ImportResponse;
+  floatResult?: FloatImportResponse;
   importing?: boolean;
 }
 
@@ -595,14 +612,15 @@ export function VacationImportTab() {
         // Skip legend / template sheets
         if (/template|legend|key|example/i.test(sheetName)) continue;
         const ws = wb.Sheets[sheetName];
-        const ranges = extractColorCalendarRanges(ws, year);
+        const { vacationRanges, floatDays } = extractColorCalendarRanges(ws, year);
         const matchedEmail = matchPhysicianEmail(sheetName, physicianUsers);
         entries.push({
           sheetName,
-          ranges,
+          ranges: vacationRanges,
+          floatDays,
           physicianEmail: matchedEmail,
           emailMatched: matchedEmail !== "",
-          skip: ranges.length === 0,
+          skip: vacationRanges.length === 0 && floatDays.length === 0,
         });
       }
 
@@ -621,25 +639,51 @@ export function VacationImportTab() {
     }
   }
 
-  async function importSheet(idx: number, dry: boolean): Promise<ImportResponse | null> {
+  async function importSheet(
+    idx: number,
+    dry: boolean,
+  ): Promise<{ vacResult: ImportResponse | null; floatResult: FloatImportResponse | null }> {
     const entry = sheets![idx];
     if (!entry.physicianEmail.trim()) {
       toast.error(`Enter email for ${entry.sheetName}`);
-      return null;
+      return { vacResult: null, floatResult: null };
     }
-    const res = await fetch("/api/admin/vacation-bulk-import", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        physicianEmail: entry.physicianEmail.trim(),
-        ranges: entry.ranges,
-        defaultStatus,
-        dryRun: dry,
-      }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || "Import failed");
-    return json as ImportResponse;
+
+    let vacResult: ImportResponse | null = null;
+    if (entry.ranges.length > 0) {
+      const res = await fetch("/api/admin/vacation-bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          physicianEmail: entry.physicianEmail.trim(),
+          ranges: entry.ranges,
+          defaultStatus,
+          dryRun: dry,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Vacation import failed");
+      vacResult = json as ImportResponse;
+    }
+
+    let floatResult: FloatImportResponse | null = null;
+    if (entry.floatDays.length > 0) {
+      const res = await fetch("/api/admin/float-bulk-import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          physicianEmail: entry.physicianEmail.trim(),
+          dates: entry.floatDays,
+          year: calYear,
+          dryRun: dry,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Float import failed");
+      floatResult = json as FloatImportResponse;
+    }
+
+    return { vacResult, floatResult };
   }
 
   async function handleBulkImport() {
@@ -658,9 +702,13 @@ export function VacationImportTab() {
         prev!.map((s, j) => (j === i ? { ...s, importing: true } : s))
       );
       try {
-        const result = await importSheet(i, bulkDryRun);
+        const { vacResult, floatResult } = await importSheet(i, bulkDryRun);
         setSheets((prev) =>
-          prev!.map((s, j) => (j === i ? { ...s, result: result ?? undefined, importing: false } : s))
+          prev!.map((s, j) =>
+            j === i
+              ? { ...s, result: vacResult ?? undefined, floatResult: floatResult ?? undefined, importing: false }
+              : s
+          )
         );
         successCount++;
       } catch (err) {
@@ -777,8 +825,8 @@ export function VacationImportTab() {
           <h2 className="text-lg font-semibold">Annual calendar import</h2>
           <p className="text-muted-foreground text-sm">
             Upload your yearly Excel calendar (one tab per physician). Vacation days are detected
-            from <strong>V</strong> / <strong>0.5V</strong> codes in the row below each date.
-            All physicians are imported in one shot.
+            from <strong>V</strong> / <strong>0.5V</strong> codes and float days from <strong>F</strong> codes
+            in the row below each date. All physicians are imported in one shot.
           </p>
         </div>
 
@@ -866,18 +914,26 @@ export function VacationImportTab() {
                       <div className="w-28 text-sm font-medium truncate" title={entry.sheetName}>
                         {entry.sheetName}
                       </div>
-                      {/* Day count badge */}
-                      <Badge variant="secondary" className="text-xs">
-                        {entry.ranges.reduce(
-                          (n, r) => {
-                            const s = new Date(r.startDate + "T12:00:00");
-                            const e = new Date(r.endDate + "T12:00:00");
-                            return n + Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
-                          },
-                          0
-                        )}{" "}
-                        days
-                      </Badge>
+                      {/* Vacation day count badge */}
+                      {entry.ranges.length > 0 && (
+                        <Badge variant="secondary" className="text-xs">
+                          {entry.ranges.reduce(
+                            (n, r) => {
+                              const s = new Date(r.startDate + "T12:00:00");
+                              const e = new Date(r.endDate + "T12:00:00");
+                              return n + Math.round((e.getTime() - s.getTime()) / 86400000) + 1;
+                            },
+                            0
+                          )}{" "}
+                          vac
+                        </Badge>
+                      )}
+                      {/* Float day count badge */}
+                      {entry.floatDays.length > 0 && (
+                        <Badge className="text-xs bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
+                          {entry.floatDays.length} float
+                        </Badge>
+                      )}
                       {/* Email input with match indicator */}
                       <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
                         <Input
@@ -908,14 +964,24 @@ export function VacationImportTab() {
                       {entry.importing && (
                         <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                       )}
-                      {entry.result && !entry.importing && (
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {entry.result.dryRun ? "would create" : "created"}{" "}
-                          <strong>{entry.result.counts.created}</strong>,{" "}
-                          skipped {entry.result.counts.skipped}
-                          {entry.result.counts.errors > 0 && (
-                            <span className="text-destructive ml-1">
-                              ({entry.result.counts.errors} errors)
+                      {(entry.result || entry.floatResult) && !entry.importing && (
+                        <span className="text-xs text-muted-foreground whitespace-nowrap space-x-2">
+                          {entry.result && (
+                            <span>
+                              vac: {entry.result.dryRun ? "would create" : "created"}{" "}
+                              <strong>{entry.result.counts.created}</strong>
+                              {entry.result.counts.errors > 0 && (
+                                <span className="text-destructive ml-1">({entry.result.counts.errors} err)</span>
+                              )}
+                            </span>
+                          )}
+                          {entry.floatResult && (
+                            <span>
+                              float: {entry.floatResult.dryRun ? "would create" : "created"}{" "}
+                              <strong>{entry.floatResult.counts.created}</strong>
+                              {entry.floatResult.counts.errors > 0 && (
+                                <span className="text-destructive ml-1">({entry.floatResult.counts.errors} err)</span>
+                              )}
                             </span>
                           )}
                         </span>
