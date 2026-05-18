@@ -20,9 +20,10 @@ interface Props {
   physicianId: string;
   isAdmin: boolean;
   vacations: VacationInfo[];
+  floatDays?: string[];
 }
 
-export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations }: Props) {
+export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [] }: Props) {
   const [view, setView] = useState<"monthly" | "yearly">("yearly");
 
   return (
@@ -54,7 +55,14 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           physicianName={physicianName}
           physicianId={physicianId}
           isAdmin={isAdmin}
-          assignments={[]}
+          assignments={floatDays.map((date, i) => ({
+            id: `float-${i}`,
+            date,
+            roleName: "HOSPITAL_FLOAT",
+            roleDisplayName: "Hospital Float",
+            roleCategory: "DAYTIME",
+            source: "MANUAL",
+          }))}
           vacations={vacations}
           noCallDays={[]}
         />
@@ -62,6 +70,7 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
         <YearlyVacationCalendar
           year={year}
           vacations={vacations}
+          floatDays={floatDays}
         />
       )}
     </div>

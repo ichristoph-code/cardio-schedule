@@ -45,15 +45,32 @@ export default async function VacationPage({
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
-  const vacations = await prisma.vacationRequest.findMany({
-    where: {
-      physicianId: selectedId,
-      status: "APPROVED",
-      startDate: { lte: new Date(selectedYear, 11, 31) },
-      endDate: { gte: new Date(selectedYear, 0, 1) },
-    },
-    orderBy: { startDate: "asc" },
-  });
+  const [vacations, floatAssignments] = await Promise.all([
+    prisma.vacationRequest.findMany({
+      where: {
+        physicianId: selectedId,
+        status: "APPROVED",
+        startDate: { lte: new Date(selectedYear, 11, 31) },
+        endDate: { gte: new Date(selectedYear, 0, 1) },
+      },
+      orderBy: { startDate: "asc" },
+    }),
+    prisma.scheduleAssignment.findMany({
+      where: {
+        physicianId: selectedId,
+        isActive: true,
+        roleType: { name: "HOSPITAL_FLOAT" },
+        date: {
+          gte: new Date(selectedYear, 0, 1),
+          lte: new Date(selectedYear, 11, 31),
+        },
+      },
+      select: { date: true },
+      orderBy: { date: "asc" },
+    }),
+  ]);
+
+  const floatDays = floatAssignments.map((a) => a.date.toISOString().split("T")[0]);
 
   return (
     <div className="space-y-5">
@@ -85,6 +102,7 @@ export default async function VacationPage({
           reason: v.reason,
           halfDay: v.halfDay,
         }))}
+        floatDays={floatDays}
       />
     </div>
   );

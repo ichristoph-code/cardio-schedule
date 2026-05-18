@@ -17,6 +17,7 @@ interface VacationInfo {
 interface Props {
   year: number;
   vacations: VacationInfo[];
+  floatDays?: string[];
 }
 
 function buildVacationSet(vacations: VacationInfo[]): Map<string, "full" | "half"> {
@@ -35,7 +36,7 @@ function buildVacationSet(vacations: VacationInfo[]): Map<string, "full" | "half
   return map;
 }
 
-function MonthGrid({ year, month, vacMap }: { year: number; month: number; vacMap: Map<string, "full" | "half"> }) {
+function MonthGrid({ year, month, vacMap, floatSet }: { year: number; month: number; vacMap: Map<string, "full" | "half">; floatSet: Set<string> }) {
   const today = new Date().toISOString().split("T")[0];
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -62,21 +63,24 @@ function MonthGrid({ year, month, vacMap }: { year: number; month: number; vacMa
           if (!day) return <div key={i} />;
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const vac = vacMap.get(dateStr);
+          const isFloat = floatSet.has(dateStr);
           const isToday = dateStr === today;
 
           return (
             <div
               key={i}
-              title={vac ? (vac === "half" ? "Half vacation day" : "Vacation day") : undefined}
+              title={vac ? (vac === "half" ? "Half vacation day" : "Vacation day") : isFloat ? "Hospital Float" : undefined}
               className={[
                 "text-[11px] text-center rounded py-[3px] leading-none select-none",
                 vac === "full"
                   ? "bg-emerald-500 text-white font-semibold"
                   : vac === "half"
                     ? "bg-emerald-200 text-emerald-900 font-semibold"
-                    : isToday
-                      ? "bg-primary/15 text-primary font-bold"
-                      : "text-foreground hover:bg-muted/50",
+                    : isFloat
+                      ? "bg-blue-400 text-white font-semibold"
+                      : isToday
+                        ? "bg-primary/15 text-primary font-bold"
+                        : "text-foreground hover:bg-muted/50",
               ].join(" ")}
             >
               {day}
@@ -88,15 +92,16 @@ function MonthGrid({ year, month, vacMap }: { year: number; month: number; vacMa
   );
 }
 
-export function YearlyVacationCalendar({ year, vacations }: Props) {
+export function YearlyVacationCalendar({ year, vacations, floatDays = [] }: Props) {
   const vacMap = buildVacationSet(vacations);
+  const floatSet = new Set(floatDays);
 
   const totalFull = [...vacMap.values()].filter((v) => v === "full").length;
   const totalHalf = [...vacMap.values()].filter((v) => v === "half").length;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-6 text-sm">
+      <div className="flex items-center gap-6 text-sm flex-wrap">
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
           <span className="text-muted-foreground">Full day — <strong>{totalFull}</strong></span>
@@ -108,11 +113,19 @@ export function YearlyVacationCalendar({ year, vacations }: Props) {
         <div className="text-muted-foreground">
           Total: <strong>{totalFull + totalHalf * 0.5}</strong> days
         </div>
+        {floatDays.length > 0 && (
+          <>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />
+              <span className="text-muted-foreground">Hospital Float — <strong>{floatDays.length}</strong></span>
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {Array.from({ length: 12 }, (_, m) => (
-          <MonthGrid key={m} year={year} month={m} vacMap={vacMap} />
+          <MonthGrid key={m} year={year} month={m} vacMap={vacMap} floatSet={floatSet} />
         ))}
       </div>
     </div>
