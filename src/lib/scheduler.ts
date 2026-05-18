@@ -530,7 +530,7 @@ export async function generateSchedule(
       if (todayRoles) {
         for (const rid of todayRoles) {
           const rr = roleData.find((r) => r.id === rid);
-          if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER") return false;
+          if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER" || rr?.name === "HOSPITAL_FLOAT") return false;
         }
       }
       return true;
@@ -803,7 +803,7 @@ export async function generateSchedule(
           if (role.category === "READING") {
             for (const rid of todayRoles) {
               const rr = roleData.find((r) => r.id === rid);
-              if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER") return false;
+              if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER" || rr?.name === "HOSPITAL_FLOAT") return false;
             }
           }
         }

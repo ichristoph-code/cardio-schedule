@@ -137,6 +137,7 @@ export default async function MySchedulePage({
         assignments={assignments.map((a) => ({
           id: a.id,
           date: a.date.toISOString().split("T")[0],
+          roleName: a.roleType.name,
           roleDisplayName: a.roleType.displayName,
           roleCategory: a.roleType.category,
           source: a.source,

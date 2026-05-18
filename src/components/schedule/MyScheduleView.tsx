@@ -25,6 +25,7 @@ import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 interface Assignment {
   id: string;
   date: string;
+  roleName: string;
   roleDisplayName: string;
   roleCategory: string;
   source: string;

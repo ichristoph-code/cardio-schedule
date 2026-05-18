@@ -77,7 +77,7 @@ export default async function PhysicianCalendarPage({
       },
       include: {
         roleType: {
-          select: { displayName: true, category: true },
+          select: { name: true, displayName: true, category: true },
         },
       },
       orderBy: { date: "asc" },
@@ -132,6 +132,7 @@ export default async function PhysicianCalendarPage({
         assignments={assignments.map((a) => ({
           id: a.id,
           date: a.date.toISOString().split("T")[0],
+          roleName: a.roleType.name,
           roleDisplayName: a.roleType.displayName,
           roleCategory: a.roleType.category,
           source: a.source,

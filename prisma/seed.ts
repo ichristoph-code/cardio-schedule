@@ -134,6 +134,18 @@ async function main() {
         sortOrder: 11,
       },
     }),
+    prisma.roleType.upsert({
+      where: { name: "HOSPITAL_FLOAT" },
+      update: {},
+      create: {
+        name: "HOSPITAL_FLOAT",
+        displayName: "Hospital Float",
+        category: "DAYTIME",
+        description: "All-day hospital float coverage, admin-assigned. Blocks echo reading.",
+        sortOrder: 12,
+        minRequired: 0,
+      },
+    }),
   ]);
 
   const roleMap = Object.fromEntries(roles.map((r) => [r.name, r.id]));

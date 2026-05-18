@@ -35,6 +35,7 @@ import {
   Plus,
   Loader2,
   Trash2,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +44,7 @@ import { toast } from "sonner";
 interface Assignment {
   id: string;
   date: string;
+  roleName: string;
   roleDisplayName: string;
   roleCategory: string;
   source: string;
@@ -634,6 +636,7 @@ export function PhysicianCalendar({
           const dayAssigns = assignmentsByDate.get(dateStr) ?? [];
           const vacation = vacationDays.get(dateStr);
           const noCall = noCallDaySet.get(dateStr);
+          const floatAssign = dayAssigns.find((a) => a.roleName === "HOSPITAL_FLOAT");
           const today = isToday(dateStr);
           const colIdx = idx % 7;
           const isWeekend = colIdx === 0 || colIdx === 6;
@@ -644,6 +647,7 @@ export function PhysicianCalendar({
             ? "bg-slate-50/60 dark:bg-slate-900/15"
             : "bg-white dark:bg-background";
           if (vacation) cellBg = "bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-yellow-950/20";
+          else if (floatAssign) cellBg = "bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-950/20";
           else if (holidayName) cellBg = "bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/20";
           else if (noCall) cellBg = "bg-slate-100/60 dark:bg-slate-900/30";
 
@@ -686,6 +690,16 @@ export function PhysicianCalendar({
                   <Palmtree className="w-3 h-3 text-amber-500 flex-shrink-0" />
                   <span className="text-[11px] leading-snug font-semibold text-amber-600 dark:text-amber-400">
                     Vacation
+                  </span>
+                </div>
+              )}
+
+              {/* Float label */}
+              {floatAssign && !vacation && (
+                <div className="flex items-center gap-1 mb-1">
+                  <Building2 className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                  <span className="text-[11px] leading-snug font-semibold text-blue-600 dark:text-blue-400">
+                    Float
                   </span>
                 </div>
               )}
@@ -741,6 +755,10 @@ export function PhysicianCalendar({
         <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 rounded-full px-2.5 py-1 border border-amber-200 dark:border-amber-800">
           <Palmtree className="w-3 h-3 text-amber-500" />
           <span className="text-amber-700 dark:text-amber-300 font-medium">Vacation</span>
+        </div>
+        <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-full px-2.5 py-1 border border-blue-200 dark:border-blue-800">
+          <Building2 className="w-3 h-3 text-blue-500" />
+          <span className="text-blue-700 dark:text-blue-300 font-medium">Hospital Float</span>
         </div>
         <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-800/50 rounded-full px-2.5 py-1 border border-slate-200 dark:border-slate-700">
           <PhoneOff className="w-3 h-3 text-slate-400" />
