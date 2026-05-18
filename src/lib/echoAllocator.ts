@@ -186,11 +186,23 @@ export function computeMonthlyTargets(
 
   // Repeat until no reader is over- or under-quota.
   // In practice 1–2 passes suffice; cap at 200 to be safe.
+  //
+  // Fix A: sort giver/receiver loops by surplus/deficit magnitude rather than
+  // insertion order. This makes the most-surplus reader donate first and the
+  // most-deficient reader receive first — the original alphabetical iteration
+  // could leave fixable imbalances on the table when the surplus/deficit
+  // structure didn't happen to align with reader name order.
   for (let pass = 0; pass < 200; pass++) {
     const sums = annualSum();
     let changed = false;
 
-    for (const giver of readers) {
+    const givers = [...readers].sort((a, b) => {
+      const surA = (sums.get(a.id)! - (annualQuotas.get(a.id) ?? 0));
+      const surB = (sums.get(b.id)! - (annualQuotas.get(b.id) ?? 0));
+      return surB - surA || a.name.localeCompare(b.name);
+    });
+
+    for (const giver of givers) {
       const giverSum = sums.get(giver.id)!;
       const giverQuota = annualQuotas.get(giver.id) ?? 0;
       if (giverSum <= giverQuota) continue; // already at or under target
@@ -205,12 +217,19 @@ export function computeMonthlyTargets(
         return cb - ca || a - b;
       });
 
+      // Receivers sorted by deficit magnitude (largest deficit first)
+      const receivers = [...readers].sort((a, b) => {
+        const defA = ((annualQuotas.get(a.id) ?? 0) - sums.get(a.id)!);
+        const defB = ((annualQuotas.get(b.id) ?? 0) - sums.get(b.id)!);
+        return defB - defA || a.name.localeCompare(b.name);
+      });
+
       swapSearch:
       for (const month of monthsByGiverCount) {
         const giverCur = result.get(giver.id)!.get(month) ?? 0;
         if (giverCur < 3) continue; // can't give without dropping below 2
 
-        for (const receiver of readers) {
+        for (const receiver of receivers) {
           if (receiver.id === giver.id) continue;
           const receiverSum = sums.get(receiver.id)!;
           const receiverQuota = annualQuotas.get(receiver.id) ?? 0;
@@ -481,6 +500,70 @@ export function assignEchoDates(
     }
 
     if (!anyFix) break;
+  }
+
+  // -------------------------------------------------------------------------
+  // Phase 3 — deviation equalization (Fix B).
+  //
+  // Goal: minimize max |actual − target| across readers.
+  //
+  // Phase 2 above can only repair via unassigned dates. When the unassigned
+  // dates are truly unfillable (everyone-on-vacation days), the total deficit
+  // can't be eliminated — but it CAN be spread evenly so no single reader
+  // takes a disproportionate hit.
+  //
+  // Rule: while there exists a pair (donor D, receiver R) where
+  // `dev(D) − dev(R) ≥ 2` AND D currently holds a date that R can do, swap
+  // it. After the swap, dev(D) drops by 1 and dev(R) rises by 1, so the
+  // spread tightens by 2. Iteration stops when no pair has spread ≥ 2 —
+  // i.e., every deviation lies in a window of width ≤ 1.
+  //
+  // This subsumes the simpler "surplus → deficit" rule and additionally
+  // distributes unfillable-date losses evenly across the roster.
+  //
+  // Cap at 100 iterations; each is O(readers² · |dates|).
+  // -------------------------------------------------------------------------
+  for (let pass = 0; pass < 100; pass++) {
+    const actual = annualActual();
+    const dev = new Map<string, number>(
+      readers.map((r) => [r.id, (actual.get(r.id) ?? 0) - (annualTarget.get(r.id) ?? 0)]),
+    );
+
+    // Sort donors high-dev first, then high-FTE first (FTE-normalized loss is
+    // smaller for high-FTE readers, so we'd rather take from them when devs
+    // tie). Receivers: low-dev first, then low-FTE first (a loss hurts more
+    // for low-FTE readers, so they should be filled first). Name asc for full
+    // determinism.
+    const donors = [...readers].sort((a, b) =>
+      (dev.get(b.id) ?? 0) - (dev.get(a.id) ?? 0)
+      || b.fte - a.fte
+      || a.name.localeCompare(b.name),
+    );
+    const receivers = [...readers].sort((a, b) =>
+      (dev.get(a.id) ?? 0) - (dev.get(b.id) ?? 0)
+      || a.fte - b.fte
+      || a.name.localeCompare(b.name),
+    );
+
+    let swapped = false;
+
+    outer:
+    for (const r of receivers) {
+      for (const d of donors) {
+        if (d.id === r.id) continue;
+        // Improvement condition: swap strictly tightens the spread.
+        if ((dev.get(d.id) ?? 0) - (dev.get(r.id) ?? 0) < 2) continue;
+        for (const [date, holderId] of result) {
+          if (holderId !== d.id) continue;
+          if (!isAvailable(r.id, date)) continue;
+          result.set(date, r.id);
+          swapped = true;
+          break outer;
+        }
+      }
+    }
+
+    if (!swapped) break;
   }
 
   return result;
