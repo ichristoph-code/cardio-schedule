@@ -1,0 +1,12 @@
+#!/usr/bin/env sh
+# Pre-commit gate: type-check + tests must pass.
+# Skip with `git commit --no-verify` if you genuinely need to bypass
+# (and have a good reason — the gate exists to catch real regressions).
+
+set -e
+
+echo "→ type-check"
+npx tsc --noEmit -p tsconfig.json
+
+echo "→ tests"
+pnpm test

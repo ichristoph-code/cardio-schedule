@@ -6,3 +6,8 @@ node_modules/
 dist/
 *.tsbuildinfo
 .vercel
+.DS_Store
+
+# Ad-hoc diagnostic / one-off scripts. Lives in the working tree for
+# developer convenience but is not part of the shipped codebase.
+scripts/diagnostics/
