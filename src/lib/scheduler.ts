@@ -557,6 +557,15 @@ export async function generateSchedule(
 
     for (const [ds, physId] of dateAssignments2) {
       echoPreAssigned.set(`${ds}:${role.id}`, physId);
+      // CRITICAL: also seed the reservation into dailyPhysicianRoles so the
+      // DAYTIME selection (rounders, float) processed later in the day loop
+      // sees that this physician is already promised to echo today and won't
+      // overwrite the reservation via fallback. Without this, an echo reader
+      // can be silently bumped to rounder on their reserved day, starving the
+      // FTE-balanced echo distribution.
+      const dprKey = `${ds}:${physId}`;
+      if (!dailyPhysicianRoles.has(dprKey)) dailyPhysicianRoles.set(dprKey, new Set());
+      dailyPhysicianRoles.get(dprKey)!.add(role.id);
     }
   }
 
@@ -792,11 +801,14 @@ export async function generateSchedule(
               }
             }
           }
-          // Max 1 DAYTIME role per physician per day
+          // Max 1 DAYTIME role per physician per day, AND DAYTIME excludes
+          // any reader pre-reservation (echoPreAssigned was seeded into
+          // dailyPhysicianRoles above). Symmetric counterpart to the
+          // READING-vs-rounder exclusion below.
           if (role.category === "DAYTIME") {
             for (const rid of todayRoles) {
               const rr = roleData.find((r) => r.id === rid);
-              if (rr?.category === "DAYTIME") return false;
+              if (rr?.category === "DAYTIME" || rr?.category === "READING") return false;
             }
           }
           // READING: skip if physician is Hospital/ICU rounder today (not in office)

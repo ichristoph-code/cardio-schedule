@@ -15,9 +15,19 @@ import {
 } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Upload, Loader2, CheckCircle2, XCircle, SkipForward, ImageIcon } from "lucide-react";
+import { Upload, Loader2, CheckCircle2, XCircle, SkipForward, ImageIcon, AlertTriangle } from "lucide-react";
+import {
+  extractColorCalendarRanges,
+  detectYearFromWorkbook,
+  matchPhysicianEmail,
+  gapIsWeekendOnly,
+  type DateRange,
+  type ParserWarning,
+  type MonthDiagnostic,
+  type PhysicianUserLite,
+} from "@/lib/excel-vacation-parser";
 
-// ─── Date helpers ───────────────────────────────────────────────────────────
+// ─── Date helpers (legacy grid format only) ──────────────────────────────────
 
 function toISODateStr(val: unknown): string | null {
   if (val instanceof Date) {
@@ -37,267 +47,8 @@ function toISODateStr(val: unknown): string | null {
   return null;
 }
 
-function gapIsWeekendOnly(startStr: string, endStr: string): boolean {
-  const d = new Date(startStr + "T12:00:00");
-  const end = new Date(endStr + "T12:00:00");
-  d.setDate(d.getDate() + 1);
-  while (d < end) {
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) return false;
-    d.setDate(d.getDate() + 1);
-  }
-  return true;
-}
-
-function daysToRanges(
-  sortedDays: string[],
-): Array<{ startDate: string; endDate: string }> {
-  if (sortedDays.length === 0) return [];
-  const ranges: [string, string][] = [];
-  for (const d of sortedDays) {
-    if (ranges.length === 0) { ranges.push([d, d]); continue; }
-    const last = ranges[ranges.length - 1];
-    if (gapIsWeekendOnly(last[1], d)) {
-      last[1] = d;
-    } else {
-      ranges.push([d, d]);
-    }
-  }
-  return ranges.map(([s, e]) => ({ startDate: s, endDate: e }));
-}
-
-// ─── Color-calendar parser ───────────────────────────────────────────────────
-
-const MONTH_NAMES_LC = [
-  "january","february","march","april","may","june",
-  "july","august","september","october","november","december",
-];
-
-// Returns true if an RGB/ARGB hex string looks like a "vacation red"
-function isVacationRed(rgb: string | undefined): boolean {
-  if (!rgb || rgb.length < 6) return false;
-  const hex = rgb.length === 8 ? rgb.slice(2) : rgb;
-  const r = parseInt(hex.slice(0, 2), 16);
-  const g = parseInt(hex.slice(2, 4), 16);
-  const b = parseInt(hex.slice(4, 6), 16);
-  return r > 150 && g < 100 && b < 100;
-}
-
-function getCellRgb(cell: Record<string, unknown> | undefined): string | undefined {
-  if (!cell) return undefined;
-  const s = cell.s as Record<string, unknown> | undefined;
-  if (!s) return undefined;
-  // Try fgColor first (solid fill foreground), then bgColor
-  const fg = s.fgColor as Record<string, unknown> | undefined;
-  const bg = s.bgColor as Record<string, unknown> | undefined;
-  return (fg?.rgb as string) ?? (bg?.rgb as string);
-}
-
-interface DateRange { startDate: string; endDate: string; halfDay?: string }
-
-interface CalendarRanges { vacationRanges: DateRange[]; floatDays: string[] }
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function extractColorCalendarRanges(ws: any, year: number): CalendarRanges {
-  const ref: string | undefined = ws["!ref"];
-  if (!ref) { console.log("[vac-import] sheet has no !ref"); return { vacationRanges: [], floatDays: [] }; }
-
-  // Dynamically import XLSX types
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const XLSX = (globalThis as any).__XLSX__;
-
-  const range = XLSX.utils.decode_range(ref);
-  const maxRow = range.e.r;
-  const maxCol = range.e.c;
-
-  // ── Step 1: find all month header cells ──────────────────────────────────
-  interface MonthHeader { month: number; row: number; col: number }
-  const headers: MonthHeader[] = [];
-
-  const MONTH_ABBREVS_LC = [
-    "jan","feb","mar","apr","may","jun",
-    "jul","aug","sep","oct","nov","dec",
-  ];
-  for (let r = 0; r <= maxRow; r++) {
-    for (let c = 0; c <= maxCol; c++) {
-      const addr: string = XLSX.utils.encode_cell({ r, c });
-      const cell = ws[addr];
-      if (!cell) continue;
-      // Handle Date objects (xlsx cellDates:true) — extract month directly
-      if (cell.v instanceof Date) {
-        const m = cell.v.getMonth() + 1;
-        // Only treat it as a month header if the day is 1 (first of month)
-        if (cell.v.getDate() === 1) headers.push({ month: m, row: r, col: c });
-        continue;
-      }
-      const val = String(cell.v ?? "").toLowerCase().trim();
-      // Exact full match: "january" etc.
-      const exactIdx = MONTH_NAMES_LC.indexOf(val);
-      if (exactIdx >= 0) { headers.push({ month: exactIdx + 1, row: r, col: c }); continue; }
-      // Starts-with match: "january 2026", "jan 2026", "jan.", etc.
-      const abbrevIdx = MONTH_ABBREVS_LC.findIndex(a => val.startsWith(a));
-      if (abbrevIdx >= 0) headers.push({ month: abbrevIdx + 1, row: r, col: c });
-    }
-  }
-
-  if (headers.length === 0) return { vacationRanges: [], floatDays: [] };
-
-  // ── Step 2: for each month, find SMTWTFS row then extract vacation cells ────
-  const fullDays: string[] = [];
-  const halfDays: string[] = [];
-  const floatDays: string[] = [];
-
-  for (const hdr of headers) {
-    // Find the row that has day-of-week headers (S, M, T, etc.)
-    let dowRow = -1;
-    let colStart = hdr.col;
-
-    for (let dr = 1; dr <= 6; dr++) {
-      const testRow = hdr.row + dr;
-      let dayCount = 0;
-      let firstSCol = -1;
-      for (let c = hdr.col; c <= Math.min(hdr.col + 10, maxCol); c++) {
-        const addr: string = XLSX.utils.encode_cell({ r: testRow, c });
-        const cell = ws[addr];
-        if (!cell) continue;
-        const v = String(cell.v ?? "").trim().toUpperCase();
-        if (v === "S" || v === "M" || v === "T" || v === "W" || v === "F") {
-          dayCount++;
-          if (v === "S" && firstSCol < 0) firstSCol = c;
-        }
-      }
-      if (dayCount >= 5) {
-        dowRow = testRow;
-        if (firstSCol >= 0) colStart = firstSCol;
-        break;
-      }
-    }
-
-    if (dowRow < 0) continue;
-
-    // The 7 columns starting at colStart are Sun–Sat.
-    // Scan up to 14 rows to handle alternating date/code row layouts.
-    for (let dr = 1; dr <= 14; dr++) {
-      const dateRow = dowRow + dr;
-      if (dateRow > maxRow) break;
-
-      for (let dow = 0; dow < 7; dow++) {
-        const c = colStart + dow;
-        if (c > maxCol) break;
-        const addr: string = XLSX.utils.encode_cell({ r: dateRow, c });
-        const cell = ws[addr];
-        if (!cell) continue;
-
-        const val = cell.v;
-        let dayNum: number | null = null;
-        if (val instanceof Date) {
-          // cellDates:true returns JS Date objects — verify month matches
-          if (val.getFullYear() === year && val.getMonth() + 1 === hdr.month) {
-            dayNum = val.getDate();
-          }
-        } else if (typeof val === "number" && val >= 1 && val <= 31) {
-          dayNum = Math.round(val);
-        }
-        if (dayNum === null) continue;
-
-        const mm = String(hdr.month).padStart(2, "0");
-        const dd = String(dayNum).padStart(2, "0");
-        const dateStr = `${year}-${mm}-${dd}`;
-
-        // Primary: check the cell directly below for a V or 0.5V code
-        const belowAddr: string = XLSX.utils.encode_cell({ r: dateRow + 1, c });
-        const belowCell = ws[belowAddr];
-        const code = belowCell ? String(belowCell.v ?? "").trim().toUpperCase() : "";
-
-        if (code === "V" || code === "OFF") {
-          fullDays.push(dateStr);
-        } else if (code === "0.5V") {
-          halfDays.push(dateStr);
-        } else if (code === "F") {
-          floatDays.push(dateStr);
-        } else {
-          // Fallback: color detection for red-highlighted cells
-          const rgb = getCellRgb(cell as Record<string, unknown>);
-          if (isVacationRed(rgb)) fullDays.push(dateStr);
-        }
-      }
-    }
-  }
-
-  // Full days: deduplicate, merge consecutive days into ranges
-  const uniqueFull = [...new Set(fullDays)].sort();
-  const vacationRanges: DateRange[] = daysToRanges(uniqueFull);
-
-  // Half days: always single-day entries, no merging
-  for (const d of [...new Set(halfDays)].sort()) {
-    vacationRanges.push({ startDate: d, endDate: d, halfDay: "MORNING" });
-  }
-
-  // Float days: deduplicated individual dates (no merging — each is a discrete assignment)
-  const uniqueFloat = [...new Set(floatDays)].sort();
-
-  return { vacationRanges, floatDays: uniqueFloat };
-}
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function detectYearFromWorkbook(wb: any): number {
-  const thisYear = new Date().getFullYear();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const XLSX = (globalThis as any).__XLSX__;
-  // Two passes: first look for bare numeric year cells (most reliable),
-  // then fall back to years embedded in strings.
-  for (const pass of [0, 1]) {
-    for (const sheetName of wb.SheetNames as string[]) {
-      if (/template|legend|key|example/i.test(sheetName)) continue;
-      const ws = wb.Sheets[sheetName];
-      const ref: string | undefined = ws["!ref"];
-      if (!ref) continue;
-      const range = XLSX.utils.decode_range(ref);
-      for (let r = 0; r <= Math.min(range.e.r, 10); r++) {
-        for (let c = 0; c <= Math.min(range.e.c, 15); c++) {
-          const addr: string = XLSX.utils.encode_cell({ r, c });
-          const cell = ws[addr];
-          if (!cell) continue;
-          const v = cell.v;
-          if (pass === 0 && typeof v === "number" && v >= 2020 && v <= 2040) return v;
-          if (pass === 1 && typeof v === "string") {
-            // Only match if the cell contains ONLY a year (not embedded in a version string)
-            const m = v.trim().match(/^(20\d{2})$/);
-            if (m) return parseInt(m[1]);
-          }
-        }
-      }
-    }
-  }
-  return thisYear + 1;
-}
-
-// Check whether a sheet looks like a year calendar (color-coded OR V-code)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-function isColorCalendarSheet(ws: any): boolean {
-  const ref: string | undefined = ws["!ref"];
-  if (!ref) return false;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const XLSX = (globalThis as any).__XLSX__;
-  const range = XLSX.utils.decode_range(ref);
-
-  // Need at least 3 month names and at least 1 vacation indicator (red cell OR V/0.5V code)
-  let monthCount = 0;
-  let vacationIndicators = 0;
-
-  for (let r = 0; r <= Math.min(range.e.r, 60); r++) {
-    for (let c = 0; c <= range.e.c; c++) {
-      const addr: string = XLSX.utils.encode_cell({ r, c });
-      const cell = ws[addr];
-      if (!cell) continue;
-      const val = String(cell.v ?? "").toLowerCase().trim();
-      if (MONTH_NAMES_LC.includes(val)) monthCount++;
-      if (val === "v" || val === "0.5v" || val === "off" || val === "f") vacationIndicators++;
-      if (isVacationRed(getCellRgb(cell as Record<string, unknown>))) vacationIndicators++;
-    }
-  }
-  return monthCount >= 3 && vacationIndicators > 0;
-}
+// Color-calendar parser lives in src/lib/excel-vacation-parser.ts (testable).
+// Legacy grid-format parsing remains inline below.
 
 // ─── Legacy grid format (V codes) ───────────────────────────────────────────
 
@@ -431,37 +182,20 @@ interface SheetEntry {
   floatDays: string[];
   physicianEmail: string;
   emailMatched: boolean;   // true = auto-matched from physician list
+  emailAmbiguous?: boolean;
+  emailCandidates?: string[];
   skip: boolean;
+  /** Parser warnings — surfaced in the UI so silent zero-results can't slip through. */
+  warnings: ParserWarning[];
+  diagnostics: MonthDiagnostic[];
+  /** Whether the user has expanded the diagnostics panel for this sheet. */
+  showDiagnostics?: boolean;
   result?: ImportResponse;
   floatResult?: FloatImportResponse;
   importing?: boolean;
 }
 
-interface PhysicianUser {
-  email: string;
-  physician: { firstName: string; lastName: string } | null;
-}
-
-function matchPhysicianEmail(sheetName: string, users: PhysicianUser[]): string {
-  // Strip "Dr."/"Dr" prefix then normalize
-  const s = sheetName.toLowerCase().replace(/^dr\.?\s+/, "").trim();
-  for (const u of users) {
-    if (!u.physician) continue;
-    const fn = u.physician.firstName.toLowerCase();
-    const ln = u.physician.lastName.toLowerCase();
-    if (
-      s === ln ||
-      s === fn ||
-      s === `${fn} ${ln}` ||
-      s === `${ln} ${fn}` ||
-      s === `${ln}, ${fn}` ||
-      s === `${ln},${fn}` ||
-      s === `${fn[0]}. ${ln}` ||
-      s === `${fn[0]} ${ln}`
-    ) return u.email;
-  }
-  return "";
-}
+type PhysicianUser = PhysicianUserLite;
 
 // ─── Image resize helper ─────────────────────────────────────────────────────
 
@@ -591,13 +325,9 @@ export function VacationImportTab() {
     setSheets(null);
     try {
       const XLSX = await import("xlsx");
-      // Store on globalThis so the helpers above can access it without circular deps
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      (globalThis as any).__XLSX__ = XLSX;
-
       const buffer = await file.arrayBuffer();
       const wb = XLSX.read(buffer, { type: "array", cellDates: true, cellStyles: true });
-      const year = detectYearFromWorkbook(wb);
+      const year = detectYearFromWorkbook(wb, XLSX);
       setCalYear(year);
 
       // Fetch physician list for auto-matching sheet names to emails
@@ -608,19 +338,30 @@ export function VacationImportTab() {
       } catch { /* silently ignore — user can fill manually */ }
 
       const entries: SheetEntry[] = [];
+      let warningCount = 0;
       for (const sheetName of wb.SheetNames) {
         // Skip legend / template sheets
         if (/template|legend|key|example/i.test(sheetName)) continue;
         const ws = wb.Sheets[sheetName];
-        const { vacationRanges, floatDays } = extractColorCalendarRanges(ws, year);
-        const matchedEmail = matchPhysicianEmail(sheetName, physicianUsers);
+        const { vacationRanges, floatDays, warnings, diagnostics } =
+          extractColorCalendarRanges(ws, year, XLSX);
+        const match = matchPhysicianEmail(sheetName, physicianUsers);
+        if (warnings.length > 0) warningCount++;
         entries.push({
           sheetName,
           ranges: vacationRanges,
           floatDays,
-          physicianEmail: matchedEmail,
-          emailMatched: matchedEmail !== "",
-          skip: vacationRanges.length === 0 && floatDays.length === 0,
+          physicianEmail: match.email,
+          emailMatched: match.confidence === "exact" || match.confidence === "fuzzy",
+          emailAmbiguous: match.confidence === "ambiguous",
+          emailCandidates: match.candidates,
+          // IMPORTANT: do NOT auto-skip on empty results — that's the bug that
+          // hid Thakkar's floats. Default `skip` to false; the UI shows a red
+          // warning badge and the user must explicitly tick the skip checkbox
+          // to exclude the sheet.
+          skip: false,
+          warnings,
+          diagnostics,
         });
       }
 
@@ -630,7 +371,13 @@ export function VacationImportTab() {
       }
 
       setSheets(entries);
-      toast.success(`Detected ${entries.length} physician sheets for ${year}`);
+      if (warningCount > 0) {
+        toast.warning(
+          `Detected ${entries.length} sheets for ${year} — ${warningCount} had parser warnings. Review highlighted rows below.`,
+        );
+      } else {
+        toast.success(`Detected ${entries.length} physician sheets for ${year}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to parse file");
     } finally {
@@ -896,7 +643,13 @@ export function VacationImportTab() {
 
             <div className="space-y-2">
               {sheets.map((entry, i) => (
-                <Card key={entry.sheetName} className={entry.skip ? "opacity-50" : ""}>
+                <Card
+                  key={entry.sheetName}
+                  className={[
+                    entry.skip ? "opacity-50" : "",
+                    !entry.skip && entry.warnings.length > 0 ? "border-amber-400 border-2" : "",
+                  ].filter(Boolean).join(" ")}
+                >
                   <CardContent className="py-3 px-4">
                     <div className="flex items-center gap-3 flex-wrap">
                       {/* Skip toggle */}
@@ -933,6 +686,24 @@ export function VacationImportTab() {
                         <Badge className="text-xs bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-100">
                           {entry.floatDays.length} float
                         </Badge>
+                      )}
+                      {/* Parser warning badge */}
+                      {!entry.skip && entry.warnings.length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setSheets((prev) =>
+                              prev!.map((s, j) =>
+                                j === i ? { ...s, showDiagnostics: !s.showDiagnostics } : s,
+                              ),
+                            )
+                          }
+                          className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-md border border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100"
+                          title="Click for parser diagnostics"
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          {entry.warnings.length} warning{entry.warnings.length === 1 ? "" : "s"}
+                        </button>
                       )}
                       {/* Email input with match indicator */}
                       <div className="flex-1 min-w-[200px] flex items-center gap-1.5">
@@ -987,6 +758,83 @@ export function VacationImportTab() {
                         </span>
                       )}
                     </div>
+
+                    {/* Ambiguous email candidates picker */}
+                    {!entry.skip && entry.emailAmbiguous && entry.emailCandidates && entry.emailCandidates.length > 0 && (
+                      <div className="mt-2 text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                        Multiple physicians matched <strong>{entry.sheetName}</strong>:{" "}
+                        {entry.emailCandidates.map((email, k) => (
+                          <button
+                            key={email}
+                            type="button"
+                            onClick={() =>
+                              setSheets((prev) =>
+                                prev!.map((s, j) =>
+                                  j === i
+                                    ? {
+                                        ...s,
+                                        physicianEmail: email,
+                                        emailMatched: true,
+                                        emailAmbiguous: false,
+                                      }
+                                    : s,
+                                ),
+                              )
+                            }
+                            className="underline text-amber-900 hover:text-amber-700 mx-1"
+                          >
+                            {email}{k < entry.emailCandidates!.length - 1 ? "," : ""}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Parser diagnostics panel */}
+                    {!entry.skip && entry.warnings.length > 0 && entry.showDiagnostics && (
+                      <div className="mt-2 text-xs bg-amber-50 border border-amber-300 rounded p-2 space-y-2">
+                        <div className="font-semibold text-amber-900">Parser warnings</div>
+                        <ul className="list-disc list-inside space-y-0.5 text-amber-900">
+                          {entry.warnings.map((w, k) => (
+                            <li key={k}>{w.message}</li>
+                          ))}
+                        </ul>
+                        {entry.diagnostics.length > 0 && (
+                          <div>
+                            <div className="font-semibold text-amber-900 mt-1.5">Per-month diagnostics</div>
+                            <div className="overflow-x-auto">
+                              <table className="text-xs font-mono">
+                                <thead>
+                                  <tr className="text-amber-900">
+                                    <th className="text-left pr-3">mo</th>
+                                    <th className="text-left pr-3">dowRow</th>
+                                    <th className="text-left pr-3">codeStride</th>
+                                    <th className="text-left pr-3">dates</th>
+                                    <th className="text-left pr-3">vac</th>
+                                    <th className="text-left pr-3">half</th>
+                                    <th className="text-left pr-3">float</th>
+                                    <th className="text-left">redOnly</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {entry.diagnostics.map((d) => (
+                                    <tr key={d.month}>
+                                      <td className="pr-3">{d.month}</td>
+                                      <td className="pr-3">{d.dowRow === null ? "—" : d.dowRow + 1}</td>
+                                      <td className="pr-3">{d.codeRowStride}</td>
+                                      <td className="pr-3">{d.dateCount}</td>
+                                      <td className="pr-3">{d.vacationCount}</td>
+                                      <td className="pr-3">{d.halfCount}</td>
+                                      <td className="pr-3">{d.floatCount}</td>
+                                      <td>{d.redOnlyCount}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
 
                     {/* Expanded result table for this sheet */}
                     {entry.result && entry.result.results.length > 0 && (

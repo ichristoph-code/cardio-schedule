@@ -10,6 +10,11 @@ import { auditLog } from "@/lib/audit";
 //   year: number,
 //   dryRun: boolean
 // }
+//
+// Concurrency: relies on the @@unique([scheduleId, date, roleTypeId]) constraint
+// on ScheduleAssignment. We attempt the create directly and handle the unique
+// violation (Prisma error code P2002) at catch time — this eliminates the
+// TOCTOU race that an explicit findFirst-then-create would have.
 export async function POST(req: Request) {
   const session = await auth();
   if (!session?.user || (session.user as Record<string, unknown>).role !== "ADMIN") {
@@ -74,6 +79,24 @@ export async function POST(req: Request) {
   const results: RowResult[] = [];
   let created = 0, skipped = 0, errors = 0;
 
+  // For dry-run we still need to detect conflicts. Fetch existing float
+  // assignments for this schedule in a single query keyed by date.
+  let existingByDate: Map<string, { physicianId: string }> | null = null;
+  if (dryRun) {
+    const existing = await prisma.scheduleAssignment.findMany({
+      where: {
+        scheduleId: schedule.id,
+        roleTypeId: floatRole.id,
+        isActive: true,
+        date: { in: dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).map((d) => new Date(d + "T00:00:00Z")) },
+      },
+      select: { physicianId: true, date: true },
+    });
+    existingByDate = new Map(
+      existing.map((e) => [e.date.toISOString().slice(0, 10), { physicianId: e.physicianId }]),
+    );
+  }
+
   for (const dateStr of dates) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
       results.push({ date: dateStr, status: "error", error: "Invalid date format" });
@@ -83,31 +106,29 @@ export async function POST(req: Request) {
 
     const dateObj = new Date(dateStr + "T00:00:00Z");
 
-    const existing = await (prisma.scheduleAssignment as any).findFirst({
-      where: {
-        scheduleId: schedule.id,
-        physicianId,
-        roleTypeId: floatRole.id,
-        date: dateObj,
-        isActive: true,
-      },
-      select: { id: true },
-    });
-
-    if (existing) {
-      results.push({ date: dateStr, status: "skipped", reason: "already assigned" });
-      skipped++;
-      continue;
-    }
-
     if (dryRun) {
-      results.push({ date: dateStr, status: "would-create" });
-      created++;
+      const existing = existingByDate!.get(dateStr);
+      if (existing) {
+        if (existing.physicianId === physicianId) {
+          results.push({ date: dateStr, status: "skipped", reason: "already assigned to this physician" });
+          skipped++;
+        } else {
+          results.push({
+            date: dateStr,
+            status: "skipped",
+            reason: `slot held by another physician (id ${existing.physicianId})`,
+          });
+          skipped++;
+        }
+      } else {
+        results.push({ date: dateStr, status: "would-create" });
+        created++;
+      }
       continue;
     }
 
     try {
-      const assignment = await (prisma.scheduleAssignment as any).create({
+      const assignment = await prisma.scheduleAssignment.create({
         data: {
           scheduleId: schedule.id,
           physicianId,
@@ -126,12 +147,39 @@ export async function POST(req: Request) {
       results.push({ date: dateStr, status: "created" });
       created++;
     } catch (err) {
-      results.push({
-        date: dateStr,
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
-      });
-      errors++;
+      // P2002 = unique constraint violation on (scheduleId, date, roleTypeId)
+      // Race-safe handling: someone else (or a prior import) already holds this slot.
+      const isUniqueViolation =
+        typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002";
+      if (isUniqueViolation) {
+        // Look up the holder to give a helpful skip reason.
+        const holder = await prisma.scheduleAssignment.findFirst({
+          where: {
+            scheduleId: schedule.id,
+            roleTypeId: floatRole.id,
+            date: dateObj,
+            isActive: true,
+          },
+          select: { physicianId: true },
+        });
+        if (holder?.physicianId === physicianId) {
+          results.push({ date: dateStr, status: "skipped", reason: "already assigned to this physician" });
+        } else {
+          results.push({
+            date: dateStr,
+            status: "skipped",
+            reason: `slot held by another physician (id ${holder?.physicianId ?? "unknown"})`,
+          });
+        }
+        skipped++;
+      } else {
+        results.push({
+          date: dateStr,
+          status: "error",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        errors++;
+      }
     }
   }
 
