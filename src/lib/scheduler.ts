@@ -205,12 +205,24 @@ export async function generateSchedule(
   });
 
   const vacationDays = new Map<string, Set<string>>();
+  // Dates where a physician is only working a half day (MORNING/AFTERNOON vacation).
+  // Used to bar READING (study-reading) assignments — a half-day MD isn't present
+  // long enough to carry a full day's interpretive reading load. Half-day dates are
+  // also present in vacationDays (full-day block), so this set is currently
+  // redundant for availability, but it codifies the reading rule independently.
+  const halfDayDays = new Map<string, Set<string>>();
   for (const v of vacations) {
     const dates = vacationDays.get(v.physicianId) ?? new Set<string>();
     const s = new Date(Math.max(toLocalMidnight(v.startDate).getTime(), yearStart.getTime()));
     const e = new Date(Math.min(toLocalMidnight(v.endDate).getTime(), yearEnd.getTime()));
     for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-      dates.add(formatDate(d));
+      const ds = formatDate(d);
+      dates.add(ds);
+      if (v.halfDay === "MORNING" || v.halfDay === "AFTERNOON") {
+        const half = halfDayDays.get(v.physicianId) ?? new Set<string>();
+        half.add(ds);
+        halfDayDays.set(v.physicianId, half);
+      }
     }
     vacationDays.set(v.physicianId, dates);
   }
@@ -524,6 +536,8 @@ export async function generateSchedule(
     // Availability: vacation, weekly day-off, and any already-assigned rounder conflicts
     const isAvail2 = (physId: string, ds: string): boolean => {
       if (vacationDays.get(physId)?.has(ds)) return false;
+      // No study reading for MDs only working a half day (READING-only gate).
+      if (halfDayDays.get(physId)?.has(ds)) return false;
       const dw = dayOfWeek(ds);
       if (weeklyDayOffMap.get(physId)?.has(dw)) return false;
       const todayRoles = dailyPhysicianRoles.get(`${ds}:${physId}`);
@@ -708,6 +722,8 @@ export async function generateSchedule(
       const eligible = physData.filter((p) => {
         if (!p.eligibleRoleIds.has(role.id)) return false;
         if (vacationDays.get(p.id)?.has(dateStr)) return false;
+        // No study reading for MDs only working a half day
+        if (role.category === "READING" && halfDayDays.get(p.id)?.has(dateStr)) return false;
         // No-call days block ON_CALL roles only (physician still available for daytime/reading)
         if (role.category === "ON_CALL" && noCallDaySet.get(p.id)?.has(dateStr)) return false;
         // Weekly recurring day off blocks all roles on that day of week
