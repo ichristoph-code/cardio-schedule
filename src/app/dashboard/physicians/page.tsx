@@ -118,6 +118,11 @@ export default async function PhysiciansPage({
 
   const dayNames = ["", "Mon", "Tue", "Wed", "Thu", "Fri"];
 
+  // Normalize a raw tally to the physician's FTE (assignments per FTE-day),
+  // so workload is comparable across full- and part-time physicians.
+  const perFte = (count: number, fteDays: number): string =>
+    fteDays > 0 ? (count / fteDays).toFixed(3) : "—";
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -150,6 +155,7 @@ export default async function PhysiciansPage({
                   )}
                 </div>
               </TableHead>
+              <TableHead className="hidden xl:table-cell text-center">Weekday Call / FTE</TableHead>
               <TableHead className="hidden xl:table-cell">
                 <div className="flex flex-col items-center gap-1">
                   <span>Weekend General Call</span>
@@ -161,6 +167,7 @@ export default async function PhysiciansPage({
                   )}
                 </div>
               </TableHead>
+              <TableHead className="hidden xl:table-cell text-center">Weekend Call / FTE</TableHead>
               <TableHead className="hidden xl:table-cell">
                 <div className="flex flex-col items-center gap-1">
                   <span>Activity Count</span>
@@ -178,13 +185,14 @@ export default async function PhysiciansPage({
                   </div>
                 </div>
               </TableHead>
+              <TableHead className="hidden xl:table-cell text-center">Activity / FTE</TableHead>
               <TableHead className="w-[50px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {physicians.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={9} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
                   No physicians added yet. Click &quot;Add Physician&quot; to get started.
                 </TableCell>
               </TableRow>
@@ -238,7 +246,27 @@ export default async function PhysiciansPage({
                     {(() => {
                       const stats = callStatsMap.get(doc.id);
                       return stats ? (
+                        <span className="text-sm text-muted-foreground">{perFte(stats.weekdays, doc.fteDays)}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {(() => {
+                      const stats = callStatsMap.get(doc.id);
+                      return stats ? (
                         <span className="text-sm font-medium">{stats.weekends}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {(() => {
+                      const stats = callStatsMap.get(doc.id);
+                      return stats ? (
+                        <span className="text-sm text-muted-foreground">{perFte(stats.weekends, doc.fteDays)}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       );
@@ -249,6 +277,16 @@ export default async function PhysiciansPage({
                       const count = activityCountMap.get(doc.id);
                       return count !== undefined ? (
                         <span className="text-sm font-medium">{count}</span>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">—</span>
+                      );
+                    })()}
+                  </TableCell>
+                  <TableCell className="hidden xl:table-cell text-center">
+                    {(() => {
+                      const count = activityCountMap.get(doc.id);
+                      return count !== undefined ? (
+                        <span className="text-sm text-muted-foreground">{perFte(count, doc.fteDays)}</span>
                       ) : (
                         <span className="text-sm text-muted-foreground">—</span>
                       );
