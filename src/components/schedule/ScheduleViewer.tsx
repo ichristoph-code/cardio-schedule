@@ -224,7 +224,16 @@ export function ScheduleViewer({
   const [overrideAssignment, setOverrideAssignment] = useState<Assignment | null>(null);
   const [overridePhysicianId, setOverridePhysicianId] = useState("");
   const [overriding, setOverriding] = useState(false);
+  const [overrideConflicts, setOverrideConflicts] = useState<string[]>([]);
   const [localAssignments, setLocalAssignments] = useState(assignments);
+  // Re-sync when the server sends fresh data (e.g. after a regenerate +
+  // router.refresh()). The schedule id — and thus the component key — is
+  // unchanged on regeneration, so the component is not remounted; without this
+  // effect useState keeps its stale initial array and newly generated
+  // assignments never appear until a full page reload.
+  useEffect(() => {
+    setLocalAssignments(assignments);
+  }, [assignments]);
   const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
   const [showRoleFilter, setShowRoleFilter] = useState(false);
   const [showPrintDialog, setShowPrintDialog] = useState(false);
@@ -350,7 +359,7 @@ export function ScheduleViewer({
     });
   }
 
-  async function handleOverride() {
+  async function handleOverride(force = false) {
     if (!overrideAssignment || !overridePhysicianId) return;
     setOverriding(true);
     try {
@@ -359,9 +368,15 @@ export function ScheduleViewer({
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ physicianId: overridePhysicianId }),
+          body: JSON.stringify({ physicianId: overridePhysicianId, force }),
         }
       );
+      if (res.status === 409) {
+        // Soft conflicts — show them and let the admin override anyway.
+        const data = await res.json();
+        setOverrideConflicts(data.conflicts ?? []);
+        return;
+      }
       if (!res.ok) {
         const data = await res.json();
         throw new Error(data.error || "Failed to override");
@@ -383,6 +398,7 @@ export function ScheduleViewer({
       );
       toast.success("Assignment updated");
       setOverrideAssignment(null);
+      setOverrideConflicts([]);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Override failed");
     } finally {
@@ -991,7 +1007,10 @@ export function ScheduleViewer({
     return (
       <Dialog
         open={!!overrideAssignment}
-        onOpenChange={() => setOverrideAssignment(null)}
+        onOpenChange={() => {
+          setOverrideAssignment(null);
+          setOverrideConflicts([]);
+        }}
       >
         <DialogContent>
           <DialogHeader>
@@ -1008,7 +1027,10 @@ export function ScheduleViewer({
             <select
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
               value={overridePhysicianId}
-              onChange={(e) => setOverridePhysicianId(e.target.value)}
+              onChange={(e) => {
+                setOverridePhysicianId(e.target.value);
+                setOverrideConflicts([]);
+              }}
             >
               <option value="">Select physician</option>
               {physicians.map((p) => (
@@ -1018,16 +1040,41 @@ export function ScheduleViewer({
               ))}
             </select>
           </div>
+          {overrideConflicts.length > 0 && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 p-3 text-sm">
+              <p className="font-medium text-amber-800 dark:text-amber-300">
+                This physician has a conflict:
+              </p>
+              <ul className="mt-1 list-disc pl-5 text-amber-700 dark:text-amber-400">
+                {overrideConflicts.map((c) => (
+                  <li key={c}>{c}</li>
+                ))}
+              </ul>
+            </div>
+          )}
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setOverrideAssignment(null)}
+              onClick={() => {
+                setOverrideAssignment(null);
+                setOverrideConflicts([]);
+              }}
             >
               Cancel
             </Button>
-            <Button onClick={handleOverride} disabled={overriding}>
-              {overriding ? "Saving..." : "Save"}
-            </Button>
+            {overrideConflicts.length > 0 ? (
+              <Button
+                variant="destructive"
+                onClick={() => handleOverride(true)}
+                disabled={overriding}
+              >
+                {overriding ? "Saving..." : "Override anyway"}
+              </Button>
+            ) : (
+              <Button onClick={() => handleOverride()} disabled={overriding}>
+                {overriding ? "Saving..." : "Save"}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
