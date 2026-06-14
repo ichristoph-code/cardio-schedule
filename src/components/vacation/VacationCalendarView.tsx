@@ -21,9 +21,10 @@ interface Props {
   isAdmin: boolean;
   vacations: VacationInfo[];
   floatDays?: string[];
+  daysWorked?: number;
 }
 
-export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [] }: Props) {
+export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], daysWorked }: Props) {
   const [view, setView] = useState<"monthly" | "yearly">("yearly");
 
   return (
@@ -71,6 +72,7 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           year={year}
           vacations={vacations}
           floatDays={floatDays}
+          daysWorked={daysWorked}
         />
       )}
     </div>

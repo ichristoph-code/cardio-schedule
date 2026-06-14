@@ -18,6 +18,7 @@ interface Props {
   year: number;
   vacations: VacationInfo[];
   floatDays?: string[];
+  daysWorked?: number;
 }
 
 function buildVacationSet(vacations: VacationInfo[]): Map<string, "full" | "half"> {
@@ -92,7 +93,7 @@ function MonthGrid({ year, month, vacMap, floatSet }: { year: number; month: num
   );
 }
 
-export function YearlyVacationCalendar({ year, vacations, floatDays = [] }: Props) {
+export function YearlyVacationCalendar({ year, vacations, floatDays = [], daysWorked }: Props) {
   const vacMap = buildVacationSet(vacations);
   const floatSet = new Set(floatDays);
 
@@ -111,8 +112,13 @@ export function YearlyVacationCalendar({ year, vacations, floatDays = [] }: Prop
           <span className="text-muted-foreground">Half day — <strong>{totalHalf}</strong></span>
         </div>
         <div className="text-muted-foreground">
-          Total: <strong>{totalFull + totalHalf * 0.5}</strong> days
+          Vacation total: <strong>{totalFull + totalHalf * 0.5}</strong> days
         </div>
+        {daysWorked !== undefined && (
+          <div className="text-muted-foreground">
+            Days worked: <strong>{daysWorked}</strong>
+          </div>
+        )}
         {floatDays.length > 0 && (
           <>
             <div className="flex items-center gap-2">
