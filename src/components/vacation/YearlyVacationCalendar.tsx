@@ -6,6 +6,33 @@ const MONTH_NAMES = [
 ];
 const DAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
+/** Returns a Map of "YYYY-MM-DD" → holiday name (the holidays the scheduler recognizes). */
+function getHolidayDatesForYear(year: number): Map<string, string> {
+  const map = new Map<string, string>();
+  const fmt = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+  map.set(fmt(new Date(year, 0, 1)), "New Year's Day");
+  map.set(fmt(new Date(year, 6, 4)), "Independence Day");
+  map.set(fmt(new Date(year, 11, 24)), "Christmas Eve");
+  map.set(fmt(new Date(year, 11, 25)), "Christmas Day");
+
+  const memDay = new Date(year, 4, 31);
+  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
+  map.set(fmt(memDay), "Memorial Day");
+
+  const labDay = new Date(year, 8, 1);
+  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
+  map.set(fmt(labDay), "Labor Day");
+
+  const tg = new Date(year, 10, 1);
+  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
+  tg.setDate(tg.getDate() + 21);
+  map.set(fmt(tg), "Thanksgiving");
+
+  return map;
+}
+
 interface VacationInfo {
   id: string;
   startDate: string;
@@ -37,7 +64,7 @@ function buildVacationSet(vacations: VacationInfo[]): Map<string, "full" | "half
   return map;
 }
 
-function MonthGrid({ year, month, vacMap, floatSet }: { year: number; month: number; vacMap: Map<string, "full" | "half">; floatSet: Set<string> }) {
+function MonthGrid({ year, month, vacMap, floatSet, holidays }: { year: number; month: number; vacMap: Map<string, "full" | "half">; floatSet: Set<string>; holidays: Map<string, string> }) {
   const today = new Date().toISOString().split("T")[0];
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -65,12 +92,13 @@ function MonthGrid({ year, month, vacMap, floatSet }: { year: number; month: num
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const vac = vacMap.get(dateStr);
           const isFloat = floatSet.has(dateStr);
+          const holidayName = holidays.get(dateStr);
           const isToday = dateStr === today;
 
           return (
             <div
               key={i}
-              title={vac ? (vac === "half" ? "Half vacation day" : "Vacation day") : isFloat ? "Hospital Float" : undefined}
+              title={vac ? (vac === "half" ? "Half vacation day" : "Vacation day") : isFloat ? "Hospital Float" : holidayName ?? undefined}
               className={[
                 "text-[11px] text-center rounded py-[3px] leading-none select-none",
                 vac === "full"
@@ -79,9 +107,11 @@ function MonthGrid({ year, month, vacMap, floatSet }: { year: number; month: num
                     ? "bg-emerald-200 text-emerald-900 font-semibold"
                     : isFloat
                       ? "bg-blue-400 text-white font-semibold"
-                      : isToday
-                        ? "bg-primary/15 text-primary font-bold"
-                        : "text-foreground hover:bg-muted/50",
+                      : holidayName
+                        ? "bg-yellow-300 text-yellow-900 font-semibold"
+                        : isToday
+                          ? "bg-primary/15 text-primary font-bold"
+                          : "text-foreground hover:bg-muted/50",
               ].join(" ")}
             >
               {day}
@@ -96,6 +126,7 @@ function MonthGrid({ year, month, vacMap, floatSet }: { year: number; month: num
 export function YearlyVacationCalendar({ year, vacations, floatDays = [], daysWorked }: Props) {
   const vacMap = buildVacationSet(vacations);
   const floatSet = new Set(floatDays);
+  const holidays = getHolidayDatesForYear(year);
 
   const totalFull = [...vacMap.values()].filter((v) => v === "full").length;
   const totalHalf = [...vacMap.values()].filter((v) => v === "half").length;
@@ -127,11 +158,15 @@ export function YearlyVacationCalendar({ year, vacations, floatDays = [], daysWo
             </div>
           </>
         )}
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-3 h-3 rounded-sm bg-yellow-300" />
+          <span className="text-muted-foreground">Federal holiday</span>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {Array.from({ length: 12 }, (_, m) => (
-          <MonthGrid key={m} year={year} month={m} vacMap={vacMap} floatSet={floatSet} />
+          <MonthGrid key={m} year={year} month={m} vacMap={vacMap} floatSet={floatSet} holidays={holidays} />
         ))}
       </div>
     </div>
