@@ -137,10 +137,30 @@ function getHolidayDatesForYear(year: number): Map<string, string> {
   const fmt = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-  map.set(fmt(new Date(year, 0, 1)), "New Year's Day");
-  map.set(fmt(new Date(year, 6, 4)), "Independence Day");
-  map.set(fmt(new Date(year, 11, 24)), "Christmas Eve");
-  map.set(fmt(new Date(year, 11, 25)), "Christmas Day");
+  // Federal "in lieu of" observance: Saturday -> preceding Friday, Sunday -> following Monday.
+  const observed = (d: Date) => {
+    const r = new Date(d);
+    const dow = r.getDay();
+    if (dow === 6) r.setDate(r.getDate() - 1);
+    else if (dow === 0) r.setDate(r.getDate() + 1);
+    return r;
+  };
+
+  map.set(fmt(observed(new Date(year, 0, 1))), "New Year's Day");
+  map.set(fmt(observed(new Date(year, 6, 4))), "Independence Day");
+
+  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
+  // When observed Christmas Day lands on Dec 24, shift the Eve one weekday earlier.
+  const christmasDay = observed(new Date(year, 11, 25));
+  const christmasEve = new Date(year, 11, 24);
+  if (fmt(christmasDay) === fmt(christmasEve)) {
+    christmasEve.setDate(christmasEve.getDate() - 1);
+    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
+      christmasEve.setDate(christmasEve.getDate() - 1);
+    }
+  }
+  map.set(fmt(christmasEve), "Christmas Eve");
+  map.set(fmt(christmasDay), "Christmas Day");
 
   const memDay = new Date(year, 4, 31);
   while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
