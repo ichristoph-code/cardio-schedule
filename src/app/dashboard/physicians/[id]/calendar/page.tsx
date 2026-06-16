@@ -142,6 +142,7 @@ export default async function PhysicianCalendarPage({
           startDate: v.startDate.toISOString().split("T")[0],
           endDate: v.endDate.toISOString().split("T")[0],
           reason: v.reason,
+          halfDay: v.halfDay,
         }))}
         noCallDays={noCallDays.map((nc) => ({
           id: nc.id,

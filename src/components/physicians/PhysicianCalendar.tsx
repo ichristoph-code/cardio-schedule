@@ -1,12 +1,20 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DatePicker } from "@/components/ui/date-picker";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -55,6 +63,7 @@ interface VacationInfo {
   startDate: string;
   endDate: string;
   reason: string | null;
+  halfDay?: string | null;
 }
 
 interface NoCallDayInfo {
@@ -201,8 +210,16 @@ export function PhysicianCalendar({
   const [month, setMonth] = useState(
     now.getFullYear() === year ? now.getMonth() : 0
   );
+  const router = useRouter();
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [vacations, setVacations] = useState<VacationInfo[]>(initialVacations);
+
+  // Keep local vacation state in sync with fresh server data after router.refresh()
+  // (e.g. following a day-type edit). Only fires when the parent re-renders with
+  // a new array reference, so it doesn't clobber in-session optimistic updates.
+  useEffect(() => {
+    setVacations(initialVacations);
+  }, [initialVacations]);
 
   // Add vacation range dialog state (header button)
   const [addDialogOpen, setAddDialogOpen] = useState(false);
@@ -324,6 +341,33 @@ export function PhysicianCalendar({
     }
   }
 
+  // Admin: set a single day's type via the day-sheet dropdown.
+  async function handleSetDayType(date: string, type: string) {
+    if (!physicianId) return;
+    setDayActionLoading(true);
+    try {
+      const res = await fetch("/api/admin/calendar-day", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ physicianId, date, year, type }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Failed to update day");
+      }
+      toast.success(
+        type === "clear" ? "Day cleared" : "Day updated",
+      );
+      setSelectedDate(null);
+      // Refresh server data so vacations + assignments reflect the change.
+      router.refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update day");
+    } finally {
+      setDayActionLoading(false);
+    }
+  }
+
   // Holiday lookup
   const holidays = useMemo(() => getHolidayDatesForYear(year), [year]);
 
@@ -395,6 +439,19 @@ export function PhysicianCalendar({
     const noCall = noCallDaySet.get(selectedDate);
     const holidayName = holidays.get(selectedDate);
 
+    // Current day type, for the admin dropdown's selected value.
+    const floatAssign = dayAssigns.find((a) => a.roleName === "HOSPITAL_FLOAT");
+    const icuAssign = dayAssigns.find((a) => a.roleName === "ICU_ROUNDER");
+    const currentDayType = vacation
+      ? vacation.halfDay && vacation.halfDay !== "NONE"
+        ? "half_vacation"
+        : "vacation"
+      : floatAssign
+        ? "float"
+        : icuAssign
+          ? "rounder"
+          : "clear";
+
     const d = new Date(selectedDate + "T12:00:00");
     const dayLabel = `${DAY_LABELS[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 
@@ -405,6 +462,39 @@ export function PhysicianCalendar({
             <SheetTitle className="text-xl">{dayLabel}</SheetTitle>
           </SheetHeader>
           <div className="mt-4 space-y-3">
+            {isAdmin && physicianId && (
+              <Card className="shadow-sm border-primary/30">
+                <CardContent className="p-3 space-y-2">
+                  <Label className="text-xs font-medium text-muted-foreground">
+                    Set day type
+                  </Label>
+                  <Select
+                    value={currentDayType}
+                    onValueChange={(v) => {
+                      if (typeof v === "string") handleSetDayType(selectedDate!, v);
+                    }}
+                    disabled={dayActionLoading}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="clear">— None / Clear —</SelectItem>
+                      <SelectItem value="vacation">Vacation (full day)</SelectItem>
+                      <SelectItem value="half_vacation">½-Day Vacation</SelectItem>
+                      <SelectItem value="float">Hospital Float</SelectItem>
+                      <SelectItem value="rounder">ICU Rounder</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {dayActionLoading && (
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <Loader2 className="h-3 w-3 animate-spin" /> Saving…
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
             {holidayName && (
               <Card className="shadow-sm border-rose-300 bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40">
                 <CardContent className="p-3 flex items-center gap-2">
