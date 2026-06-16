@@ -158,27 +158,26 @@ describe("extractColorCalendarRanges", () => {
     expect(result.warnings).toEqual([]);
   });
 
-  it("treats an 'Off' cell as a full-day vacation (case-insensitive, with/without trailing dot)", () => {
+  it("does NOT treat 'Off' as vacation — only explicit 'V' counts (ambiguous non-working day)", () => {
     const ws = buildSingleMonthTab({
       monthName: "January",
       year: 2026,
       month: 1,
       codes: {
-        "2026-01-05": "Off",   // mixed case
-        "2026-01-06": "OFF",   // upper case
-        "2026-01-07": "off.",  // lower case + trailing dot
-        "2026-01-20": "V",     // a plain V should merge into its own range
+        "2026-01-05": "Off",   // mixed case  → skipped
+        "2026-01-06": "OFF",   // upper case  → skipped
+        "2026-01-07": "off.",  // trailing dot → skipped
+        "2026-01-20": "V",     // a plain V → the only vacation
       },
     });
     const result = extractColorCalendarRanges(ws, 2026, xlsx);
-    // Jan 5-7 are consecutive Off days → one contiguous vacation range.
+    // Off days are ignored; only the explicit V is imported.
     expect(result.vacationRanges).toEqual([
-      { startDate: "2026-01-05", endDate: "2026-01-07" },
       { startDate: "2026-01-20", endDate: "2026-01-20" },
     ]);
     expect(result.floatDays).toEqual([]);
     const jan = result.diagnostics.find((d) => d.month === 1);
-    expect(jan?.vacationCount).toBe(4);
+    expect(jan?.vacationCount).toBe(1);
     expect(result.warnings).toEqual([]);
   });
 
@@ -197,7 +196,7 @@ describe("extractColorCalendarRanges", () => {
       [null, null, null, null, 0, 0, null], //     tally
       // Week 2: Jan 4 (Sun) .. Jan 10 (Sat)
       [D(4), D(5), D(6), D(7), D(8), D(9), D(10)],
-      ["_", "W", "W", "Off", "W", "Off", "_"], //  Jan 7 & 9 = Off
+      ["_", "W", "W", "Off", "W", "Off", "_"], //  Jan 7 & 9 = Off (ignored, not vacation)
       [0, 1, 1, 0, 1, 0, 0], //                     tally — these 1s sit two rows above week-3 codes
       // Week 3: Jan 11 (Sun) .. Jan 17 (Sat)
       [D(11), D(12), D(13), D(14), D(15), D(16), D(17)],
@@ -214,9 +213,7 @@ describe("extractColorCalendarRanges", () => {
     expect(allDates).not.toContain("2026-01-01");
 
     expect(result.vacationRanges).toEqual([
-      { startDate: "2026-01-02", endDate: "2026-01-02" },
-      { startDate: "2026-01-07", endDate: "2026-01-07" },
-      { startDate: "2026-01-09", endDate: "2026-01-09" },
+      { startDate: "2026-01-02", endDate: "2026-01-02" }, // only the V; Off skipped
     ]);
     expect(result.floatDays).toEqual([
       "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16",
