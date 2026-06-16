@@ -158,6 +158,30 @@ describe("extractColorCalendarRanges", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("treats an 'Off' cell as a full-day vacation (case-insensitive, with/without trailing dot)", () => {
+    const ws = buildSingleMonthTab({
+      monthName: "January",
+      year: 2026,
+      month: 1,
+      codes: {
+        "2026-01-05": "Off",   // mixed case
+        "2026-01-06": "OFF",   // upper case
+        "2026-01-07": "off.",  // lower case + trailing dot
+        "2026-01-20": "V",     // a plain V should merge into its own range
+      },
+    });
+    const result = extractColorCalendarRanges(ws, 2026, xlsx);
+    // Jan 5-7 are consecutive Off days → one contiguous vacation range.
+    expect(result.vacationRanges).toEqual([
+      { startDate: "2026-01-05", endDate: "2026-01-07" },
+      { startDate: "2026-01-20", endDate: "2026-01-20" },
+    ]);
+    expect(result.floatDays).toEqual([]);
+    const jan = result.diagnostics.find((d) => d.month === 1);
+    expect(jan?.vacationCount).toBe(4);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("never silently auto-skips — empty results produce a 'no_results' warning (Thakkar regression)", () => {
     // A sheet with month header + DOW row but no codes anywhere
     const ws = buildSingleMonthTab({

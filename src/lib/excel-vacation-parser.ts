@@ -178,7 +178,7 @@ function normalizeCode(raw: unknown): string {
 }
 
 function codeKind(code: string): "FULL" | "HALF" | "FLOAT" | null {
-  if (code === "V" || code === "OFF" || code === "V.") return "FULL";
+  if (code === "V" || code === "OFF" || code === "V." || code === "OFF.") return "FULL";
   if (code === "0.5V" || code === ".5V") return "HALF";
   if (code === "F" || code === "F." || code === "FL") return "FLOAT";
   return null;
