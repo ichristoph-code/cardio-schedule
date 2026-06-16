@@ -28,9 +28,10 @@ export async function POST(req: Request) {
     dates?: string[];
     year?: number;
     dryRun?: boolean;
+    replaceExisting?: boolean;
   };
 
-  const { physicianEmail, dates, year, dryRun = false } = body;
+  const { physicianEmail, dates, year, dryRun = false, replaceExisting = false } = body;
 
   if (!physicianEmail?.trim()) {
     return NextResponse.json({ error: "physicianEmail is required" }, { status: 400 });
@@ -69,6 +70,28 @@ export async function POST(req: Request) {
       { error: `No schedule found for ${year}. Generate a schedule first.` },
       { status: 400 }
     );
+  }
+
+  // Replace mode: clear this physician's manually-imported float days for the
+  // year before re-inserting, so a re-import is a clean slate rather than
+  // skipping dates that already hold stale (e.g. previously mis-imported) rows.
+  let replaced = 0;
+  if (replaceExisting && !dryRun) {
+    const del = await prisma.scheduleAssignment.deleteMany({
+      where: {
+        scheduleId: schedule.id,
+        physicianId,
+        roleTypeId: floatRole.id,
+        source: "MANUAL",
+        date: { gte: new Date(Date.UTC(year, 0, 1)), lte: new Date(Date.UTC(year, 11, 31)) },
+      },
+    });
+    replaced = del.count;
+    if (replaced > 0) {
+      await auditLog(userId, "ADMIN_BULK_IMPORT_FLOAT_REPLACE", "Schedule", schedule.id, {
+        year, deletedCount: replaced, physicianEmail,
+      });
+    }
   }
 
   type RowResult =
@@ -158,6 +181,8 @@ export async function POST(req: Request) {
     physicianEmail,
     physicianId,
     dryRun,
+    replaceExisting,
+    replaced,
     counts: { created, skipped, errors, total: dates.length },
     results,
   });
