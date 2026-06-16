@@ -240,7 +240,7 @@ export function VacationImportTab() {
   const [sheets, setSheets] = useState<SheetEntry[] | null>(null);
   const [calYear, setCalYear] = useState<number>(new Date().getFullYear() + 1);
   const [bulkDryRun, setBulkDryRun] = useState(true);
-  const [bulkReplace, setBulkReplace] = useState(false);
+  const [bulkReplace, setBulkReplace] = useState(true);
   const [bulkImporting, setBulkImporting] = useState(false);
 
   // Image upload mode state
@@ -633,8 +633,8 @@ export function VacationImportTab() {
                     checked={bulkReplace}
                     onCheckedChange={(v) => setBulkReplace(v === true)}
                   />
-                  <Label htmlFor="bulkReplace" className="cursor-pointer text-sm" title={`Delete each physician's existing ${calYear} vacations and imported float days before importing`}>
-                    Replace existing
+                  <Label htmlFor="bulkReplace" className="cursor-pointer text-sm" title={`Delete each physician's existing ${calYear} vacations and imported float days before importing (recommended for a clean re-import)`}>
+                    Replace existing <span className="text-muted-foreground">(recommended)</span>
                   </Label>
                 </div>
                 <Select
