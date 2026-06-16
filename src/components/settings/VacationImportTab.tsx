@@ -165,6 +165,8 @@ interface ImportResponse {
   physicianId: string;
   dryRun: boolean;
   defaultStatus: "APPROVED" | "PENDING";
+  replaceExisting?: boolean;
+  replaced?: number;
   counts: { created: number; skipped: number; errors: number; total: number };
   results: RowResult[];
 }
@@ -235,6 +237,7 @@ export function VacationImportTab() {
   const [sheets, setSheets] = useState<SheetEntry[] | null>(null);
   const [calYear, setCalYear] = useState<number>(new Date().getFullYear() + 1);
   const [bulkDryRun, setBulkDryRun] = useState(true);
+  const [bulkReplace, setBulkReplace] = useState(false);
   const [bulkImporting, setBulkImporting] = useState(false);
 
   // Image upload mode state
@@ -406,6 +409,8 @@ export function VacationImportTab() {
           ranges: entry.ranges,
           defaultStatus,
           dryRun: dry,
+          replaceExisting: bulkReplace,
+          year: calYear,
         }),
       });
       const json = await res.json();
@@ -618,6 +623,16 @@ export function VacationImportTab() {
                     Dry run
                   </Label>
                 </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="bulkReplace"
+                    checked={bulkReplace}
+                    onCheckedChange={(v) => setBulkReplace(v === true)}
+                  />
+                  <Label htmlFor="bulkReplace" className="cursor-pointer text-sm" title={`Delete each physician's existing ${calYear} vacations before importing`}>
+                    Replace existing
+                  </Label>
+                </div>
                 <Select
                   value={defaultStatus}
                   onValueChange={(v) => setDefaultStatus(v as "APPROVED" | "PENDING")}
@@ -741,6 +756,9 @@ export function VacationImportTab() {
                             <span>
                               vac: {entry.result.dryRun ? "would create" : "created"}{" "}
                               <strong>{entry.result.counts.created}</strong>
+                              {!entry.result.dryRun && (entry.result.replaced ?? 0) > 0 && (
+                                <span className="ml-1">(replaced {entry.result.replaced})</span>
+                              )}
                               {entry.result.counts.errors > 0 && (
                                 <span className="text-destructive ml-1">({entry.result.counts.errors} err)</span>
                               )}
