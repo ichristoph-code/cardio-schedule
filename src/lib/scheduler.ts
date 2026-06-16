@@ -58,14 +58,37 @@ function hamiltonAllocate(
 
 // --- Holiday Date Calculator ---
 
+// Federal "in lieu of" observance rule: a holiday falling on Saturday is
+// observed the preceding Friday; one falling on Sunday is observed the
+// following Monday.
+function observedDate(d: Date): Date {
+  const result = new Date(d);
+  const dow = result.getDay();
+  if (dow === 6) result.setDate(result.getDate() - 1); // Saturday -> Friday
+  else if (dow === 0) result.setDate(result.getDate() + 1); // Sunday -> Monday
+  return result;
+}
+
 function getHolidayDatesForYear(year: number): Map<string, string> {
   const map = new Map<string, string>();
 
-  // Fixed dates
-  map.set(formatDate(new Date(year, 0, 1)), "New Year's Day");
-  map.set(formatDate(new Date(year, 6, 4)), "Independence Day");
-  map.set(formatDate(new Date(year, 11, 24)), "Christmas Eve");
-  map.set(formatDate(new Date(year, 11, 25)), "Christmas Day");
+  // Fixed-date federal holidays use the observance rule.
+  map.set(formatDate(observedDate(new Date(year, 0, 1))), "New Year's Day");
+  map.set(formatDate(observedDate(new Date(year, 6, 4))), "Independence Day");
+
+  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
+  // When observed Christmas Day lands on Dec 24 (Dec 25 is a Saturday),
+  // shift Christmas Eve one weekday earlier so both remain distinct days.
+  const christmasDay = observedDate(new Date(year, 11, 25));
+  const christmasEve = new Date(year, 11, 24);
+  if (formatDate(christmasDay) === formatDate(christmasEve)) {
+    christmasEve.setDate(christmasEve.getDate() - 1);
+    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
+      christmasEve.setDate(christmasEve.getDate() - 1);
+    }
+  }
+  map.set(formatDate(christmasEve), "Christmas Eve");
+  map.set(formatDate(christmasDay), "Christmas Day");
 
   // Memorial Day: last Monday of May
   const memDay = new Date(year, 4, 31);

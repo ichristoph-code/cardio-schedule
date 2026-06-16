@@ -15,12 +15,25 @@ function formatDate(d: Date) {
 function dayOfWeek(s: string) { const [y,m,d]=s.split("-").map(Number); const j=new Date(y,m-1,d).getDay(); return j===0?7:j; }
 function isWeekend(dow: number) { return dow>=6; }
 
+function observedDate(d: Date) {
+  const r = new Date(d);
+  const dow = r.getDay();
+  if (dow === 6) r.setDate(r.getDate() - 1); // Saturday -> Friday
+  else if (dow === 0) r.setDate(r.getDate() + 1); // Sunday -> Monday
+  return r;
+}
 function getHolidays(year: number) {
   const map = new Map<string,string>();
-  map.set(formatDate(new Date(year,0,1)),"NY");
-  map.set(formatDate(new Date(year,6,4)),"4th");
-  map.set(formatDate(new Date(year,11,24)),"XmasEve");
-  map.set(formatDate(new Date(year,11,25)),"Xmas");
+  map.set(formatDate(observedDate(new Date(year,0,1))),"NY");
+  map.set(formatDate(observedDate(new Date(year,6,4))),"4th");
+  const xmas=observedDate(new Date(year,11,25));
+  const xmasEve=new Date(year,11,24);
+  if (formatDate(xmas)===formatDate(xmasEve)) {
+    xmasEve.setDate(xmasEve.getDate()-1);
+    while(xmasEve.getDay()===0||xmasEve.getDay()===6) xmasEve.setDate(xmasEve.getDate()-1);
+  }
+  map.set(formatDate(xmasEve),"XmasEve");
+  map.set(formatDate(xmas),"Xmas");
   const mem=new Date(year,4,31); while(mem.getDay()!==1) mem.setDate(mem.getDate()-1); map.set(formatDate(mem),"MemDay");
   const lab=new Date(year,8,1); while(lab.getDay()!==1) lab.setDate(lab.getDate()+1); map.set(formatDate(lab),"LaborDay");
   const tg=new Date(year,10,1); while(tg.getDay()!==4) tg.setDate(tg.getDate()+1); tg.setDate(tg.getDate()+21); map.set(formatDate(tg),"TG");
