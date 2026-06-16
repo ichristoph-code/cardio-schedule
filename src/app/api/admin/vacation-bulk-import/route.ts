@@ -23,15 +23,20 @@ export async function POST(req: Request) {
     ranges?: Array<{ startDate: string; endDate: string; reason?: string; halfDay?: string }>;
     defaultStatus?: "APPROVED" | "PENDING";
     dryRun?: boolean;
+    replaceExisting?: boolean;
+    year?: number;
   };
 
-  const { physicianEmail, ranges, defaultStatus = "APPROVED", dryRun = false } = body;
+  const { physicianEmail, ranges, defaultStatus = "APPROVED", dryRun = false, replaceExisting = false, year } = body;
 
   if (!physicianEmail?.trim()) {
     return NextResponse.json({ error: "physicianEmail is required" }, { status: 400 });
   }
   if (!Array.isArray(ranges) || ranges.length === 0) {
     return NextResponse.json({ error: "Non-empty ranges array required" }, { status: 400 });
+  }
+  if (replaceExisting && (typeof year !== "number" || year < 2020 || year > 2100)) {
+    return NextResponse.json({ error: "A valid year is required when replaceExisting is set" }, { status: 400 });
   }
 
   const user = await prisma.user.findUnique({
@@ -47,6 +52,24 @@ export async function POST(req: Request) {
   }
 
   const physicianId = user.physician.id;
+
+  // Replace mode: wipe this physician's vacations overlapping the import year
+  // before inserting, so a re-import is a clean slate rather than skipping rows
+  // that overlap stale (e.g. previously mis-parsed) entries.
+  let replaced = 0;
+  if (replaceExisting && !dryRun) {
+    const yearStart = new Date(Date.UTC(year!, 0, 1));
+    const yearEnd = new Date(Date.UTC(year!, 11, 31));
+    const del = await prisma.vacationRequest.deleteMany({
+      where: { physicianId, startDate: { lte: yearEnd }, endDate: { gte: yearStart } },
+    });
+    replaced = del.count;
+    if (replaced > 0) {
+      await auditLog(userId, "ADMIN_BULK_IMPORT_VACATION_REPLACE", "Physician", physicianId, {
+        year, deletedCount: replaced, physicianEmail,
+      });
+    }
+  }
 
   type RowResult =
     | { startDate: string; endDate: string; status: "created" | "would-create" }
@@ -135,6 +158,8 @@ export async function POST(req: Request) {
     physicianId,
     dryRun,
     defaultStatus,
+    replaceExisting,
+    replaced,
     counts: { created, skipped, errors, total: ranges.length },
     results,
   });
