@@ -79,23 +79,24 @@ export async function POST(req: Request) {
   const results: RowResult[] = [];
   let created = 0, skipped = 0, errors = 0;
 
-  // For dry-run we still need to detect conflicts. Fetch existing float
-  // assignments for this schedule in a single query keyed by date.
-  let existingByDate: Map<string, { physicianId: string }> | null = null;
-  if (dryRun) {
-    const existing = await prisma.scheduleAssignment.findMany({
-      where: {
-        scheduleId: schedule.id,
-        roleTypeId: floatRole.id,
-        isActive: true,
-        date: { in: dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)).map((d) => new Date(d + "T00:00:00Z")) },
-      },
-      select: { physicianId: true, date: true },
-    });
-    existingByDate = new Map(
-      existing.map((e) => [e.date.toISOString().slice(0, 10), { physicianId: e.physicianId }]),
-    );
-  }
+  // Pre-fetch existing float assignments for these dates once, then resolve
+  // every row in memory and insert in a single createMany — a create-per-date
+  // loop is too many serial round-trips for a 40-day bulk import.
+  const validDates = dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
+  const existing = await prisma.scheduleAssignment.findMany({
+    where: {
+      scheduleId: schedule.id,
+      roleTypeId: floatRole.id,
+      isActive: true,
+      date: { in: validDates.map((d) => new Date(d + "T00:00:00Z")) },
+    },
+    select: { physicianId: true, date: true },
+  });
+  const holderByDate = new Map(
+    existing.map((e) => [e.date.toISOString().slice(0, 10), e.physicianId]),
+  );
+
+  const toCreate: { scheduleId: string; physicianId: string; roleTypeId: string; date: Date; source: "MANUAL"; isActive: true }[] = [];
 
   for (const dateStr of dates) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
@@ -104,82 +105,52 @@ export async function POST(req: Request) {
       continue;
     }
 
-    const dateObj = new Date(dateStr + "T00:00:00Z");
-
-    if (dryRun) {
-      const existing = existingByDate!.get(dateStr);
-      if (existing) {
-        if (existing.physicianId === physicianId) {
-          results.push({ date: dateStr, status: "skipped", reason: "already assigned to this physician" });
-          skipped++;
-        } else {
-          results.push({
-            date: dateStr,
-            status: "skipped",
-            reason: `slot held by another physician (id ${existing.physicianId})`,
-          });
-          skipped++;
-        }
-      } else {
-        results.push({ date: dateStr, status: "would-create" });
-        created++;
-      }
+    const holder = holderByDate.get(dateStr);
+    if (holder) {
+      results.push({
+        date: dateStr,
+        status: "skipped",
+        reason: holder === physicianId
+          ? "already assigned to this physician"
+          : `slot held by another physician (id ${holder})`,
+      });
+      skipped++;
       continue;
     }
 
-    try {
-      const assignment = await prisma.scheduleAssignment.create({
-        data: {
-          scheduleId: schedule.id,
-          physicianId,
-          roleTypeId: floatRole.id,
-          date: dateObj,
-          source: "MANUAL",
-          isActive: true,
-        },
-        select: { id: true },
-      });
-
-      await auditLog(userId, "ADMIN_BULK_IMPORT_FLOAT", "ScheduleAssignment", assignment.id, {
-        date: dateStr, physicianEmail,
-      });
-
-      results.push({ date: dateStr, status: "created" });
+    if (dryRun) {
+      results.push({ date: dateStr, status: "would-create" });
       created++;
+      continue;
+    }
+
+    toCreate.push({
+      scheduleId: schedule.id,
+      physicianId,
+      roleTypeId: floatRole.id,
+      date: new Date(dateStr + "T00:00:00Z"),
+      source: "MANUAL",
+      isActive: true,
+    });
+    // Reserve the slot in-memory so duplicate dates in this payload skip.
+    holderByDate.set(dateStr, physicianId);
+    results.push({ date: dateStr, status: "created" });
+    created++;
+  }
+
+  if (!dryRun && toCreate.length > 0) {
+    try {
+      // skipDuplicates makes this race-safe against the
+      // @@unique([scheduleId, date, roleTypeId]) constraint.
+      const res = await prisma.scheduleAssignment.createMany({ data: toCreate, skipDuplicates: true });
+      await auditLog(userId, "ADMIN_BULK_IMPORT_FLOAT", "Schedule", schedule.id, {
+        physicianEmail, count: res.count, year,
+      });
     } catch (err) {
-      // P2002 = unique constraint violation on (scheduleId, date, roleTypeId)
-      // Race-safe handling: someone else (or a prior import) already holds this slot.
-      const isUniqueViolation =
-        typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002";
-      if (isUniqueViolation) {
-        // Look up the holder to give a helpful skip reason.
-        const holder = await prisma.scheduleAssignment.findFirst({
-          where: {
-            scheduleId: schedule.id,
-            roleTypeId: floatRole.id,
-            date: dateObj,
-            isActive: true,
-          },
-          select: { physicianId: true },
-        });
-        if (holder?.physicianId === physicianId) {
-          results.push({ date: dateStr, status: "skipped", reason: "already assigned to this physician" });
-        } else {
-          results.push({
-            date: dateStr,
-            status: "skipped",
-            reason: `slot held by another physician (id ${holder?.physicianId ?? "unknown"})`,
-          });
-        }
-        skipped++;
-      } else {
-        results.push({
-          date: dateStr,
-          status: "error",
-          error: err instanceof Error ? err.message : String(err),
-        });
-        errors++;
-      }
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Bulk insert failed" },
+        { status: 500 },
+      );
     }
   }
 
