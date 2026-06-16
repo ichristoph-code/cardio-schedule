@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import {
@@ -9,6 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
   Dialog,
   DialogContent,
@@ -501,7 +506,9 @@ export function AnnualPreferencesView({
             onDayClick={handleDayClick}
             popoverDate={popoverDate}
             onSelectType={selectType}
-            onClosePopover={() => setPopoverDate(null)}
+            onClosePopover={(d) =>
+              setPopoverDate((cur) => (cur === d ? null : cur))
+            }
           />
         ))}
       </div>
@@ -645,23 +652,10 @@ function MonthCalendar({
   onDayClick: (dateStr: string, shiftKey: boolean) => void;
   popoverDate: string | null;
   onSelectType: (type: SelectionType) => void;
-  onClosePopover: () => void;
+  onClosePopover: (dateStr: string) => void;
 }) {
   const daysInMonth = getDaysInMonth(year, month);
   const firstDay = getFirstDayOfMonth(year, month);
-  const popoverRef = useRef<HTMLDivElement>(null);
-
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (!popoverDate) return;
-    function handleClickOutside(e: MouseEvent) {
-      if (popoverRef.current && !popoverRef.current.contains(e.target as Node)) {
-        onClosePopover();
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [popoverDate, onClosePopover]);
 
   const cells: (number | null)[] = [];
   // Fill empty cells before first day
@@ -703,45 +697,52 @@ function MonthCalendar({
             const showDropdown = popoverDate === dateStr;
 
             return (
-              <div key={dateStr} className="relative">
-                <button
-                  className={`aspect-square w-full flex items-center justify-center text-xs rounded-md transition-colors cursor-pointer
-                    ${cellClasses}
-                    hover:ring-2 hover:ring-primary/40
-                  `}
-                  onClick={(e) => {
-                    onDayClick(dateStr, e.shiftKey);
-                  }}
-                  aria-label={getTooltip(status, dateStr)}
-                  aria-pressed={status !== "available"}
-                  aria-haspopup="menu"
-                  aria-expanded={showDropdown}
-                  title={getTooltip(status, dateStr)}
+              <Popover
+                key={dateStr}
+                open={showDropdown}
+                onOpenChange={(open) => {
+                  if (!open) onClosePopover(dateStr);
+                }}
+              >
+                <PopoverTrigger
+                  render={
+                    <button
+                      className={`aspect-square w-full flex items-center justify-center text-xs rounded-md transition-colors cursor-pointer
+                        ${cellClasses}
+                        hover:ring-2 hover:ring-primary/40
+                      `}
+                      onClick={(e) => {
+                        onDayClick(dateStr, e.shiftKey);
+                      }}
+                      aria-label={getTooltip(status, dateStr)}
+                      aria-pressed={status !== "available"}
+                      title={getTooltip(status, dateStr)}
+                    />
+                  }
                 >
                   {day}
-                </button>
-                {showDropdown && (
-                  <div
-                    ref={popoverRef}
-                    className="absolute z-50 bottom-full left-1/2 -translate-x-1/2 mb-1 bg-white rounded-lg shadow-lg border p-1.5 flex gap-1 whitespace-nowrap"
+                </PopoverTrigger>
+                <PopoverContent
+                  side="top"
+                  align="center"
+                  className="w-auto flex-row gap-1 p-1.5"
+                >
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-green-50 hover:border-green-300 transition-colors"
+                    onClick={() => onSelectType("vacation")}
                   >
-                    <button
-                      className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-green-50 hover:border-green-300 transition-colors"
-                      onClick={() => onSelectType("vacation")}
-                    >
-                      <Palmtree className="h-3 w-3" />
-                      Vacation
-                    </button>
-                    <button
-                      className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-amber-50 hover:border-amber-300 transition-colors"
-                      onClick={() => onSelectType("nocall")}
-                    >
-                      <MoonStar className="h-3 w-3" />
-                      No Call
-                    </button>
-                  </div>
-                )}
-              </div>
+                    <Palmtree className="h-3 w-3" aria-hidden="true" />
+                    Vacation
+                  </button>
+                  <button
+                    className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-medium hover:bg-amber-50 hover:border-amber-300 transition-colors"
+                    onClick={() => onSelectType("nocall")}
+                  >
+                    <MoonStar className="h-3 w-3" aria-hidden="true" />
+                    No Call
+                  </button>
+                </PopoverContent>
+              </Popover>
             );
           })}
         </div>

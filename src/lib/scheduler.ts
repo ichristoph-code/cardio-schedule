@@ -12,11 +12,22 @@ function parseDate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
+// Persist a YYYY-MM-DD calendar date as UTC midnight. Prisma's @db.Date stores
+// the UTC date-portion of the instant, so writing the scheduler's internal
+// LOCAL-midnight Date (parseDate) shifts the stored day in non-UTC timezones.
+// Reads bridge back via toLocalMidnight, so UTC-midnight here round-trips in any TZ.
+function toDbDate(s: string): Date {
+  return new Date(`${s}T00:00:00.000Z`);
+}
+
 // Prisma returns Date objects as UTC midnight. Convert to local-midnight so that
 // formatDate() (which uses local getters) produces the correct calendar date string.
 function toLocalMidnight(d: Date): Date {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
+
+// Exported for unit tests of the DB write/read date boundary.
+export const __dateHelpers = { formatDate, toDbDate, toLocalMidnight };
 
 /** 1=Mon … 7=Sun */
 function dayOfWeek(dateStr: string): number {
@@ -1088,7 +1099,7 @@ export async function generateSchedule(
     await prisma.scheduleAssignment.createMany({
       data: chunk.map((a) => ({
         scheduleId: schedule.id,
-        date: parseDate(a.date),
+        date: toDbDate(a.date),
         physicianId: a.physicianId,
         roleTypeId: a.roleTypeId,
         source: "AUTO" as const,
