@@ -50,8 +50,8 @@ export default async function VacationPage({
       where: {
         physicianId: selectedId,
         status: "APPROVED",
-        startDate: { lte: new Date(selectedYear, 11, 31) },
-        endDate: { gte: new Date(selectedYear, 0, 1) },
+        startDate: { lte: new Date(Date.UTC(selectedYear, 11, 31)) },
+        endDate: { gte: new Date(Date.UTC(selectedYear, 0, 1)) },
       },
       orderBy: { startDate: "asc" },
     }),
@@ -61,8 +61,8 @@ export default async function VacationPage({
         isActive: true,
         roleType: { name: "HOSPITAL_FLOAT" },
         date: {
-          gte: new Date(selectedYear, 0, 1),
-          lte: new Date(selectedYear, 11, 31),
+          gte: new Date(Date.UTC(selectedYear, 0, 1)),
+          lte: new Date(Date.UTC(selectedYear, 11, 31)),
         },
       },
       select: { date: true },
@@ -74,8 +74,8 @@ export default async function VacationPage({
         physicianId: selectedId,
         isActive: true,
         date: {
-          gte: new Date(selectedYear, 0, 1),
-          lte: new Date(selectedYear, 11, 31),
+          gte: new Date(Date.UTC(selectedYear, 0, 1)),
+          lte: new Date(Date.UTC(selectedYear, 11, 31)),
         },
       },
       select: { date: true },
