@@ -178,7 +178,7 @@ function normalizeCode(raw: unknown): string {
 }
 
 function codeKind(code: string): "FULL" | "HALF" | "FLOAT" | null {
-  if (code === "V" || code === "OFF" || code === "V.") return "FULL";
+  if (code === "V" || code === "OFF" || code === "V." || code === "OFF.") return "FULL";
   if (code === "0.5V" || code === ".5V") return "HALF";
   if (code === "F" || code === "F." || code === "FL") return "FLOAT";
   return null;
@@ -417,6 +417,27 @@ export function extractColorCalendarRanges(
     let codeFoundBelow1 = 0;
     let codeFoundBelow2 = 0;
 
+    // Detect whether this month's grid uses real Date-typed day cells. Some
+    // workbooks lay out each week as THREE rows — dates, codes, then a numeric
+    // "days worked" tally row (0 / 0.5 / 1). Those tally numbers are 1..31 and
+    // would otherwise be misread as day-of-month numbers, corrupting the output
+    // (e.g. every "1" tally becomes a phantom "day 1"). When Date cells are
+    // present we trust only them and ignore bare numbers in the grid.
+    let monthUsesDateCells = false;
+    for (let dr = 1; dr <= 16 && !monthUsesDateCells; dr++) {
+      const rr = dow.dowRow + dr;
+      if (rr > maxRow) break;
+      for (let dowIdx = 0; dowIdx < 7; dowIdx++) {
+        const cc = dow.colStart + dowIdx;
+        if (cc > maxCol) break;
+        const v = ws[xlsx.utils.encode_cell({ r: rr, c: cc })]?.v;
+        if (v instanceof Date && v.getFullYear() === year && v.getMonth() + 1 === hdr.month) {
+          monthUsesDateCells = true;
+          break;
+        }
+      }
+    }
+
     for (let dr = 1; dr <= 16; dr++) {
       const dateRow = dow.dowRow + dr;
       if (dateRow > maxRow) break;
@@ -433,7 +454,7 @@ export function extractColorCalendarRanges(
           if (val.getFullYear() === year && val.getMonth() + 1 === hdr.month) {
             dayNum = val.getDate();
           }
-        } else if (typeof val === "number" && val >= 1 && val <= 31) {
+        } else if (!monthUsesDateCells && typeof val === "number" && val >= 1 && val <= 31) {
           dayNum = Math.round(val);
         }
         if (dayNum === null) continue;

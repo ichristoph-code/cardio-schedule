@@ -158,6 +158,73 @@ describe("extractColorCalendarRanges", () => {
     expect(result.warnings).toEqual([]);
   });
 
+  it("treats an 'Off' cell as a full-day vacation (case-insensitive, with/without trailing dot)", () => {
+    const ws = buildSingleMonthTab({
+      monthName: "January",
+      year: 2026,
+      month: 1,
+      codes: {
+        "2026-01-05": "Off",   // mixed case
+        "2026-01-06": "OFF",   // upper case
+        "2026-01-07": "off.",  // lower case + trailing dot
+        "2026-01-20": "V",     // a plain V should merge into its own range
+      },
+    });
+    const result = extractColorCalendarRanges(ws, 2026, xlsx);
+    // Jan 5-7 are consecutive Off days → one contiguous vacation range.
+    expect(result.vacationRanges).toEqual([
+      { startDate: "2026-01-05", endDate: "2026-01-07" },
+      { startDate: "2026-01-20", endDate: "2026-01-20" },
+    ]);
+    expect(result.floatDays).toEqual([]);
+    const jan = result.diagnostics.find((d) => d.month === 1);
+    expect(jan?.vacationCount).toBe(4);
+    expect(result.warnings).toEqual([]);
+  });
+
+  it("ignores numeric 'days worked' tally rows in a 3-row date/code/tally layout (Nanevicz regression)", () => {
+    // Some workbooks lay out each week as THREE rows: dates, then codes, then a
+    // numeric tally (0 / 0.5 / 1 = days worked). The tally numbers (1..31) must
+    // NOT be misread as day-of-month numbers — doing so produced phantom "day 1"
+    // entries tagged with whatever code sat two rows below the tally.
+    const D = (d: number) => new Date(2026, 0, d); // January 2026 (Jan 1 = Thursday)
+    const ws = makeWorksheet([
+      ["January", null, null, null, null, null, null],
+      ["S", "M", "T", "W", "T", "F", "S"],
+      // Week 1: Jan 1 (Thu) .. Jan 3 (Sat)
+      [null, null, null, null, D(1), D(2), D(3)],
+      [null, null, null, null, "H", "V", null], // Jan 2 = V
+      [null, null, null, null, 0, 0, null], //     tally
+      // Week 2: Jan 4 (Sun) .. Jan 10 (Sat)
+      [D(4), D(5), D(6), D(7), D(8), D(9), D(10)],
+      ["_", "W", "W", "Off", "W", "Off", "_"], //  Jan 7 & 9 = Off
+      [0, 1, 1, 0, 1, 0, 0], //                     tally — these 1s sit two rows above week-3 codes
+      // Week 3: Jan 11 (Sun) .. Jan 17 (Sat)
+      [D(11), D(12), D(13), D(14), D(15), D(16), D(17)],
+      ["_", "F", "F", "F", "F", "F", "_"], //       Jan 12-16 = Float
+      [0, 1, 1, 1, 1, 1, 0], //                      tally
+    ]);
+    const result = extractColorCalendarRanges(ws, 2026, xlsx);
+
+    // No phantom "day 1" entries leaking from the tally rows.
+    const allDates = [
+      ...result.vacationRanges.flatMap((r) => [r.startDate, r.endDate]),
+      ...result.floatDays,
+    ];
+    expect(allDates).not.toContain("2026-01-01");
+
+    expect(result.vacationRanges).toEqual([
+      { startDate: "2026-01-02", endDate: "2026-01-02" },
+      { startDate: "2026-01-07", endDate: "2026-01-07" },
+      { startDate: "2026-01-09", endDate: "2026-01-09" },
+    ]);
+    expect(result.floatDays).toEqual([
+      "2026-01-12", "2026-01-13", "2026-01-14", "2026-01-15", "2026-01-16",
+    ]);
+    const jan = result.diagnostics.find((d) => d.month === 1);
+    expect(jan?.dateCount).toBe(17); // 3 + 7 + 7 real dates, not inflated by tallies
+  });
+
   it("never silently auto-skips — empty results produce a 'no_results' warning (Thakkar regression)", () => {
     // A sheet with month header + DOW row but no codes anywhere
     const ws = buildSingleMonthTab({
