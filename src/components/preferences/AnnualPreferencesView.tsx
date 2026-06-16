@@ -712,6 +712,10 @@ function MonthCalendar({
                   onClick={(e) => {
                     onDayClick(dateStr, e.shiftKey);
                   }}
+                  aria-label={getTooltip(status, dateStr)}
+                  aria-pressed={status !== "available"}
+                  aria-haspopup="menu"
+                  aria-expanded={showDropdown}
                   title={getTooltip(status, dateStr)}
                 >
                   {day}

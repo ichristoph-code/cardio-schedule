@@ -53,12 +53,28 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "Only physicians can request vacations" }, { status: 403 });
   }
 
+  // When an admin targets another physician, confirm the record exists rather
+  // than letting a bad id surface as an opaque 500 at create time.
+  if (isAdmin && targetPhysicianId) {
+    const target = await prisma.physician.findUnique({
+      where: { id: targetPhysicianId },
+      select: { id: true },
+    });
+    if (!target) {
+      return NextResponse.json({ error: "Physician not found" }, { status: 404 });
+    }
+  }
+
   if (!startDate || !endDate) {
     return NextResponse.json({ error: "Start and end dates required" }, { status: 400 });
   }
 
   const start = new Date(startDate);
   const end = new Date(endDate);
+
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return NextResponse.json({ error: "Invalid start or end date" }, { status: 400 });
+  }
 
   if (end < start) {
     return NextResponse.json({ error: "End date must be after start date" }, { status: 400 });

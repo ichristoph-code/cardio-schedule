@@ -34,6 +34,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 });
   }
 
+  if (
+    weight !== undefined &&
+    (typeof weight !== "number" || weight < 0 || weight > 100)
+  ) {
+    return NextResponse.json(
+      { error: "weight must be a number between 0 and 100" },
+      { status: 400 }
+    );
+  }
+
   // Check for duplicate
   const existing = await prisma.holiday.findUnique({ where: { name } });
   if (existing) {

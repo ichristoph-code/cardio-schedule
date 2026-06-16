@@ -62,8 +62,20 @@ export async function POST(req: Request) {
 
   const { year, newVacations, newNoCallDays } = await req.json();
 
-  if (!year || typeof year !== "number") {
-    return NextResponse.json({ error: "Year required" }, { status: 400 });
+  if (!year || typeof year !== "number" || year < 2024 || year > 2100) {
+    return NextResponse.json({ error: "Invalid year" }, { status: 400 });
+  }
+
+  // Bound payload size so a single request can't open hundreds of creates.
+  const MAX_SELECTIONS = 400;
+  if (
+    (Array.isArray(newVacations) && newVacations.length > MAX_SELECTIONS) ||
+    (Array.isArray(newNoCallDays) && newNoCallDays.length > MAX_SELECTIONS)
+  ) {
+    return NextResponse.json(
+      { error: `Too many selections (max ${MAX_SELECTIONS})` },
+      { status: 400 }
+    );
   }
 
   const results = { vacationsCreated: 0, noCallDaysCreated: 0 };
@@ -75,6 +87,7 @@ export async function POST(req: Request) {
         if (!v.startDate || !v.endDate) continue;
         const start = new Date(v.startDate);
         const end = new Date(v.endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime()) || end < start) continue;
 
         // Check for overlap with existing
         const overlap = await tx.vacationRequest.findFirst({
@@ -103,7 +116,9 @@ export async function POST(req: Request) {
 
     // Create no-call day requests
     if (newNoCallDays && Array.isArray(newNoCallDays) && newNoCallDays.length > 0) {
-      const parsedDates = newNoCallDays.map((d: string) => new Date(d));
+      const parsedDates = newNoCallDays
+        .map((d: string) => new Date(d))
+        .filter((d: Date) => !isNaN(d.getTime()));
 
       // Check for existing
       const existing = await tx.noCallDayRequest.findMany({

@@ -1045,8 +1045,9 @@ export function ScheduleViewer({
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <label className="text-sm font-medium">Assign to</label>
+            <label htmlFor="override-assign-to" className="text-sm font-medium">Assign to</label>
             <select
+              id="override-assign-to"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
               value={overridePhysicianId}
               onChange={(e) => {

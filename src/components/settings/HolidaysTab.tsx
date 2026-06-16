@@ -139,17 +139,21 @@ export function HolidaysTab({ holidays }: HolidaysTabProps) {
     return (
       <span
         className="inline-flex items-center gap-0.5"
+        role="img"
+        aria-label={`Weight ${weight} out of 5 — higher weight means higher scheduling priority`}
         title={`Weight ${weight} — higher weight means higher scheduling priority`}
       >
         {Array.from({ length: weight }, (_, i) => (
           <Star
             key={i}
+            aria-hidden="true"
             className="h-3.5 w-3.5 fill-amber-400 text-amber-400"
           />
         ))}
         {Array.from({ length: 5 - weight }, (_, i) => (
           <Star
             key={`empty-${i}`}
+            aria-hidden="true"
             className="h-3.5 w-3.5 text-muted-foreground/30"
           />
         ))}
@@ -203,8 +207,8 @@ export function HolidaysTab({ holidays }: HolidaysTabProps) {
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>
-                      <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md h-8 w-8 hover:bg-accent hover:text-accent-foreground">
-                        <MoreHorizontal className="h-4 w-4" />
+                      <DropdownMenuTrigger aria-label="Open actions menu" className="inline-flex items-center justify-center rounded-md h-8 w-8 hover:bg-accent hover:text-accent-foreground">
+                        <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                       </DropdownMenuTrigger>
                       <DropdownMenuContent align="end">
                         <DropdownMenuItem onClick={() => openEdit(holiday)}>

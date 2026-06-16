@@ -361,7 +361,7 @@ export function ScheduleGenerateButton({
                     <label className="flex items-center gap-3 px-4 py-2 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
                       <Checkbox
                         checked={catAllChecked}
-                        data-state={catSomeChecked && !catAllChecked ? "indeterminate" : undefined}
+                        indeterminate={catSomeChecked && !catAllChecked}
                         onCheckedChange={() => toggleCategory(group.category)}
                         disabled={isLoading}
                       />

@@ -237,8 +237,8 @@ export function RoleTypesTab({ roleTypes }: RoleTypesTabProps) {
                 </TableCell>
                 <TableCell>
                   <DropdownMenu>
-                    <DropdownMenuTrigger className="inline-flex items-center justify-center rounded-md h-8 w-8 hover:bg-accent hover:text-accent-foreground">
-                      <MoreHorizontal className="h-4 w-4" />
+                    <DropdownMenuTrigger aria-label="Open actions menu" className="inline-flex items-center justify-center rounded-md h-8 w-8 hover:bg-accent hover:text-accent-foreground">
+                      <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => openEdit(rt)}>
