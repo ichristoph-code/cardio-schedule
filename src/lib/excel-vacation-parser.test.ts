@@ -3,7 +3,7 @@ import {
   extractColorCalendarRanges,
   matchPhysicianEmail,
   daysToRanges,
-  gapIsWeekendOnly,
+  isNextCalendarDay,
   type Worksheet,
   type XLSXLike,
 } from "./excel-vacation-parser";
@@ -377,23 +377,32 @@ describe("matchPhysicianEmail", () => {
   });
 });
 
-describe("daysToRanges + gapIsWeekendOnly", () => {
-  it("merges Mon–Fri into a single range", () => {
+describe("daysToRanges (no weekend bridging)", () => {
+  it("merges consecutive calendar days into a single range", () => {
     expect(daysToRanges(["2026-06-01", "2026-06-02", "2026-06-03", "2026-06-04", "2026-06-05"])).toEqual([
       { startDate: "2026-06-01", endDate: "2026-06-05" },
     ]);
   });
 
-  it("bridges a weekend gap", () => {
+  it("merges adjacent coded weekend days (Fri/Sat/Sun) since they are consecutive", () => {
+    expect(
+      daysToRanges(["2026-06-05", "2026-06-06", "2026-06-07"]), // Fri, Sat, Sun
+    ).toEqual([{ startDate: "2026-06-05", endDate: "2026-06-07" }]);
+  });
+
+  it("does NOT bridge a weekend gap (Fri off + Mon off stay separate)", () => {
     expect(
       daysToRanges([
         "2026-06-05", // Fri
-        "2026-06-08", // Mon
+        "2026-06-08", // Mon (Sat/Sun not coded)
       ]),
-    ).toEqual([{ startDate: "2026-06-05", endDate: "2026-06-08" }]);
+    ).toEqual([
+      { startDate: "2026-06-05", endDate: "2026-06-05" },
+      { startDate: "2026-06-08", endDate: "2026-06-08" },
+    ]);
   });
 
-  it("does NOT bridge across a non-weekend gap", () => {
+  it("does NOT bridge across a weekday gap", () => {
     expect(
       daysToRanges([
         "2026-06-01", // Mon
@@ -405,11 +414,9 @@ describe("daysToRanges + gapIsWeekendOnly", () => {
     ]);
   });
 
-  it("gapIsWeekendOnly: Fri→Mon is weekend-only", () => {
-    expect(gapIsWeekendOnly("2026-06-05", "2026-06-08")).toBe(true);
-  });
-
-  it("gapIsWeekendOnly: Mon→Wed is NOT weekend-only", () => {
-    expect(gapIsWeekendOnly("2026-06-01", "2026-06-03")).toBe(false);
+  it("isNextCalendarDay: adjacent vs gapped", () => {
+    expect(isNextCalendarDay("2026-06-05", "2026-06-06")).toBe(true); // Fri→Sat
+    expect(isNextCalendarDay("2026-06-05", "2026-06-08")).toBe(false); // Fri→Mon
+    expect(isNextCalendarDay("2026-06-30", "2026-07-01")).toBe(true); // month boundary
   });
 });

@@ -20,7 +20,7 @@ import {
   extractColorCalendarRanges,
   detectYearFromWorkbook,
   matchPhysicianEmail,
-  gapIsWeekendOnly,
+  isNextCalendarDay,
   type DateRange,
   type ParserWarning,
   type MonthDiagnostic,
@@ -94,14 +94,15 @@ function extractCalendarGridRanges(rows: unknown[][]): string[] {
 
   const result: string[] = [];
 
-  // Full vacation days: merge consecutive days (bridging weekends) into ranges
+  // Full vacation days: merge only truly consecutive calendar days into ranges
+  // (weekend gaps are not bridged).
   if (fullDays.length > 0) {
     fullDays.sort();
     const ranges: [string, string][] = [];
     for (const d of fullDays) {
       if (ranges.length === 0) { ranges.push([d, d]); continue; }
       const last = ranges[ranges.length - 1];
-      if (gapIsWeekendOnly(last[1], d)) { last[1] = d; } else { ranges.push([d, d]); }
+      if (isNextCalendarDay(last[1], d)) { last[1] = d; } else { ranges.push([d, d]); }
     }
     result.push(...ranges.map(([s, e]) => (s === e ? s : `${s},${e}`)));
   }
