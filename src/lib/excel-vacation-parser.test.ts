@@ -222,6 +222,83 @@ describe("extractColorCalendarRanges", () => {
     expect(jan?.dateCount).toBe(17); // 3 + 7 + 7 real dates, not inflated by tallies
   });
 
+  it("parses the 4-months-across master layout with gap columns + tally rows (Work_Day_Tally regression)", () => {
+    // The master "Work_Day_Tally" workbook lays out FOUR months side-by-side in
+    // one band, each occupying 7 columns with a 1-column gap between them (the
+    // gap holds weekly tally sums). Each week is 3 rows: dates, codes (+1),
+    // numeric tally (+2). This locks in:
+    //   • side-by-side months are each detected and parsed independently
+    //   • the 1-column gaps don't bleed one month's codes into another
+    //   • the 1st of each month is read at the correct weekday column
+    //   • tally numbers are never misread as day-of-month values
+    const Y = 2026;
+    // Column starts: Jan=4(E), Feb=12(M), Mar=20(U), Apr=28(AC) — gaps at 11/19/27.
+    const monthCols: Record<number, number> = { 1: 4, 2: 12, 3: 20, 4: 28 };
+    const monthNames: Record<number, string> = { 1: "January", 2: "February", 3: "March", 4: "April" };
+    const WIDTH = 36;
+    const grid: Array<Array<CellSpec | string | number | Date | null>> = [];
+    const ensureRow = (r: number) => { while (grid.length <= r) grid.push(new Array(WIDTH).fill(null)); };
+    const put = (r: number, c: number, v: CellSpec | string | number | Date) => { ensureRow(r); grid[r][c] = v; };
+
+    // Codes per month, keyed by day-of-month.
+    const codes: Record<number, Record<number, string>> = {
+      1: { 1: "H", 2: "V", 5: "F", 6: "F", 7: "F", 8: "F", 9: "F", 12: "0.5V" }, // Jan 1 = New Year (skip)
+      2: { 1: "_", 2: "V", 16: "V" },          // Feb 1 = Sunday (skip), Feb 2/16 = vacation
+      3: { 1: "_", 31: "V" },                  // Mar 1 = Sunday (skip), Mar 31 = vacation (month end)
+      4: { 1: "W", 6: "F", 7: "F", 30: "V" },  // Apr 1 = Wednesday work (skip)
+    };
+
+    const HEADER_ROW = 8;   // band month names
+    const DOW_ROW = 10;     // S M T W T F S
+    const WEEK_START = 11;   // first date row
+    for (const m of [1, 2, 3, 4]) {
+      const colStart = monthCols[m];
+      put(HEADER_ROW, colStart, monthNames[m]);
+      ["S", "M", "T", "W", "T", "F", "S"].forEach((d, i) => put(DOW_ROW, colStart + i, d));
+      const first = new Date(Y, m - 1, 1);
+      const firstDow = first.getDay();
+      const daysInMonth = new Date(Y, m, 0).getDate();
+      for (let day = 1; day <= daysInMonth; day++) {
+        const dow = (firstDow + day - 1) % 7;
+        const week = Math.floor((firstDow + day - 1) / 7);
+        const dateRow = WEEK_START + week * 3;
+        const col = colStart + dow;
+        put(dateRow, col, new Date(Y, m - 1, day)); // date
+        const code = codes[m]?.[day];
+        if (code) put(dateRow + 1, col, code);       // code (+1)
+        put(dateRow + 2, col, code === "F" || code === "V" ? 0 : 1); // tally (+2): numbers must be ignored
+      }
+    }
+
+    const ws = makeWorksheet(grid);
+    const result = extractColorCalendarRanges(ws, Y, xlsx);
+
+    // No phantom day-1 leaks; holidays/work/weekends on the 1st are NOT vacation.
+    const allDays = [
+      ...result.vacationRanges.flatMap((r) => [r.startDate, r.endDate]),
+      ...result.floatDays,
+    ];
+    expect(allDays).not.toContain("2026-01-01"); // H
+    expect(allDays).not.toContain("2026-02-01"); // weekend
+    expect(allDays).not.toContain("2026-03-01"); // weekend
+    expect(allDays).not.toContain("2026-04-01"); // W
+
+    // Floats from all four months, no cross-month bleed across the gap columns.
+    expect(result.floatDays).toEqual([
+      "2026-01-05", "2026-01-06", "2026-01-07", "2026-01-08", "2026-01-09",
+      "2026-04-06", "2026-04-07",
+    ]);
+    // Full vacations (including month-end Mar 31 and the explicit V days).
+    expect(result.vacationRanges.filter((r) => !r.halfDay).map((r) => r.startDate)).toEqual([
+      "2026-01-02", "2026-02-02", "2026-02-16", "2026-03-31", "2026-04-30",
+    ]);
+    // Half-day vacation (Jan 12).
+    expect(result.vacationRanges.filter((r) => r.halfDay).map((r) => r.startDate)).toEqual([
+      "2026-01-12",
+    ]);
+    expect(result.warnings).toEqual([]);
+  });
+
   it("never silently auto-skips — empty results produce a 'no_results' warning (Thakkar regression)", () => {
     // A sheet with month header + DOW row but no codes anywhere
     const ws = buildSingleMonthTab({
