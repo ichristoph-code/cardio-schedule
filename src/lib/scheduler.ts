@@ -184,17 +184,32 @@ export async function generateSchedule(
 
   if (existing) {
     if (!isPartial && !hasDateRange) {
-      // Full regeneration: wipe everything
+      // Full regeneration: clear auto-generated assignments but PRESERVE
+      // manually-imported Hospital Float days. The generator never produces
+      // HOSPITAL_FLOAT rows (they only come from the admin Excel import), so
+      // wiping them on regen is pure data loss. Reuse the existing schedule
+      // row instead of deleting it, otherwise the onDelete: Cascade would
+      // remove the preserved rows too.
       await prisma.holidayAssignment.deleteMany({ where: { year } });
-      await prisma.scheduleAssignment.deleteMany({ where: { scheduleId: existing.id } });
-      await prisma.schedule.delete({ where: { id: existing.id } });
+      await prisma.scheduleAssignment.deleteMany({
+        where: {
+          scheduleId: existing.id,
+          NOT: { source: "MANUAL", roleType: { name: "HOSPITAL_FLOAT" } },
+        },
+      });
+      await prisma.schedule.update({
+        where: { id: existing.id },
+        data: { status: "DRAFT", generatedAt: new Date() },
+      });
     } else {
-      // Scoped regeneration: delete only selected roles within date range
+      // Scoped regeneration: delete only selected roles within date range,
+      // preserving manually-imported Hospital Float days (see above).
       await prisma.scheduleAssignment.deleteMany({
         where: {
           scheduleId: existing.id,
           ...(isPartial ? { roleTypeId: { in: roleTypeIds } } : {}),
           ...(hasDateRange ? { date: { gte: rangeStart, lte: rangeEnd } } : {}),
+          NOT: { source: "MANUAL", roleType: { name: "HOSPITAL_FLOAT" } },
         },
       });
       await prisma.schedule.update({
@@ -1084,13 +1099,14 @@ export async function generateSchedule(
     }
   }
 
-  // Save to database — reuse existing schedule row for scoped regeneration
+  // Save to database — reuse the existing schedule row (full and scoped
+  // regeneration both keep it now, so manually-imported rows survive); only
+  // create a new row when there is no schedule for this year yet.
   const schedule =
-    (isPartial || hasDateRange) && existing
-      ? existing
-      : await prisma.schedule.create({
-          data: { year, status: "DRAFT", generatedAt: new Date() },
-        });
+    existing ??
+    (await prisma.schedule.create({
+      data: { year, status: "DRAFT", generatedAt: new Date() },
+    }));
 
   // Batch insert assignments
   const chunkSize = 500;
