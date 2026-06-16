@@ -20,9 +20,11 @@ interface HeaderProps {
   userRole: string;
   physicianId?: string | null;
   version?: string;
+  buildSha?: string;
+  buildTime?: string;
 }
 
-export function Header({ userName, userRole, physicianId, version }: HeaderProps) {
+export function Header({ userName, userRole, physicianId, version, buildSha, buildTime }: HeaderProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const initials = userName
@@ -47,8 +49,12 @@ export function Header({ userName, userRole, physicianId, version }: HeaderProps
 
       <div className="flex-1" />
       {version && (
-        <span className="hidden sm:inline text-xs text-muted-foreground/50 mr-3 select-none">
+        <span
+          className="hidden sm:inline font-mono text-xs text-muted-foreground/70 mr-3 select-text"
+          title={buildTime ? `Built ${buildTime}` : undefined}
+        >
           v{version}
+          {buildSha ? ` · ${buildSha}` : ""}
         </span>
       )}
 

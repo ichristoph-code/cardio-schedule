@@ -24,6 +24,9 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_VERSION: version,
+    // Set by Vercel at build time; lets the UI show exactly which commit is live.
+    NEXT_PUBLIC_BUILD_SHA: (process.env.VERCEL_GIT_COMMIT_SHA ?? "local").slice(0, 7),
+    NEXT_PUBLIC_BUILD_TIME: new Date().toISOString(),
   },
   async headers() {
     return [
