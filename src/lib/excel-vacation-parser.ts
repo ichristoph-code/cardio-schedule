@@ -133,16 +133,13 @@ export function getCellRgb(cell: Record<string, unknown> | undefined): string | 
 
 // ─── Date helpers ───────────────────────────────────────────────────────────
 
-export function gapIsWeekendOnly(startStr: string, endStr: string): boolean {
-  const d = new Date(startStr + "T12:00:00");
-  const end = new Date(endStr + "T12:00:00");
+/** True when `nextStr` is the calendar day immediately after `prevStr`. */
+export function isNextCalendarDay(prevStr: string, nextStr: string): boolean {
+  const d = new Date(prevStr + "T12:00:00");
   d.setDate(d.getDate() + 1);
-  while (d < end) {
-    const dow = d.getDay();
-    if (dow !== 0 && dow !== 6) return false;
-    d.setDate(d.getDate() + 1);
-  }
-  return true;
+  const next =
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return next === nextStr;
 }
 
 export function daysToRanges(sortedDays: string[]): Array<{ startDate: string; endDate: string }> {
@@ -151,7 +148,11 @@ export function daysToRanges(sortedDays: string[]): Array<{ startDate: string; e
   for (const d of sortedDays) {
     if (ranges.length === 0) { ranges.push([d, d]); continue; }
     const last = ranges[ranges.length - 1];
-    if (gapIsWeekendOnly(last[1], d)) {
+    // Only merge truly consecutive calendar days. Weekend gaps are NOT bridged:
+    // an off day on Friday and another on Monday stay as two separate ranges so
+    // the intervening Sat/Sun aren't marked as vacation. (Consecutive coded
+    // Fri/Sat/Sun days still merge normally, since they're adjacent.)
+    if (isNextCalendarDay(last[1], d)) {
       last[1] = d;
     } else {
       ranges.push([d, d]);
