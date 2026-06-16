@@ -12,9 +12,14 @@ export default async function RequestsPage() {
     | string
     | null;
 
+  // A non-admin without a linked physician record must scope to nothing: a bare
+  // `scopedPhysicianId` collapses to an unfiltered Prisma query and would
+  // leak every physician's data. This sentinel matches no real id.
+  const scopedPhysicianId = physicianId ?? "__no_physician__";
+
   // Load vacation requests
   const vacationRequests = await prisma.vacationRequest.findMany({
-    where: isAdmin ? {} : { physicianId: physicianId ?? undefined },
+    where: isAdmin ? {} : { physicianId: scopedPhysicianId },
     include: {
       physician: { select: { id: true, firstName: true, lastName: true } },
     },
@@ -27,8 +32,8 @@ export default async function RequestsPage() {
       ? {}
       : {
           OR: [
-            { fromPhysicianId: physicianId ?? undefined },
-            { toPhysicianId: physicianId ?? undefined },
+            { fromPhysicianId: scopedPhysicianId },
+            { toPhysicianId: scopedPhysicianId },
           ],
         },
     include: {
@@ -41,7 +46,7 @@ export default async function RequestsPage() {
 
   // Load no-call day requests
   const noCallDayRequests = await prisma.noCallDayRequest.findMany({
-    where: isAdmin ? {} : { physicianId: physicianId ?? undefined },
+    where: isAdmin ? {} : { physicianId: scopedPhysicianId },
     include: {
       physician: { select: { id: true, firstName: true, lastName: true } },
     },

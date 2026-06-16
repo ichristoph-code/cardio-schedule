@@ -14,7 +14,14 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const { action, reviewNote } = await req.json();
+
+  let body: { action?: string; reviewNote?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const { action, reviewNote } = body;
 
   const request = await prisma.swapRequest.findUnique({
     where: { id },

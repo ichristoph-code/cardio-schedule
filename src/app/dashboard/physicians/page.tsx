@@ -1,4 +1,6 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,6 +23,11 @@ export default async function PhysiciansPage({
 }: {
   searchParams: Promise<{ year?: string; actRole?: string }>;
 }) {
+  const session = await auth();
+  if (!session || session.user.role !== "ADMIN") {
+    redirect("/dashboard");
+  }
+
   const params = await searchParams;
 
   const physicians = await prisma.physician.findMany({
