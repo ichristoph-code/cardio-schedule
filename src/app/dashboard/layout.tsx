@@ -28,6 +28,8 @@ export default async function DashboardLayout({
           userRole={session.user.role}
           physicianId={(session.user as Record<string, unknown>).physicianId as string | null}
           version={process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
+          buildSha={process.env.NEXT_PUBLIC_BUILD_SHA ?? "local"}
+          buildTime={process.env.NEXT_PUBLIC_BUILD_TIME ?? ""}
         />
         <main className="flex-1 overflow-y-auto overflow-x-auto p-4 lg:p-6">{children}</main>
       </div>
