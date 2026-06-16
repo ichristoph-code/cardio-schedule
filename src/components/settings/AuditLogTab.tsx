@@ -111,8 +111,9 @@ export function AuditLogTab() {
       {/* Filters */}
       <div className="flex flex-wrap gap-3 items-end">
         <div className="space-y-1">
-          <Label className="text-xs">Entity Type</Label>
+          <Label htmlFor="audit-entity-type" className="text-xs">Entity Type</Label>
           <select
+            id="audit-entity-type"
             value={entityType}
             onChange={(e) => {
               setEntityType(e.target.value);

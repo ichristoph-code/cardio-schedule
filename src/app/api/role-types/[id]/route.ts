@@ -30,6 +30,28 @@ export async function PUT(
     );
   }
 
+  for (const [field, value] of [
+    ["sortOrder", sortOrder],
+    ["minRequired", minRequired],
+    ["maxRequired", maxRequired],
+  ] as const) {
+    if (value !== undefined && (!Number.isInteger(value) || value < 0)) {
+      return NextResponse.json(
+        { error: `${field} must be a non-negative integer` },
+        { status: 400 }
+      );
+    }
+  }
+
+  const effMin = minRequired ?? existing.minRequired;
+  const effMax = maxRequired ?? existing.maxRequired;
+  if (effMin > effMax) {
+    return NextResponse.json(
+      { error: "minRequired cannot exceed maxRequired" },
+      { status: 400 }
+    );
+  }
+
   // Check name uniqueness if changing
   if (name && name !== existing.name) {
     const dup = await prisma.roleType.findUnique({ where: { name } });

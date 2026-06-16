@@ -12,11 +12,22 @@ function parseDate(s: string): Date {
   return new Date(y, m - 1, d);
 }
 
+// Persist a YYYY-MM-DD calendar date as UTC midnight. Prisma's @db.Date stores
+// the UTC date-portion of the instant, so writing the scheduler's internal
+// LOCAL-midnight Date (parseDate) shifts the stored day in non-UTC timezones.
+// Reads bridge back via toLocalMidnight, so UTC-midnight here round-trips in any TZ.
+function toDbDate(s: string): Date {
+  return new Date(`${s}T00:00:00.000Z`);
+}
+
 // Prisma returns Date objects as UTC midnight. Convert to local-midnight so that
 // formatDate() (which uses local getters) produces the correct calendar date string.
 function toLocalMidnight(d: Date): Date {
   return new Date(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
 }
+
+// Exported for unit tests of the DB write/read date boundary.
+export const __dateHelpers = { formatDate, toDbDate, toLocalMidnight };
 
 /** 1=Mon … 7=Sun */
 function dayOfWeek(dateStr: string): number {
@@ -173,17 +184,32 @@ export async function generateSchedule(
 
   if (existing) {
     if (!isPartial && !hasDateRange) {
-      // Full regeneration: wipe everything
+      // Full regeneration: clear auto-generated assignments but PRESERVE
+      // manually-imported Hospital Float days. The generator never produces
+      // HOSPITAL_FLOAT rows (they only come from the admin Excel import), so
+      // wiping them on regen is pure data loss. Reuse the existing schedule
+      // row instead of deleting it, otherwise the onDelete: Cascade would
+      // remove the preserved rows too.
       await prisma.holidayAssignment.deleteMany({ where: { year } });
-      await prisma.scheduleAssignment.deleteMany({ where: { scheduleId: existing.id } });
-      await prisma.schedule.delete({ where: { id: existing.id } });
+      await prisma.scheduleAssignment.deleteMany({
+        where: {
+          scheduleId: existing.id,
+          NOT: { source: "MANUAL", roleType: { name: "HOSPITAL_FLOAT" } },
+        },
+      });
+      await prisma.schedule.update({
+        where: { id: existing.id },
+        data: { status: "DRAFT", generatedAt: new Date() },
+      });
     } else {
-      // Scoped regeneration: delete only selected roles within date range
+      // Scoped regeneration: delete only selected roles within date range,
+      // preserving manually-imported Hospital Float days (see above).
       await prisma.scheduleAssignment.deleteMany({
         where: {
           scheduleId: existing.id,
           ...(isPartial ? { roleTypeId: { in: roleTypeIds } } : {}),
           ...(hasDateRange ? { date: { gte: rangeStart, lte: rangeEnd } } : {}),
+          NOT: { source: "MANUAL", roleType: { name: "HOSPITAL_FLOAT" } },
         },
       });
       await prisma.schedule.update({
@@ -1073,13 +1099,14 @@ export async function generateSchedule(
     }
   }
 
-  // Save to database — reuse existing schedule row for scoped regeneration
+  // Save to database — reuse the existing schedule row (full and scoped
+  // regeneration both keep it now, so manually-imported rows survive); only
+  // create a new row when there is no schedule for this year yet.
   const schedule =
-    (isPartial || hasDateRange) && existing
-      ? existing
-      : await prisma.schedule.create({
-          data: { year, status: "DRAFT", generatedAt: new Date() },
-        });
+    existing ??
+    (await prisma.schedule.create({
+      data: { year, status: "DRAFT", generatedAt: new Date() },
+    }));
 
   // Batch insert assignments
   const chunkSize = 500;
@@ -1088,7 +1115,7 @@ export async function generateSchedule(
     await prisma.scheduleAssignment.createMany({
       data: chunk.map((a) => ({
         scheduleId: schedule.id,
-        date: parseDate(a.date),
+        date: toDbDate(a.date),
         physicianId: a.physicianId,
         roleTypeId: a.roleTypeId,
         source: "AUTO" as const,

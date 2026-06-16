@@ -170,6 +170,17 @@ export function RequestsView({
   // Bulk approve state for vacation requests (keyed by physician name)
   const [vacBulkApproving, setVacBulkApproving] = useState<string | false>(false);
 
+  // In-flight per-request action guard to prevent duplicate PATCH on double-click
+  const [pendingActionIds, setPendingActionIds] = useState<Set<string>>(new Set());
+  const addPending = (id: string) =>
+    setPendingActionIds((prev) => new Set(prev).add(id));
+  const removePending = (id: string) =>
+    setPendingActionIds((prev) => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+
   // Pending counts
   const pendingVacations = vacations.filter((v) => v.status === "PENDING");
   const pendingNoCallDays = noCallDays.filter((nc) => nc.status === "PENDING");
@@ -274,6 +285,8 @@ export function RequestsView({
   }
 
   async function handleVacationAction(id: string, status: string, reviewNote?: string) {
+    if (pendingActionIds.has(id)) return;
+    addPending(id);
     try {
       const res = await fetch(`/api/vacation-requests/${id}`, {
         method: "PATCH",
@@ -297,8 +310,11 @@ export function RequestsView({
           ? "Request denied"
           : "Request cancelled"
       );
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      removePending(id);
     }
   }
 
@@ -319,13 +335,16 @@ export function RequestsView({
           );
         }
       }
+      const failed = ids.length - succeeded;
       toast.success(
-        `${succeeded} vacation request${succeeded !== 1 ? "s" : ""} approved for ${physicianName}`
+        `${succeeded} vacation request${succeeded !== 1 ? "s" : ""} approved for ${physicianName}` +
+          (failed > 0 ? ` (${failed} failed)` : "")
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Bulk approve failed");
     } finally {
       setVacBulkApproving(false);
+      router.refresh();
     }
   }
 
@@ -391,6 +410,8 @@ export function RequestsView({
   }
 
   async function handleNoCallDayAction(id: string, status: string) {
+    if (pendingActionIds.has(id)) return;
+    addPending(id);
     try {
       const res = await fetch(`/api/no-call-day-requests/${id}`, {
         method: "PATCH",
@@ -414,8 +435,11 @@ export function RequestsView({
           ? "No-call day denied"
           : "No-call day cancelled"
       );
+      router.refresh();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      removePending(id);
     }
   }
 

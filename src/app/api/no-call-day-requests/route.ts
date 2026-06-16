@@ -13,8 +13,15 @@ export async function GET() {
   const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
   const physicianId = (session.user as Record<string, unknown>).physicianId as string | null;
 
+  // A non-admin without a linked physician record must not fall through to an
+  // empty filter: Prisma treats `physicianId: undefined` as "no filter", which
+  // would leak every physician's requests. Return nothing instead.
+  if (!isAdmin && !physicianId) {
+    return NextResponse.json([]);
+  }
+
   const requests = await prisma.noCallDayRequest.findMany({
-    where: isAdmin ? {} : { physicianId: physicianId ?? undefined },
+    where: isAdmin ? {} : { physicianId: physicianId! },
     include: {
       physician: { select: { id: true, firstName: true, lastName: true } },
     },

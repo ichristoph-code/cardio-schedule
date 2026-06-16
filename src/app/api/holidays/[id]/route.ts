@@ -21,6 +21,16 @@ export async function PUT(
   const body = await req.json();
   const { name, weight } = body;
 
+  if (
+    weight !== undefined &&
+    (typeof weight !== "number" || weight < 0 || weight > 100)
+  ) {
+    return NextResponse.json(
+      { error: "weight must be a number between 0 and 100" },
+      { status: 400 }
+    );
+  }
+
   // Check name uniqueness if changing
   if (name && name !== existing.name) {
     const dup = await prisma.holiday.findUnique({ where: { name } });

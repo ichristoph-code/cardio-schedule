@@ -130,36 +130,48 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
     e.preventDefault();
     setError("");
     setSuccess(false);
+    // Guard against a blank/zero FTE silently removing the physician from all
+    // workload quotas (the input coerces empty input to 0).
+    if (!Number.isFinite(fteDays) || fteDays <= 0) {
+      setError("FTE Days must be greater than 0");
+      return;
+    }
+
     setLoading(true);
 
-    const res = await fetch(`/api/physicians/${physician.id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        firstName,
-        lastName,
-        email,
-        phone: phone || null,
-        fteDays,
-        isInterventionalist,
-        isEP,
-        officeDays,
-        weeklyDaysOff,
-        eligibleRoleIds,
-        ...(newPassword ? { newPassword } : {}),
-      }),
-    });
+    try {
+      const res = await fetch(`/api/physicians/${physician.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName,
+          lastName,
+          email,
+          phone: phone || null,
+          fteDays,
+          isInterventionalist,
+          isEP,
+          officeDays,
+          weeklyDaysOff,
+          eligibleRoleIds,
+          ...(newPassword ? { newPassword } : {}),
+        }),
+      });
 
-    if (!res.ok) {
-      const data = await res.json();
-      setError(data.error || "Failed to update physician");
-    } else {
-      setSuccess(true);
-      setNewPassword("");
-      router.refresh();
-      setTimeout(() => setSuccess(false), 3000);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error || "Failed to update physician");
+      } else {
+        setSuccess(true);
+        setNewPassword("");
+        router.refresh();
+        setTimeout(() => setSuccess(false), 3000);
+      }
+    } catch {
+      setError("Failed to update physician. Please try again.");
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }
 
   return (

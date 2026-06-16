@@ -11,3 +11,6 @@ dist/
 # Ad-hoc diagnostic / one-off scripts. Lives in the working tree for
 # developer convenience but is not part of the shipped codebase.
 scripts/diagnostics/
+
+# Transient review-loop tracking notes (not part of the shipped codebase).
+.loop-review/

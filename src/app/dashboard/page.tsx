@@ -16,6 +16,11 @@ export default async function DashboardPage() {
   const physicianId = (session?.user as Record<string, unknown>)
     ?.physicianId as string | null;
 
+  // A non-admin without a linked physician record must scope to nothing: a bare
+  // `scopedPhysicianId` collapses to an unfiltered Prisma query and would
+  // leak every physician's data. This sentinel matches no real id.
+  const scopedPhysicianId = physicianId ?? "__no_physician__";
+
   // Fetch dashboard data in parallel
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -32,7 +37,7 @@ export default async function DashboardPage() {
     prisma.vacationRequest.count({
       where: {
         status: "PENDING",
-        ...(isAdmin ? {} : { physicianId: physicianId ?? undefined }),
+        ...(isAdmin ? {} : { physicianId: scopedPhysicianId }),
       },
     }),
     // Pending swap requests
@@ -43,8 +48,8 @@ export default async function DashboardPage() {
           ? { peerAccepted: true } // Admin cares about peer-accepted swaps
           : {
               OR: [
-                { fromPhysicianId: physicianId ?? undefined },
-                { toPhysicianId: physicianId ?? undefined },
+                { fromPhysicianId: scopedPhysicianId },
+                { toPhysicianId: scopedPhysicianId },
               ],
             }),
       },
@@ -53,7 +58,7 @@ export default async function DashboardPage() {
     prisma.noCallDayRequest.count({
       where: {
         status: "PENDING",
-        ...(isAdmin ? {} : { physicianId: physicianId ?? undefined }),
+        ...(isAdmin ? {} : { physicianId: scopedPhysicianId }),
       },
     }),
     // Latest schedule — prefer the current year; fall back to newest

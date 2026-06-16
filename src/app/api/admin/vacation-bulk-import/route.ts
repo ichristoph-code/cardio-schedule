@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { auditLog } from "@/lib/audit";
+import type { Prisma } from "@/generated/prisma/client";
 
 // POST /api/admin/vacation-bulk-import
 // Body: {
@@ -79,6 +80,22 @@ export async function POST(req: Request) {
   const results: RowResult[] = [];
   let created = 0, skipped = 0, errors = 0;
 
+  // Pre-fetch this physician's active vacations once and check overlaps in
+  // memory. A bulk import is 100+ rows per physician; a query-per-row plus a
+  // create-per-row (the old approach) is thousands of serial round-trips and
+  // would exceed the function timeout.
+  const existing = await prisma.vacationRequest.findMany({
+    where: { physicianId, status: { in: ["PENDING", "APPROVED"] } },
+    select: { startDate: true, endDate: true, status: true },
+  });
+  const intervals: { start: number; end: number; status: string }[] = existing.map((e) => ({
+    start: e.startDate.getTime(),
+    end: e.endDate.getTime(),
+    status: e.status,
+  }));
+
+  const toCreate: Prisma.VacationRequestCreateManyInput[] = [];
+
   for (const r of ranges) {
     const { startDate: startStr, endDate: endStr, reason, halfDay } = r;
     const halfDayValue = halfDay === "MORNING" ? "MORNING" : halfDay === "AFTERNOON" ? "AFTERNOON" : "NONE";
@@ -97,19 +114,11 @@ export async function POST(req: Request) {
       continue;
     }
 
-    // Check for overlap
-    const overlap = await prisma.vacationRequest.findFirst({
-      where: {
-        physicianId,
-        status: { in: ["PENDING", "APPROVED"] },
-        startDate: { lte: endDate },
-        endDate: { gte: startDate },
-      },
-      select: { id: true, status: true },
-    });
-
-    if (overlap) {
-      results.push({ startDate: startStr, endDate: endStr, status: "skipped", reason: `overlaps existing (${overlap.status})` });
+    const startMs = startDate.getTime();
+    const endMs = endDate.getTime();
+    const conflict = intervals.find((iv) => iv.start <= endMs && iv.end >= startMs);
+    if (conflict) {
+      results.push({ startDate: startStr, endDate: endStr, status: "skipped", reason: `overlaps existing (${conflict.status})` });
       skipped++;
       continue;
     }
@@ -120,36 +129,33 @@ export async function POST(req: Request) {
       continue;
     }
 
+    toCreate.push({
+      physicianId,
+      startDate,
+      endDate,
+      reason: reason || null,
+      halfDay: halfDayValue as "NONE" | "MORNING" | "AFTERNOON",
+      status: defaultStatus,
+      ...(defaultStatus === "APPROVED" ? { reviewedBy: userId, reviewedAt: new Date() } : {}),
+    });
+    // Track accepted ranges so later rows in this same import can't double-book.
+    intervals.push({ start: startMs, end: endMs, status: defaultStatus });
+    results.push({ startDate: startStr, endDate: endStr, status: "created" });
+    created++;
+  }
+
+  if (!dryRun && toCreate.length > 0) {
     try {
-      const req = await prisma.vacationRequest.create({
-        data: {
-          physicianId,
-          startDate,
-          endDate,
-          reason: reason || null,
-          halfDay: halfDayValue as "NONE" | "MORNING" | "AFTERNOON",
-          status: defaultStatus,
-          ...(defaultStatus === "APPROVED"
-            ? { reviewedBy: userId, reviewedAt: new Date() }
-            : {}),
-        },
-        select: { id: true },
+      await prisma.vacationRequest.createMany({ data: toCreate });
+      await auditLog(userId, "ADMIN_BULK_IMPORT_VACATION", "Physician", physicianId, {
+        physicianEmail, count: toCreate.length, year,
       });
-
-      await auditLog(userId, "ADMIN_BULK_IMPORT_VACATION", "VacationRequest", req.id, {
-        startDate: startStr, endDate: endStr, reason, physicianEmail,
-      });
-
-      results.push({ startDate: startStr, endDate: endStr, status: "created" });
-      created++;
     } catch (err) {
-      results.push({
-        startDate: startStr,
-        endDate: endStr,
-        status: "error",
-        error: err instanceof Error ? err.message : String(err),
-      });
-      errors++;
+      // createMany is atomic, so on failure nothing was inserted.
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Bulk insert failed" },
+        { status: 500 },
+      );
     }
   }
 

@@ -37,8 +37,11 @@ Rules:
 
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user || (session.user as Record<string, unknown>).role !== "ADMIN") {
+  if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+  if ((session.user as Record<string, unknown>).role !== "ADMIN") {
+    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   if (!process.env.ANTHROPIC_API_KEY) {
@@ -58,6 +61,13 @@ export async function POST(req: Request) {
       { error: `Unsupported image type: ${file.type}. Use JPEG, PNG, GIF, or WebP.` },
       { status: 400 }
     );
+  }
+
+  // Cap upload size before buffering into memory to avoid exhausting the
+  // serverless function's memory with a large upload.
+  const MAX_IMAGE_BYTES = 10 * 1024 * 1024; // 10 MB
+  if (file.size > MAX_IMAGE_BYTES) {
+    return NextResponse.json({ error: "Image too large (max 10 MB)" }, { status: 413 });
   }
 
   const bytes = await file.arrayBuffer();
@@ -82,8 +92,6 @@ export async function POST(req: Request) {
   });
 
   const raw = message.content.find((b) => b.type === "text")?.text ?? "";
-
-  console.log("[vacation-extract] raw Claude response:", raw.slice(0, 500));
 
   // Strip markdown code fences if present
   const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();

@@ -14,7 +14,23 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const { status, reviewNote } = await req.json();
+
+  let body: { status?: string; reviewNote?: string };
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+  const { status, reviewNote } = body;
+
+  const ALLOWED_STATUSES = ["APPROVED", "DENIED", "CANCELLED"] as const;
+  if (!status || !(ALLOWED_STATUSES as readonly string[]).includes(status)) {
+    return NextResponse.json(
+      { error: `status must be one of ${ALLOWED_STATUSES.join(", ")}` },
+      { status: 400 }
+    );
+  }
+  const nextStatus = status as (typeof ALLOWED_STATUSES)[number];
 
   const request = await prisma.vacationRequest.findUnique({ where: { id } });
   if (!request) {
@@ -53,7 +69,7 @@ export async function PATCH(
   const updated = await prisma.vacationRequest.update({
     where: { id },
     data: {
-      status,
+      status: nextStatus,
       reviewedBy: isAdmin ? session.user.id : undefined,
       reviewedAt: isAdmin ? new Date() : undefined,
       reviewNote: reviewNote || null,

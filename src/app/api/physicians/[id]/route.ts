@@ -28,6 +28,18 @@ export async function PUT(
     newPassword,
   } = body;
 
+  // Validate fteDays when present: stored as an integer count of annual days,
+  // so reject 0/negative/fractional/out-of-range values that would corrupt quotas.
+  if (
+    fteDays !== undefined &&
+    (!Number.isInteger(fteDays) || fteDays <= 0 || fteDays > 365)
+  ) {
+    return NextResponse.json(
+      { error: "fteDays must be a whole number between 1 and 365" },
+      { status: 400 }
+    );
+  }
+
   // Verify physician exists
   const existing = await prisma.physician.findUnique({
     where: { id },

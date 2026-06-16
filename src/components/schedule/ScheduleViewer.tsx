@@ -312,7 +312,7 @@ export function ScheduleViewer({
     return map;
   }, [localAssignments]);
 
-  const activeRoleTypes = useMemo(() => roleTypes, [roleTypes]);
+  const activeRoleTypes = roleTypes;
 
   // Visible role types (filtered by checkboxes)
   const visibleRoleTypes = useMemo(
@@ -369,14 +369,16 @@ export function ScheduleViewer({
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status: "PUBLISHED" }),
-    }).then((res) => {
-      if (res.ok) {
-        toast.success("Schedule published!");
-        router.refresh();
-      } else {
-        toast.error("Failed to publish");
-      }
-    });
+    })
+      .then((res) => {
+        if (res.ok) {
+          toast.success("Schedule published!");
+          router.refresh();
+        } else {
+          toast.error("Failed to publish");
+        }
+      })
+      .catch(() => toast.error("Failed to publish"));
   }
 
   async function handleOverride(force = false) {
@@ -1043,8 +1045,9 @@ export function ScheduleViewer({
             </DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <label className="text-sm font-medium">Assign to</label>
+            <label htmlFor="override-assign-to" className="text-sm font-medium">Assign to</label>
             <select
+              id="override-assign-to"
               className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm mt-1"
               value={overridePhysicianId}
               onChange={(e) => {

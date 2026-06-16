@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { firstName, lastName, email, password } = body;
+  const { firstName, lastName, email, password, phone } = body;
 
   if (!firstName || !lastName || !email || !password) {
     return NextResponse.json(
@@ -39,6 +39,7 @@ export async function POST(req: NextRequest) {
         create: {
           firstName,
           lastName,
+          ...(phone ? { phone } : {}),
         },
       },
     },

@@ -175,6 +175,8 @@ interface ImportResponse {
 interface FloatImportResponse {
   physicianEmail: string;
   dryRun: boolean;
+  replaceExisting?: boolean;
+  replaced?: number;
   counts: { created: number; skipped: number; errors: number; total: number };
   results: Array<{ date: string; status: string; reason?: string; error?: string }>;
 }
@@ -429,6 +431,7 @@ export function VacationImportTab() {
           dates: entry.floatDays,
           year: calYear,
           dryRun: dry,
+          replaceExisting: bulkReplace,
         }),
       });
       const json = await res.json();
@@ -630,7 +633,7 @@ export function VacationImportTab() {
                     checked={bulkReplace}
                     onCheckedChange={(v) => setBulkReplace(v === true)}
                   />
-                  <Label htmlFor="bulkReplace" className="cursor-pointer text-sm" title={`Delete each physician's existing ${calYear} vacations before importing`}>
+                  <Label htmlFor="bulkReplace" className="cursor-pointer text-sm" title={`Delete each physician's existing ${calYear} vacations and imported float days before importing`}>
                     Replace existing
                   </Label>
                 </div>

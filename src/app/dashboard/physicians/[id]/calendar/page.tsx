@@ -86,8 +86,8 @@ export default async function PhysicianCalendarPage({
       where: {
         physicianId: id,
         status: "APPROVED",
-        startDate: { lte: new Date(schedule.year, 11, 31) },
-        endDate: { gte: new Date(schedule.year, 0, 1) },
+        startDate: { lte: new Date(Date.UTC(schedule.year, 11, 31)) },
+        endDate: { gte: new Date(Date.UTC(schedule.year, 0, 1)) },
       },
       orderBy: { startDate: "asc" },
     }),
@@ -96,8 +96,8 @@ export default async function PhysicianCalendarPage({
         physicianId: id,
         status: "APPROVED",
         date: {
-          gte: new Date(schedule.year, 0, 1),
-          lte: new Date(schedule.year, 11, 31),
+          gte: new Date(Date.UTC(schedule.year, 0, 1)),
+          lte: new Date(Date.UTC(schedule.year, 11, 31)),
         },
       },
       orderBy: { date: "asc" },
