@@ -2,8 +2,8 @@
  * Excel vacation/float parser.
  *
  * Walks a multi-tab annual calendar (one tab per physician) and extracts:
- *  - Vacation date ranges (cells marked "V" or red-highlighted; "Off" is NOT
- *    vacation — it's an ambiguous non-working day and is skipped)
+ *  - Vacation date ranges (cells marked "V", "Off", or red-highlighted; "Off"
+ *    counts as a full non-working/vacation day per practice request)
  *  - Half-day vacations ("0.5V")
  *  - Hospital Float days ("F")
  *
@@ -180,10 +180,9 @@ function normalizeCode(raw: unknown): string {
 }
 
 function codeKind(code: string): "FULL" | "HALF" | "FLOAT" | null {
-  // "Off" is intentionally NOT treated as vacation: it's ambiguous (a regular
-  // non-working day, not PTO) and isn't part of the sheet legend. Only explicit
-  // "V" marks a full vacation day.
-  if (code === "V" || code === "V.") return "FULL";
+  // "Off" is treated as a full vacation/non-working day (per practice request):
+  // it counts toward the vacation total alongside explicit "V".
+  if (code === "V" || code === "V." || code === "OFF" || code === "OFF.") return "FULL";
   if (code === "0.5V" || code === ".5V") return "HALF";
   if (code === "F" || code === "F." || code === "FL") return "FLOAT";
   return null;
