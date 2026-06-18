@@ -45,7 +45,7 @@ export default async function VacationPage({
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
-  const [vacations, floatAssignments, rounderAssignments, noCallReqs, workedAssignments] = await Promise.all([
+  const [vacations, floatAssignments, rounderAssignments, callAssignments, noCallReqs, workedAssignments] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId: selectedId,
@@ -81,6 +81,20 @@ export default async function VacationPage({
       select: { date: true },
       orderBy: { date: "asc" },
     }),
+    // General Call — both system-assigned (AUTO) and manually-set (MANUAL).
+    prisma.scheduleAssignment.findMany({
+      where: {
+        physicianId: selectedId,
+        isActive: true,
+        roleType: { name: "GENERAL_CALL" },
+        date: {
+          gte: new Date(Date.UTC(selectedYear, 0, 1)),
+          lte: new Date(Date.UTC(selectedYear, 11, 31)),
+        },
+      },
+      select: { date: true, source: true },
+      orderBy: { date: "asc" },
+    }),
     prisma.noCallDayRequest.findMany({
       where: {
         physicianId: selectedId,
@@ -109,6 +123,10 @@ export default async function VacationPage({
 
   const floatDays = floatAssignments.map((a) => a.date.toISOString().split("T")[0]);
   const rounderDays = rounderAssignments.map((a) => a.date.toISOString().split("T")[0]);
+  const callDays = callAssignments.map((a) => ({
+    date: a.date.toISOString().split("T")[0],
+    manual: a.source === "MANUAL",
+  }));
   const noCallDays = noCallReqs.map((a) => a.date.toISOString().split("T")[0]);
   // Distinct calendar days with at least one assignment (a physician may hold
   // multiple roles on the same day — count the day once).
@@ -148,6 +166,7 @@ export default async function VacationPage({
         }))}
         floatDays={floatDays}
         rounderDays={rounderDays}
+        callDays={callDays}
         noCallDays={noCallDays}
         daysWorked={daysWorked}
       />

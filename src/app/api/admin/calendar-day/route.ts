@@ -9,7 +9,7 @@ import { auditLog } from "@/lib/audit";
 //   physicianId: string,
 //   date: "YYYY-MM-DD",
 //   year: number,
-//   type: "clear" | "vacation" | "half_vacation" | "float" | "rounder" | "no_call",
+//   type: "clear" | "vacation" | "half_vacation" | "float" | "rounder" | "no_call" | "call",
 //   halfPeriod?: "MORNING" | "AFTERNOON"   // only for half_vacation
 // }
 //
@@ -17,11 +17,12 @@ import { auditLog } from "@/lib/audit";
 //   vacation/half_vacation -> VacationRequest (APPROVED)
 //   float                  -> ScheduleAssignment (HOSPITAL_FLOAT, MANUAL)
 //   rounder                -> ScheduleAssignment (ICU_ROUNDER, MANUAL)
+//   call                   -> ScheduleAssignment (GENERAL_CALL, MANUAL)
 //   no_call                -> NoCallDayRequest (APPROVED)
-//   clear                  -> removes this physician's vacation + manual float/rounder + no-call for the day
+//   clear                  -> removes this physician's vacation + manual float/rounder + no-call + general call
 //
 // Each set first clears the day so the result is exactly the chosen type.
-const TYPES = ["clear", "vacation", "half_vacation", "float", "rounder", "no_call"] as const;
+const TYPES = ["clear", "vacation", "half_vacation", "float", "rounder", "no_call", "call"] as const;
 type DayType = (typeof TYPES)[number];
 
 const DAY_MS = 86_400_000;
@@ -72,9 +73,10 @@ export async function POST(req: Request) {
 
   // Resolve roles + ensure a schedule exists for the year (manual edits should
   // work even before a schedule has been generated).
-  const [floatRole, icuRole, schedule] = await Promise.all([
+  const [floatRole, icuRole, generalCallRole, schedule] = await Promise.all([
     prisma.roleType.findUnique({ where: { name: "HOSPITAL_FLOAT" }, select: { id: true } }),
     prisma.roleType.findUnique({ where: { name: "ICU_ROUNDER" }, select: { id: true } }),
+    prisma.roleType.findUnique({ where: { name: "GENERAL_CALL" }, select: { id: true } }),
     prisma.schedule.upsert({
       where: { year },
       update: {},
@@ -82,11 +84,13 @@ export async function POST(req: Request) {
     }),
   ]);
 
-  if ((dayType === "float" && !floatRole) || (dayType === "rounder" && !icuRole)) {
-    return NextResponse.json(
-      { error: `Role type ${dayType === "float" ? "HOSPITAL_FLOAT" : "ICU_ROUNDER"} not found` },
-      { status: 500 },
-    );
+  const missingRole =
+    dayType === "float" && !floatRole ? "HOSPITAL_FLOAT"
+    : dayType === "rounder" && !icuRole ? "ICU_ROUNDER"
+    : dayType === "call" && !generalCallRole ? "GENERAL_CALL"
+    : null;
+  if (missingRole) {
+    return NextResponse.json({ error: `Role type ${missingRole} not found` }, { status: 500 });
   }
 
   // ── 1. Clear the day for this physician ────────────────────────────────────
@@ -152,6 +156,16 @@ export async function POST(req: Request) {
     where: { physicianId, date: dateObj },
   });
 
+  // Remove this physician's general call for the day — any source. Unlike
+  // float/rounder (manual-only above), general call may be auto-assigned by the
+  // scheduler, and a physician put on vacation/no-call shouldn't keep a call;
+  // clearing here lets "Clear" and other types release it too.
+  if (generalCallRole) {
+    await prisma.scheduleAssignment.deleteMany({
+      where: { scheduleId: schedule.id, physicianId, date: dateObj, roleTypeId: generalCallRole.id },
+    });
+  }
+
   // ── 2. Apply the requested type ────────────────────────────────────────────
   if (dayType === "vacation" || dayType === "half_vacation") {
     await prisma.vacationRequest.create({
@@ -190,6 +204,22 @@ export async function POST(req: Request) {
         status: "APPROVED",
         reviewedBy: userId,
         reviewedAt: new Date(),
+      },
+    });
+  } else if (dayType === "call") {
+    // GENERAL_CALL is single-slot per day: free it (whoever held it, auto or
+    // manual) then assign the chosen physician as a manual override.
+    await prisma.scheduleAssignment.deleteMany({
+      where: { scheduleId: schedule.id, date: dateObj, roleTypeId: generalCallRole!.id },
+    });
+    await prisma.scheduleAssignment.create({
+      data: {
+        scheduleId: schedule.id,
+        physicianId,
+        roleTypeId: generalCallRole!.id,
+        date: dateObj,
+        source: "MANUAL",
+        isActive: true,
       },
     });
   }
