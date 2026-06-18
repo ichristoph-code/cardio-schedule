@@ -69,6 +69,7 @@ interface Props {
   vacations: VacationInfo[];
   floatDays?: string[];
   rounderDays?: string[];
+  callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
   daysWorked?: number;
   isAdmin?: boolean;
@@ -102,6 +103,7 @@ function MonthGrid({
   vacMap,
   floatSet,
   rounderSet,
+  callMap,
   noCallSet,
   holidays,
   isAdmin,
@@ -112,6 +114,7 @@ function MonthGrid({
   vacMap: Map<string, VacState>;
   floatSet: Set<string>;
   rounderSet: Set<string>;
+  callMap: Map<string, boolean>; // date -> manual? (true = manually set, false = system-assigned)
   noCallSet: Set<string>;
   holidays: Map<string, string>;
   isAdmin: boolean;
@@ -143,36 +146,46 @@ function MonthGrid({
           if (!day) return <div key={i} />;
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const vac = vacMap.get(dateStr);
+          const call = callMap.get(dateStr); // undefined | true (manual) | false (auto)
+          const isCall = call !== undefined;
           const isFloat = floatSet.has(dateStr);
           const isRounder = rounderSet.has(dateStr);
           const isNoCall = noCallSet.has(dateStr);
           const holidayName = holidays.get(dateStr);
           const isToday = dateStr === today;
 
+          // Manual call gets an amber ring so system- vs manually-set is visible
+          // at a glance — but only when call is the displayed state (not when a
+          // vacation/half overrides it).
+          const callRing = !vac && call === true ? " ring-2 ring-inset ring-amber-400" : "";
+
           const className = [
             "text-[11px] text-center rounded py-[3px] leading-none select-none",
             isAdmin ? "cursor-pointer hover:ring-2 hover:ring-primary/40" : "",
-            vac === "VACATION"
+            (vac === "VACATION"
               ? "bg-emerald-500 text-white font-semibold"
               : vac === "HALF_AM" || vac === "HALF_PM"
                 ? "bg-emerald-200 text-emerald-900 font-semibold"
-                : isFloat
-                  ? "bg-blue-400 text-white font-semibold"
-                  : isRounder
-                    ? "bg-purple-400 text-white font-semibold"
-                    : isNoCall
-                      ? "bg-slate-400 text-white font-semibold"
-                      : holidayName
-                        ? "bg-yellow-300 text-yellow-900 font-semibold"
-                        : isToday
-                          ? "bg-primary/15 text-primary font-bold"
-                          : "text-foreground hover:bg-muted/50",
+                : isCall
+                  ? "bg-neutral-900 text-white font-semibold"
+                  : isFloat
+                    ? "bg-blue-400 text-white font-semibold"
+                    : isRounder
+                      ? "bg-purple-400 text-white font-semibold"
+                      : isNoCall
+                        ? "bg-slate-400 text-white font-semibold"
+                        : holidayName
+                          ? "bg-yellow-300 text-yellow-900 font-semibold"
+                          : isToday
+                            ? "bg-primary/15 text-primary font-bold"
+                            : "text-foreground hover:bg-muted/50") + callRing,
           ].join(" ");
 
           const title =
             vac === "HALF_AM" ? "Half day (AM)"
             : vac === "HALF_PM" ? "Half day (PM)"
             : vac === "VACATION" ? "Vacation day"
+            : isCall ? (call ? "General Call (manually set)" : "General Call (system-assigned)")
             : isFloat ? "Hospital Float"
             : isRounder ? "ICU Rounder"
             : isNoCall ? "No-call day"
@@ -205,6 +218,7 @@ export function YearlyVacationCalendar({
   vacations,
   floatDays = [],
   rounderDays = [],
+  callDays = [],
   noCallDays = [],
   daysWorked,
   isAdmin = false,
@@ -214,6 +228,7 @@ export function YearlyVacationCalendar({
   const vacMap = buildVacationStateMap(vacations);
   const floatSet = new Set(floatDays);
   const rounderSet = new Set(rounderDays);
+  const callMap = new Map(callDays.map((c) => [c.date, c.manual] as const));
   const noCallSet = new Set(noCallDays);
   const holidays = getHolidayDatesForYear(year);
 
@@ -225,14 +240,20 @@ export function YearlyVacationCalendar({
   // Current type of the day being edited (for highlighting in the editor).
   const selectedState: DayState = selectedDate
     ? (vacMap.get(selectedDate)
-        ?? (floatSet.has(selectedDate)
-          ? "FLOAT"
-          : rounderSet.has(selectedDate)
-            ? "ROUNDER"
-            : noCallSet.has(selectedDate)
-              ? "NO_CALL"
-              : "NONE"))
+        ?? (callMap.has(selectedDate)
+          ? "CALL"
+          : floatSet.has(selectedDate)
+            ? "FLOAT"
+            : rounderSet.has(selectedDate)
+              ? "ROUNDER"
+              : noCallSet.has(selectedDate)
+                ? "NO_CALL"
+                : "NONE"))
     : "NONE";
+  const selectedCallSource: "AUTO" | "MANUAL" | undefined =
+    selectedDate && callMap.has(selectedDate)
+      ? (callMap.get(selectedDate) ? "MANUAL" : "AUTO")
+      : undefined;
 
   return (
     <div className="space-y-4">
@@ -265,6 +286,18 @@ export function YearlyVacationCalendar({
             <span className="text-muted-foreground">ICU Rounder — <strong>{rounderDays.length}</strong></span>
           </div>
         )}
+        {callDays.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900" />
+            <span className="text-muted-foreground">General Call — <strong>{callDays.length}</strong></span>
+          </div>
+        )}
+        {callDays.some((c) => c.manual) && (
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900 ring-2 ring-inset ring-amber-400" />
+            <span className="text-muted-foreground">Call — manually set</span>
+          </div>
+        )}
         {noCallDays.length > 0 && (
           <div className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded-sm bg-slate-400" />
@@ -279,7 +312,7 @@ export function YearlyVacationCalendar({
 
       {isAdmin && (
         <p className="text-xs text-muted-foreground -mt-1">
-          Click any day to set vacation, ½ day, float, rounder, or no-call.
+          Click any day to set vacation, ½ day, float, rounder, general call, or no-call.
         </p>
       )}
 
@@ -292,6 +325,7 @@ export function YearlyVacationCalendar({
             vacMap={vacMap}
             floatSet={floatSet}
             rounderSet={rounderSet}
+            callMap={callMap}
             noCallSet={noCallSet}
             holidays={holidays}
             isAdmin={isAdmin}
@@ -308,6 +342,7 @@ export function YearlyVacationCalendar({
           date={selectedDate}
           current={selectedState}
           holidayName={holidays.get(selectedDate)}
+          callSource={selectedCallSource}
           onClose={() => setSelectedDate(null)}
         />
       )}

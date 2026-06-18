@@ -9,7 +9,7 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
-import { Palmtree, Sun, Moon, Building2, Stethoscope, PhoneOff, X, Loader2, Check } from "lucide-react";
+import { Palmtree, Sun, Moon, Building2, Stethoscope, Phone, PhoneOff, X, Loader2, Check } from "lucide-react";
 import { toast } from "sonner";
 
 // The day's current type, as derived from the calendar data.
@@ -19,6 +19,7 @@ export type DayState =
   | "HALF_PM"
   | "FLOAT"
   | "ROUNDER"
+  | "CALL"
   | "NO_CALL"
   | "NONE";
 
@@ -46,6 +47,7 @@ const OPTIONS: Option[] = [
   { state: "HALF_PM", label: "½ Day — PM", icon: Moon, type: "half_vacation", halfPeriod: "AFTERNOON", active: "bg-emerald-300 text-emerald-950 border-emerald-300 hover:bg-emerald-400" },
   { state: "FLOAT", label: "Hospital Float", icon: Building2, type: "float", active: "bg-blue-500 text-white border-blue-500 hover:bg-blue-600" },
   { state: "ROUNDER", label: "ICU Rounder", icon: Stethoscope, type: "rounder", active: "bg-purple-500 text-white border-purple-500 hover:bg-purple-600" },
+  { state: "CALL", label: "General Call", icon: Phone, type: "call", active: "bg-neutral-900 text-white border-neutral-900 hover:bg-black" },
   { state: "NO_CALL", label: "No-Call Day", icon: PhoneOff, type: "no_call", active: "bg-slate-500 text-white border-slate-500 hover:bg-slate-600" },
   { state: "NONE", label: "Clear", icon: X, type: "clear", active: "bg-muted text-foreground border-border" },
 ];
@@ -57,6 +59,7 @@ interface Props {
   date: string; // YYYY-MM-DD
   current: DayState;
   holidayName?: string;
+  callSource?: "AUTO" | "MANUAL"; // when current === "CALL"
   onClose: () => void;
 }
 
@@ -67,6 +70,7 @@ export function DayStateEditor({
   date,
   current,
   holidayName,
+  callSource,
   onClose,
 }: Props) {
   const router = useRouter();
@@ -115,6 +119,12 @@ export function DayStateEditor({
         {holidayName && (
           <div className="mt-3 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 dark:border-rose-900 dark:bg-rose-950/40 dark:text-rose-300">
             {holidayName}
+          </div>
+        )}
+
+        {current === "CALL" && callSource && (
+          <div className="mt-3 rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            On General Call — {callSource === "MANUAL" ? "manually set" : "assigned by the system"}.
           </div>
         )}
 
