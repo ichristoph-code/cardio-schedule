@@ -45,7 +45,7 @@ export default async function VacationPage({
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
-  const [vacations, floatAssignments, workedAssignments] = await Promise.all([
+  const [vacations, floatAssignments, rounderAssignments, noCallReqs, workedAssignments] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId: selectedId,
@@ -60,6 +60,31 @@ export default async function VacationPage({
         physicianId: selectedId,
         isActive: true,
         roleType: { name: "HOSPITAL_FLOAT" },
+        date: {
+          gte: new Date(Date.UTC(selectedYear, 0, 1)),
+          lte: new Date(Date.UTC(selectedYear, 11, 31)),
+        },
+      },
+      select: { date: true },
+      orderBy: { date: "asc" },
+    }),
+    prisma.scheduleAssignment.findMany({
+      where: {
+        physicianId: selectedId,
+        isActive: true,
+        roleType: { name: "ICU_ROUNDER" },
+        date: {
+          gte: new Date(Date.UTC(selectedYear, 0, 1)),
+          lte: new Date(Date.UTC(selectedYear, 11, 31)),
+        },
+      },
+      select: { date: true },
+      orderBy: { date: "asc" },
+    }),
+    prisma.noCallDayRequest.findMany({
+      where: {
+        physicianId: selectedId,
+        status: "APPROVED",
         date: {
           gte: new Date(Date.UTC(selectedYear, 0, 1)),
           lte: new Date(Date.UTC(selectedYear, 11, 31)),
@@ -83,6 +108,8 @@ export default async function VacationPage({
   ]);
 
   const floatDays = floatAssignments.map((a) => a.date.toISOString().split("T")[0]);
+  const rounderDays = rounderAssignments.map((a) => a.date.toISOString().split("T")[0]);
+  const noCallDays = noCallReqs.map((a) => a.date.toISOString().split("T")[0]);
   // Distinct calendar days with at least one assignment (a physician may hold
   // multiple roles on the same day — count the day once).
   const daysWorked = new Set(
@@ -120,6 +147,8 @@ export default async function VacationPage({
           halfDay: v.halfDay,
         }))}
         floatDays={floatDays}
+        rounderDays={rounderDays}
+        noCallDays={noCallDays}
         daysWorked={daysWorked}
       />
     </div>
