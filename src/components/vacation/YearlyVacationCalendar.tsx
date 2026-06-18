@@ -1,5 +1,8 @@
 "use client";
 
+import { useState } from "react";
+import { DayStateEditor, type DayState } from "@/components/vacation/DayStateEditor";
+
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
@@ -65,26 +68,55 @@ interface Props {
   year: number;
   vacations: VacationInfo[];
   floatDays?: string[];
+  rounderDays?: string[];
+  noCallDays?: string[];
   daysWorked?: number;
+  isAdmin?: boolean;
+  physicianId?: string;
+  physicianName?: string;
 }
 
-function buildVacationSet(vacations: VacationInfo[]): Map<string, "full" | "half"> {
-  const map = new Map<string, "full" | "half">();
+type VacState = "VACATION" | "HALF_AM" | "HALF_PM";
+
+/** Expand vacation ranges into a per-day map of vacation state (full vs AM/PM half). */
+function buildVacationStateMap(vacations: VacationInfo[]): Map<string, VacState> {
+  const map = new Map<string, VacState>();
   for (const v of vacations) {
     const start = new Date(v.startDate + "T12:00:00");
     const end = new Date(v.endDate + "T12:00:00");
-    const isHalf = v.halfDay && v.halfDay !== "NONE";
+    const state: VacState =
+      v.halfDay === "MORNING" ? "HALF_AM" : v.halfDay === "AFTERNOON" ? "HALF_PM" : "VACATION";
     const cur = new Date(start);
     while (cur <= end) {
       const key = cur.toISOString().split("T")[0];
-      map.set(key, isHalf ? "half" : "full");
+      map.set(key, state);
       cur.setDate(cur.getDate() + 1);
     }
   }
   return map;
 }
 
-function MonthGrid({ year, month, vacMap, floatSet, holidays }: { year: number; month: number; vacMap: Map<string, "full" | "half">; floatSet: Set<string>; holidays: Map<string, string> }) {
+function MonthGrid({
+  year,
+  month,
+  vacMap,
+  floatSet,
+  rounderSet,
+  noCallSet,
+  holidays,
+  isAdmin,
+  onSelect,
+}: {
+  year: number;
+  month: number;
+  vacMap: Map<string, VacState>;
+  floatSet: Set<string>;
+  rounderSet: Set<string>;
+  noCallSet: Set<string>;
+  holidays: Map<string, string>;
+  isAdmin: boolean;
+  onSelect: (date: string) => void;
+}) {
   const today = new Date().toISOString().split("T")[0];
   const firstDay = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
@@ -112,29 +144,54 @@ function MonthGrid({ year, month, vacMap, floatSet, holidays }: { year: number; 
           const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
           const vac = vacMap.get(dateStr);
           const isFloat = floatSet.has(dateStr);
+          const isRounder = rounderSet.has(dateStr);
+          const isNoCall = noCallSet.has(dateStr);
           const holidayName = holidays.get(dateStr);
           const isToday = dateStr === today;
 
-          return (
-            <div
-              key={i}
-              title={vac ? (vac === "half" ? "Half vacation day" : "Vacation day") : isFloat ? "Hospital Float" : holidayName ?? undefined}
-              className={[
-                "text-[11px] text-center rounded py-[3px] leading-none select-none",
-                vac === "full"
-                  ? "bg-emerald-500 text-white font-semibold"
-                  : vac === "half"
-                    ? "bg-emerald-200 text-emerald-900 font-semibold"
-                    : isFloat
-                      ? "bg-blue-400 text-white font-semibold"
+          const className = [
+            "text-[11px] text-center rounded py-[3px] leading-none select-none",
+            isAdmin ? "cursor-pointer hover:ring-2 hover:ring-primary/40" : "",
+            vac === "VACATION"
+              ? "bg-emerald-500 text-white font-semibold"
+              : vac === "HALF_AM" || vac === "HALF_PM"
+                ? "bg-emerald-200 text-emerald-900 font-semibold"
+                : isFloat
+                  ? "bg-blue-400 text-white font-semibold"
+                  : isRounder
+                    ? "bg-purple-400 text-white font-semibold"
+                    : isNoCall
+                      ? "bg-slate-400 text-white font-semibold"
                       : holidayName
                         ? "bg-yellow-300 text-yellow-900 font-semibold"
                         : isToday
                           ? "bg-primary/15 text-primary font-bold"
                           : "text-foreground hover:bg-muted/50",
-              ].join(" ")}
-            >
-              {day}
+          ].join(" ");
+
+          const title =
+            vac === "HALF_AM" ? "Half day (AM)"
+            : vac === "HALF_PM" ? "Half day (PM)"
+            : vac === "VACATION" ? "Vacation day"
+            : isFloat ? "Hospital Float"
+            : isRounder ? "ICU Rounder"
+            : isNoCall ? "No-call day"
+            : holidayName ?? undefined;
+
+          const content = (vac === "HALF_AM" || vac === "HALF_PM")
+            ? <>{day}<span className="text-[8px] align-super ml-px">{vac === "HALF_AM" ? "AM" : "PM"}</span></>
+            : day;
+
+          if (isAdmin) {
+            return (
+              <button key={i} type="button" title={title} className={className} onClick={() => onSelect(dateStr)}>
+                {content}
+              </button>
+            );
+          }
+          return (
+            <div key={i} title={title} className={className}>
+              {content}
             </div>
           );
         })}
@@ -143,13 +200,39 @@ function MonthGrid({ year, month, vacMap, floatSet, holidays }: { year: number; 
   );
 }
 
-export function YearlyVacationCalendar({ year, vacations, floatDays = [], daysWorked }: Props) {
-  const vacMap = buildVacationSet(vacations);
+export function YearlyVacationCalendar({
+  year,
+  vacations,
+  floatDays = [],
+  rounderDays = [],
+  noCallDays = [],
+  daysWorked,
+  isAdmin = false,
+  physicianId,
+  physicianName,
+}: Props) {
+  const vacMap = buildVacationStateMap(vacations);
   const floatSet = new Set(floatDays);
+  const rounderSet = new Set(rounderDays);
+  const noCallSet = new Set(noCallDays);
   const holidays = getHolidayDatesForYear(year);
 
-  const totalFull = [...vacMap.values()].filter((v) => v === "full").length;
-  const totalHalf = [...vacMap.values()].filter((v) => v === "half").length;
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  const totalFull = [...vacMap.values()].filter((v) => v === "VACATION").length;
+  const totalHalf = [...vacMap.values()].filter((v) => v === "HALF_AM" || v === "HALF_PM").length;
+
+  // Current type of the day being edited (for highlighting in the editor).
+  const selectedState: DayState = selectedDate
+    ? (vacMap.get(selectedDate)
+        ?? (floatSet.has(selectedDate)
+          ? "FLOAT"
+          : rounderSet.has(selectedDate)
+            ? "ROUNDER"
+            : noCallSet.has(selectedDate)
+              ? "NO_CALL"
+              : "NONE"))
+    : "NONE";
 
   return (
     <div className="space-y-4">
@@ -171,12 +254,22 @@ export function YearlyVacationCalendar({ year, vacations, floatDays = [], daysWo
           </div>
         )}
         {floatDays.length > 0 && (
-          <>
-            <div className="flex items-center gap-2">
-              <span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />
-              <span className="text-muted-foreground">Hospital Float — <strong>{floatDays.length}</strong></span>
-            </div>
-          </>
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />
+            <span className="text-muted-foreground">Hospital Float — <strong>{floatDays.length}</strong></span>
+          </div>
+        )}
+        {rounderDays.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-sm bg-purple-400" />
+            <span className="text-muted-foreground">ICU Rounder — <strong>{rounderDays.length}</strong></span>
+          </div>
+        )}
+        {noCallDays.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-3 h-3 rounded-sm bg-slate-400" />
+            <span className="text-muted-foreground">No-call — <strong>{noCallDays.length}</strong></span>
+          </div>
         )}
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-yellow-300" />
@@ -184,11 +277,40 @@ export function YearlyVacationCalendar({ year, vacations, floatDays = [], daysWo
         </div>
       </div>
 
+      {isAdmin && (
+        <p className="text-xs text-muted-foreground -mt-1">
+          Click any day to set vacation, ½ day, float, rounder, or no-call.
+        </p>
+      )}
+
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {Array.from({ length: 12 }, (_, m) => (
-          <MonthGrid key={m} year={year} month={m} vacMap={vacMap} floatSet={floatSet} holidays={holidays} />
+          <MonthGrid
+            key={m}
+            year={year}
+            month={m}
+            vacMap={vacMap}
+            floatSet={floatSet}
+            rounderSet={rounderSet}
+            noCallSet={noCallSet}
+            holidays={holidays}
+            isAdmin={isAdmin}
+            onSelect={setSelectedDate}
+          />
         ))}
       </div>
+
+      {isAdmin && physicianId && selectedDate && (
+        <DayStateEditor
+          physicianId={physicianId}
+          physicianName={physicianName ?? ""}
+          year={year}
+          date={selectedDate}
+          current={selectedState}
+          holidayName={holidays.get(selectedDate)}
+          onClose={() => setSelectedDate(null)}
+        />
+      )}
     </div>
   );
 }

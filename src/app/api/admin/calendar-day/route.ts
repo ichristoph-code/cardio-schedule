@@ -9,7 +9,7 @@ import { auditLog } from "@/lib/audit";
 //   physicianId: string,
 //   date: "YYYY-MM-DD",
 //   year: number,
-//   type: "clear" | "vacation" | "half_vacation" | "float" | "rounder",
+//   type: "clear" | "vacation" | "half_vacation" | "float" | "rounder" | "no_call",
 //   halfPeriod?: "MORNING" | "AFTERNOON"   // only for half_vacation
 // }
 //
@@ -17,10 +17,11 @@ import { auditLog } from "@/lib/audit";
 //   vacation/half_vacation -> VacationRequest (APPROVED)
 //   float                  -> ScheduleAssignment (HOSPITAL_FLOAT, MANUAL)
 //   rounder                -> ScheduleAssignment (ICU_ROUNDER, MANUAL)
-//   clear                  -> removes this physician's vacation + manual float/rounder for the day
+//   no_call                -> NoCallDayRequest (APPROVED)
+//   clear                  -> removes this physician's vacation + manual float/rounder + no-call for the day
 //
 // Each set first clears the day so the result is exactly the chosen type.
-const TYPES = ["clear", "vacation", "half_vacation", "float", "rounder"] as const;
+const TYPES = ["clear", "vacation", "half_vacation", "float", "rounder", "no_call"] as const;
 type DayType = (typeof TYPES)[number];
 
 const DAY_MS = 86_400_000;
@@ -146,6 +147,11 @@ export async function POST(req: Request) {
     });
   }
 
+  // Remove this physician's no-call request for the day (any status).
+  await prisma.noCallDayRequest.deleteMany({
+    where: { physicianId, date: dateObj },
+  });
+
   // ── 2. Apply the requested type ────────────────────────────────────────────
   if (dayType === "vacation" || dayType === "half_vacation") {
     await prisma.vacationRequest.create({
@@ -174,6 +180,16 @@ export async function POST(req: Request) {
         date: dateObj,
         source: "MANUAL",
         isActive: true,
+      },
+    });
+  } else if (dayType === "no_call") {
+    await prisma.noCallDayRequest.create({
+      data: {
+        physicianId,
+        date: dateObj,
+        status: "APPROVED",
+        reviewedBy: userId,
+        reviewedAt: new Date(),
       },
     });
   }

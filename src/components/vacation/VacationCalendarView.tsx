@@ -21,10 +21,12 @@ interface Props {
   isAdmin: boolean;
   vacations: VacationInfo[];
   floatDays?: string[];
+  rounderDays?: string[];
+  noCallDays?: string[];
   daysWorked?: number;
 }
 
-export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], daysWorked }: Props) {
+export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], rounderDays = [], noCallDays = [], daysWorked }: Props) {
   const [view, setView] = useState<"monthly" | "yearly">("yearly");
 
   return (
@@ -55,7 +57,7 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           year={year}
           physicianName={physicianName}
           physicianId={physicianId}
-          isAdmin={isAdmin}
+          isAdmin={false}
           assignments={floatDays.map((date, i) => ({
             id: `float-${i}`,
             date,
@@ -65,14 +67,19 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
             source: "MANUAL",
           }))}
           vacations={vacations}
-          noCallDays={[]}
+          noCallDays={noCallDays.map((date, i) => ({ id: `nocall-${i}`, date, reason: null }))}
         />
       ) : (
         <YearlyVacationCalendar
           year={year}
           vacations={vacations}
           floatDays={floatDays}
+          rounderDays={rounderDays}
+          noCallDays={noCallDays}
           daysWorked={daysWorked}
+          isAdmin={isAdmin}
+          physicianId={physicianId}
+          physicianName={physicianName}
         />
       )}
     </div>
