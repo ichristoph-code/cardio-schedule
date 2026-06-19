@@ -83,25 +83,37 @@ export default async function PhysiciansPage({
       },
     });
 
+    // A weekend on-call block is Fri-Sat-Sun covered by one MD. The scheduler
+    // writes a GENERAL_CALL row on each of Fri/Sat/Sun; the editor may set call
+    // on any single day. Count each weekend once by collapsing every Fri/Sat/Sun
+    // general call to that weekend's Friday — so a scheduler block isn't counted
+    // 3x, and a manually-set Sat/Sun call (no Friday row) still registers.
+    const raw = new Map<string, { weekdays: number; weekendFridays: Set<string> }>();
     for (const a of onCallAssignments) {
+      if (a.roleType.name !== "GENERAL_CALL") continue;
       const date = new Date(a.date);
       const dow = date.getUTCDay(); // 0=Sun, 1=Mon ... 5=Fri, 6=Sat (UTC to avoid TZ offset)
 
-      if (!callStatsMap.has(a.physicianId)) {
-        callStatsMap.set(a.physicianId, { weekdays: 0, weekends: 0 });
+      if (!raw.has(a.physicianId)) {
+        raw.set(a.physicianId, { weekdays: 0, weekendFridays: new Set() });
       }
-      const stats = callStatsMap.get(a.physicianId)!;
+      const stats = raw.get(a.physicianId)!;
 
-      // Weekday call (Mon-Fri) — General Call only (excludes EP and Interventional)
-      if (dow >= 1 && dow <= 5 && a.roleType.name === "GENERAL_CALL") {
+      // Weekday general call (Mon-Fri)
+      if (dow >= 1 && dow <= 5) {
         stats.weekdays++;
       }
 
-      // Weekend General Call blocks - count only Fridays with GENERAL_CALL
-      // (each Fri = 1 weekend block covering Fri-Sat-Sun)
-      if (dow === 5 && a.roleType.name === "GENERAL_CALL") {
-        stats.weekends++;
+      // Weekend block — any general call on Fri/Sat/Sun, keyed by that weekend's
+      // Friday so Fri+Sat+Sun (or a lone Sat/Sun) counts exactly once.
+      if (dow === 5 || dow === 6 || dow === 0) {
+        const friday = new Date(date);
+        friday.setUTCDate(friday.getUTCDate() - (dow === 5 ? 0 : dow === 6 ? 1 : 2));
+        stats.weekendFridays.add(friday.toISOString().split("T")[0]);
       }
+    }
+    for (const [pid, s] of raw) {
+      callStatsMap.set(pid, { weekdays: s.weekdays, weekends: s.weekendFridays.size });
     }
   }
 
