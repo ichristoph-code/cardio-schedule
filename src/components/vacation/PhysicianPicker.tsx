@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+// Cookie the vacation page reads to default to the last-viewed physician.
+export const LAST_PHYSICIAN_COOKIE = "vac_last_physician";
 
 interface Physician {
   id: string;
@@ -18,6 +22,13 @@ interface Props {
 export function PhysicianPicker({ physicians, selectedId, year }: Props) {
   const router = useRouter();
   const searchParams = useSearchParams();
+
+  // Remember whichever physician is currently shown, so the next visit (with no
+  // ?physician= in the URL) defaults to the last one viewed instead of the
+  // alphabetical first. Read server-side via cookies() in the vacation page.
+  useEffect(() => {
+    document.cookie = `${LAST_PHYSICIAN_COOKIE}=${selectedId}; path=/; max-age=31536000; samesite=lax`;
+  }, [selectedId]);
 
   function onPhysicianChange(id: string | null) {
     if (!id) return;

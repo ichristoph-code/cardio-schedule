@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { VacationCalendarView } from "@/components/vacation/VacationCalendarView";
-import { PhysicianPicker } from "@/components/vacation/PhysicianPicker";
+import { PhysicianPicker, LAST_PHYSICIAN_COOKIE } from "@/components/vacation/PhysicianPicker";
 import { Suspense } from "react";
 
 export default async function VacationPage({
@@ -38,10 +39,13 @@ export default async function VacationPage({
     );
   }
 
-  // Resolve selected physician: URL param > first in list
-  const selectedId = query.physician && physicians.find((p) => p.id === query.physician)
-    ? query.physician
-    : physicians[0].id;
+  // Resolve selected physician: URL param > last viewed (cookie) > alphabetical first.
+  const cookieStore = await cookies();
+  const lastViewed = cookieStore.get(LAST_PHYSICIAN_COOKIE)?.value;
+  const selectedId =
+    (query.physician && physicians.some((p) => p.id === query.physician) && query.physician) ||
+    (lastViewed && physicians.some((p) => p.id === lastViewed) && lastViewed) ||
+    physicians[0].id;
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
