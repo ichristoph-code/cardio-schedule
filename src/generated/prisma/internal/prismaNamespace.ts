@@ -398,6 +398,7 @@ export const ModelName = {
   SwapRequest: 'SwapRequest',
   Holiday: 'Holiday',
   HolidayAssignment: 'HolidayAssignment',
+  CustomHoliday: 'CustomHoliday',
   AuditLog: 'AuditLog'
 } as const
 
@@ -414,7 +415,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "physician" | "roleType" | "physicianEligibility" | "physicianOfficeDay" | "physicianWeeklyDayOff" | "schedulingRule" | "schedule" | "scheduleAssignment" | "vacationRequest" | "noCallDayRequest" | "swapRequest" | "holiday" | "holidayAssignment" | "auditLog"
+    modelProps: "user" | "physician" | "roleType" | "physicianEligibility" | "physicianOfficeDay" | "physicianWeeklyDayOff" | "schedulingRule" | "schedule" | "scheduleAssignment" | "vacationRequest" | "noCallDayRequest" | "swapRequest" | "holiday" | "holidayAssignment" | "customHoliday" | "auditLog"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -1454,6 +1455,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         }
       }
     }
+    CustomHoliday: {
+      payload: Prisma.$CustomHolidayPayload<ExtArgs>
+      fields: Prisma.CustomHolidayFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.CustomHolidayFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.CustomHolidayFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>
+        }
+        findFirst: {
+          args: Prisma.CustomHolidayFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.CustomHolidayFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>
+        }
+        findMany: {
+          args: Prisma.CustomHolidayFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>[]
+        }
+        create: {
+          args: Prisma.CustomHolidayCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>
+        }
+        createMany: {
+          args: Prisma.CustomHolidayCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.CustomHolidayCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>[]
+        }
+        delete: {
+          args: Prisma.CustomHolidayDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>
+        }
+        update: {
+          args: Prisma.CustomHolidayUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>
+        }
+        deleteMany: {
+          args: Prisma.CustomHolidayDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.CustomHolidayUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.CustomHolidayUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>[]
+        }
+        upsert: {
+          args: Prisma.CustomHolidayUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$CustomHolidayPayload>
+        }
+        aggregate: {
+          args: Prisma.CustomHolidayAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateCustomHoliday>
+        }
+        groupBy: {
+          args: Prisma.CustomHolidayGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomHolidayGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.CustomHolidayCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.CustomHolidayCountAggregateOutputType> | number
+        }
+      }
+    }
     AuditLog: {
       payload: Prisma.$AuditLogPayload<ExtArgs>
       fields: Prisma.AuditLogFieldRefs
@@ -1756,6 +1831,17 @@ export const HolidayAssignmentScalarFieldEnum = {
 } as const
 
 export type HolidayAssignmentScalarFieldEnum = (typeof HolidayAssignmentScalarFieldEnum)[keyof typeof HolidayAssignmentScalarFieldEnum]
+
+
+export const CustomHolidayScalarFieldEnum = {
+  id: 'id',
+  date: 'date',
+  name: 'name',
+  createdBy: 'createdBy',
+  createdAt: 'createdAt'
+} as const
+
+export type CustomHolidayScalarFieldEnum = (typeof CustomHolidayScalarFieldEnum)[keyof typeof CustomHolidayScalarFieldEnum]
 
 
 export const AuditLogScalarFieldEnum = {
@@ -2108,6 +2194,7 @@ export type GlobalOmitConfig = {
   swapRequest?: Prisma.SwapRequestOmit
   holiday?: Prisma.HolidayOmit
   holidayAssignment?: Prisma.HolidayAssignmentOmit
+  customHoliday?: Prisma.CustomHolidayOmit
   auditLog?: Prisma.AuditLogOmit
 }
 

@@ -46,6 +46,7 @@ import {
   Building2,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 
 // --- Types ---
 
@@ -140,53 +141,6 @@ function shortRoleName(name: string): string {
     .replace("General Call", "Gen Call");
 }
 
-/** Returns a Map of "YYYY-MM-DD" → holiday name */
-function getHolidayDatesForYear(year: number): Map<string, string> {
-  const map = new Map<string, string>();
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  // Federal "in lieu of" observance: Saturday -> preceding Friday, Sunday -> following Monday.
-  const observed = (d: Date) => {
-    const r = new Date(d);
-    const dow = r.getDay();
-    if (dow === 6) r.setDate(r.getDate() - 1);
-    else if (dow === 0) r.setDate(r.getDate() + 1);
-    return r;
-  };
-
-  map.set(fmt(observed(new Date(year, 0, 1))), "New Year's Day");
-  map.set(fmt(observed(new Date(year, 6, 4))), "Independence Day");
-
-  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
-  // When observed Christmas Day lands on Dec 24, shift the Eve one weekday earlier.
-  const christmasDay = observed(new Date(year, 11, 25));
-  const christmasEve = new Date(year, 11, 24);
-  if (fmt(christmasDay) === fmt(christmasEve)) {
-    christmasEve.setDate(christmasEve.getDate() - 1);
-    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
-      christmasEve.setDate(christmasEve.getDate() - 1);
-    }
-  }
-  map.set(fmt(christmasEve), "Christmas Eve");
-  map.set(fmt(christmasDay), "Christmas Day");
-
-  const memDay = new Date(year, 4, 31);
-  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
-  map.set(fmt(memDay), "Memorial Day");
-
-  const labDay = new Date(year, 8, 1);
-  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
-  map.set(fmt(labDay), "Labor Day");
-
-  const tg = new Date(year, 10, 1);
-  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
-  tg.setDate(tg.getDate() + 21);
-  map.set(fmt(tg), "Thanksgiving");
-
-  return map;
-}
-
 // --- Component ---
 
 export function PhysicianCalendar({
@@ -197,6 +151,7 @@ export function PhysicianCalendar({
   assignments,
   vacations: initialVacations = [],
   noCallDays = [],
+  customHolidays = [],
 }: {
   year: number;
   physicianName: string;
@@ -205,6 +160,8 @@ export function PhysicianCalendar({
   assignments: Assignment[];
   vacations?: VacationInfo[];
   noCallDays?: NoCallDayInfo[];
+  /** Admin-marked holidays (global). Merged with the built-in federal holidays. */
+  customHolidays?: CustomHolidayInfo[];
 }) {
   const now = new Date();
   const [month, setMonth] = useState(
@@ -369,7 +326,7 @@ export function PhysicianCalendar({
   }
 
   // Holiday lookup
-  const holidays = useMemo(() => getHolidayDatesForYear(year), [year]);
+  const holidays = useMemo(() => getAllHolidayDatesForYear(year, customHolidays), [year, customHolidays]);
 
   // Index assignments by date
   const assignmentsByDate = useMemo(() => {
