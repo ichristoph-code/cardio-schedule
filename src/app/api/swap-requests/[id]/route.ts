@@ -118,31 +118,37 @@ export async function PATCH(
       return NextResponse.json({ error: "Request is not pending" }, { status: 400 });
     }
 
-    // Execute the swap: update schedule assignments
+    // Execute the swap: update the assignment in the schedule for the
+    // request's own year (not simply the newest schedule — around New Year
+    // two schedules coexist and the newest one may be the wrong year).
     const schedule = await prisma.schedule.findFirst({
-      where: { status: { in: ["DRAFT", "PUBLISHED"] } },
-      orderBy: { year: "desc" },
+      where: { year: request.date.getUTCFullYear(), status: { in: ["DRAFT", "PUBLISHED"] } },
     });
+    const fromAssignment = schedule
+      ? await prisma.scheduleAssignment.findFirst({
+          where: {
+            scheduleId: schedule.id,
+            date: request.date,
+            roleTypeId: request.roleTypeId,
+            physicianId: request.fromPhysicianId,
+            isActive: true,
+          },
+        })
+      : null;
 
-    if (schedule) {
-      // Find the assignment being swapped
-      const fromAssignment = await prisma.scheduleAssignment.findFirst({
-        where: {
-          scheduleId: schedule.id,
-          date: request.date,
-          roleTypeId: request.roleTypeId,
-          physicianId: request.fromPhysicianId,
-          isActive: true,
-        },
-      });
-
-      if (fromAssignment) {
-        await prisma.scheduleAssignment.update({
-          where: { id: fromAssignment.id },
-          data: { physicianId: request.toPhysicianId, source: "SWAP" },
-        });
-      }
+    // Refuse to "approve" a swap that cannot actually be applied — otherwise
+    // the request reads APPROVED while the schedule is unchanged.
+    if (!fromAssignment) {
+      return NextResponse.json(
+        { error: "No matching active assignment found for that date and role, so the swap cannot be applied. The schedule may have been regenerated." },
+        { status: 409 }
+      );
     }
+
+    await prisma.scheduleAssignment.update({
+      where: { id: fromAssignment.id },
+      data: { physicianId: request.toPhysicianId, source: "SWAP" },
+    });
 
     const updated = await prisma.swapRequest.update({
       where: { id },

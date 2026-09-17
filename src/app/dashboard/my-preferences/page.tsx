@@ -5,7 +5,11 @@ import { AnnualPreferencesView } from "@/components/preferences/AnnualPreference
 import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
 import { PreferredTaskDay } from "@/components/preferences/PreferredTaskDay";
 
-export default async function MyPreferencesPage() {
+export default async function MyPreferencesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ year?: string }>;
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -27,11 +31,18 @@ export default async function MyPreferencesPage() {
     );
   }
 
+  // The year lives in the URL (?year=2027) so switching years re-runs this
+  // server query. Previously only the current year was ever loaded, so a
+  // physician planning next year saw an empty calendar.
+  const query = await searchParams;
   const currentYear = new Date().getFullYear();
+  const parsedYear = query.year ? parseInt(query.year, 10) : NaN;
+  const selectedYear =
+    Number.isInteger(parsedYear) && parsedYear >= 2024 && parsedYear <= 2100 ? parsedYear : currentYear;
 
-  // Load existing requests for the current year
-  const yearStart = new Date(`${currentYear}-01-01`);
-  const yearEnd = new Date(`${currentYear}-12-31`);
+  // Load existing requests for the selected year
+  const yearStart = new Date(`${selectedYear}-01-01`);
+  const yearEnd = new Date(`${selectedYear}-12-31`);
 
   const physician = await prisma.physician.findUnique({
     where: { id: physicianId },
@@ -108,8 +119,9 @@ export default async function MyPreferencesPage() {
       />
 
       <AnnualPreferencesView
+        key={selectedYear}
         physicianId={physicianId}
-        initialYear={currentYear}
+        initialYear={selectedYear}
         existingVacations={vacations.map((v) => ({
           id: v.id,
           startDate: v.startDate.toISOString().split("T")[0],

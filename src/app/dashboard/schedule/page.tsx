@@ -81,7 +81,7 @@ export default async function SchedulePage({
 
   const selectedSchedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
 
-  const [assignments, physicians] = await Promise.all([
+  const [assignments, physicians, customHolidayRows] = await Promise.all([
     prisma.scheduleAssignment.findMany({
       where: { scheduleId: selectedSchedule.id, isActive: true },
       include: {
@@ -101,6 +101,17 @@ export default async function SchedulePage({
     prisma.physician.findMany({
       select: { id: true, firstName: true, lastName: true },
       orderBy: { lastName: "asc" },
+    }),
+    // Admin-marked holidays for this year and the next (the 31-day grid can
+    // run past Dec 31).
+    prisma.customHoliday.findMany({
+      where: {
+        date: {
+          gte: new Date(Date.UTC(selectedSchedule.year, 0, 1)),
+          lte: new Date(Date.UTC(selectedSchedule.year + 1, 11, 31)),
+        },
+      },
+      select: { date: true, name: true },
     }),
   ]);
 
@@ -151,6 +162,10 @@ export default async function SchedulePage({
         }))}
         isAdmin={isAdmin}
         showBackButton={false}
+        customHolidays={customHolidayRows.map((h) => ({
+          date: h.date.toISOString().split("T")[0],
+          name: h.name,
+        }))}
       />
     </div>
   );
