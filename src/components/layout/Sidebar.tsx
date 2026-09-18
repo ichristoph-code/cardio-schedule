@@ -30,7 +30,7 @@ const navItems: NavItem[] = [
   { label: "Call and Vacation Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
   { label: "Requests", href: "/dashboard/requests", icon: ClipboardList },
   { label: "Physician Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
-  { label: "Physicians", href: "/dashboard/physicians", icon: Users, adminOnly: true },
+  { label: "Physicians/Users", href: "/dashboard/physicians", icon: Users, adminOnly: true },
   { label: "Rules", href: "/dashboard/rules", icon: Shield, adminOnly: true },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, adminOnly: true },
 ];

@@ -210,11 +210,11 @@ export async function generateSchedule(
   // Work Calendar. Both kinds are staffed like a weekend (see roleNeedsFilling).
   const customHolidayRows = await prisma.customHoliday.findMany({
     where: { date: { gte: toDbDate(`${year}-01-01`), lte: toDbDate(`${year}-12-31`) } },
-    select: { date: true, name: true },
+    select: { date: true, name: true, hidden: true },
   });
   const holidayDates = getAllHolidayDatesForYear(
     year,
-    customHolidayRows.map((h) => ({ date: formatDate(toLocalMidnight(h.date)), name: h.name }))
+    customHolidayRows.map((h) => ({ date: formatDate(toLocalMidnight(h.date)), name: h.name, hidden: h.hidden }))
   );
 
   // Weekly rounder blocks run Mon–Fri with the same MD. When Monday (or Monday

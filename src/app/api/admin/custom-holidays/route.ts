@@ -7,8 +7,12 @@ import { auditLog } from "@/lib/audit";
 // Custom holidays are GLOBAL — they show (in yellow) on every physician's
 // calendar, unlike the per-physician day types in /api/admin/calendar-day.
 //
-// POST   /api/admin/custom-holidays   { date: "YYYY-MM-DD", name?: string }
+// POST   /api/admin/custom-holidays   { date: "YYYY-MM-DD", name?: string, hidden?: boolean }
+//          hidden: true removes the holiday on that date (used to switch off a
+//          built-in holiday such as Christmas Eve for everyone).
 // DELETE /api/admin/custom-holidays   { date: "YYYY-MM-DD" }
+//          removes the admin edit on that date; a built-in holiday there
+//          comes back with its default name.
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const MAX_NAME = 60;
@@ -19,7 +23,7 @@ async function requireAdmin() {
   return (session.user as Record<string, unknown>).id as string;
 }
 
-async function readBody(req: Request): Promise<{ date?: string; name?: string } | null> {
+async function readBody(req: Request): Promise<{ date?: string; name?: string; hidden?: boolean } | null> {
   try {
     return await req.json();
   } catch {
@@ -46,19 +50,20 @@ export async function POST(req: Request) {
   if (!dateObj) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
 
   const name = (typeof body.name === "string" ? body.name : "").trim().slice(0, MAX_NAME) || "Holiday";
+  const hidden = body.hidden === true;
 
-  // Upsert so re-marking a day simply renames it.
+  // Upsert so re-marking a day simply renames it (or flips hidden on/off).
   const holiday = await prisma.customHoliday.upsert({
     where: { date: dateObj },
-    update: { name },
-    create: { date: dateObj, name, createdBy: userId },
+    update: { name, hidden },
+    create: { date: dateObj, name, hidden, createdBy: userId },
   });
 
-  await auditLog(userId, "ADMIN_SET_HOLIDAY", "CustomHoliday", holiday.id, {
-    date: body.date, name,
+  await auditLog(userId, hidden ? "ADMIN_HIDE_HOLIDAY" : "ADMIN_SET_HOLIDAY", "CustomHoliday", holiday.id, {
+    date: body.date, name, hidden,
   });
 
-  return NextResponse.json({ ok: true, date: body.date, name }, { status: 201 });
+  return NextResponse.json({ ok: true, date: body.date, name, hidden }, { status: 201 });
 }
 
 export async function DELETE(req: Request) {
@@ -72,7 +77,7 @@ export async function DELETE(req: Request) {
   if (!dateObj) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
 
   const existing = await prisma.customHoliday.findUnique({ where: { date: dateObj } });
-  if (!existing) return NextResponse.json({ error: "No custom holiday on that date" }, { status: 404 });
+  if (!existing) return NextResponse.json({ error: "No admin holiday edit on that date" }, { status: 404 });
 
   await prisma.customHoliday.delete({ where: { id: existing.id } });
 

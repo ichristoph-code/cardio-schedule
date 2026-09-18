@@ -267,12 +267,15 @@ model HolidayAssignment {
   @@index([physicianId])
 }
 
-// Admin-marked holidays shown on every physician's calendar (global, one row per date).
+// Admin edits to the global holiday calendar, one row per date. A row either
+// adds/renames a holiday on that date, or (hidden = true) suppresses a
+// built-in holiday so the day is treated as a normal working day.
 // Distinct from Holiday (call-weighting names used by the scheduler).
 model CustomHoliday {
   id        String   @id @default(cuid())
   date      DateTime @unique @db.Date
   name      String
+  hidden    Boolean  @default(false)
   createdBy String?
   createdAt DateTime @default(now())
 }

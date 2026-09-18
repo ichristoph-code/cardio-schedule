@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Palmtree, Sun, Moon, Building2, Stethoscope, Phone, PhoneOff, X, Loader2, Check, PartyPopper, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import type { CustomHolidayInfo } from "@/lib/holidays";
 
 // The day's current type, as derived from the calendar data.
 export type DayState =
@@ -59,9 +60,12 @@ interface Props {
   year: number;
   date: string; // YYYY-MM-DD
   current: DayState;
+  /** The holiday shown on the calendar for this date, after admin edits. */
   holidayName?: string;
-  /** True when the holiday on this date was added by an admin (and can be removed). */
-  isCustomHoliday?: boolean;
+  /** The built-in (federal) holiday on this date, if any, before admin edits. */
+  builtinHolidayName?: string;
+  /** The admin's edit row for this date, if any (rename, addition, or hidden). */
+  adminHoliday?: CustomHolidayInfo;
   callSource?: "AUTO" | "MANUAL"; // when current === "CALL"
   onClose: () => void;
 }
@@ -73,15 +77,24 @@ export function DayStateEditor({
   date,
   current,
   holidayName,
-  isCustomHoliday = false,
+  builtinHolidayName,
+  adminHoliday,
   callSource,
   onClose,
 }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState<DayState | null>(null);
   const [holidaySaving, setHolidaySaving] = useState(false);
-  const [holidayInput, setHolidayInput] = useState(isCustomHoliday ? holidayName ?? "" : "");
+  const [holidayInput, setHolidayInput] = useState(holidayName ?? "");
   const busy = saving !== null || holidaySaving;
+
+  // How this date got its holiday status — drives the labels below.
+  const hiddenBuiltin = !!builtinHolidayName && !!adminHoliday?.hidden;
+  const holidaySource: "builtin" | "renamed" | "custom" | null = !holidayName
+    ? null
+    : adminHoliday && !adminHoliday.hidden
+      ? builtinHolidayName ? "renamed" : "custom"
+      : "builtin";
 
   const d = new Date(date + "T12:00:00");
   const dayLabel = `${DAY_LABELS[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
@@ -117,20 +130,33 @@ export function DayStateEditor({
 
   // Holidays are global (every physician's calendar), so they use their own
   // endpoint rather than the per-physician calendar-day route above.
-  async function setHoliday(method: "POST" | "DELETE") {
+  // Three operations, all global:
+  //   set    → add or rename the holiday on this date
+  //   hide   → switch a built-in holiday off (day becomes a normal working day)
+  //   reset  → delete the admin edit; a built-in holiday returns to its default
+  async function setHoliday(op: "set" | "hide" | "reset") {
     if (busy) return;
     setHolidaySaving(true);
     try {
+      const method = op === "reset" ? "DELETE" : "POST";
+      const body =
+        op === "set" ? { date, name: holidayInput }
+        : op === "hide" ? { date, name: holidayName ?? builtinHolidayName ?? "Holiday", hidden: true }
+        : { date };
       const res = await fetch("/api/admin/custom-holidays", {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(method === "POST" ? { date, name: holidayInput } : { date }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to update holiday");
       }
-      toast.success(method === "POST" ? "Holiday set for all physicians" : "Holiday removed");
+      toast.success(
+        op === "set" ? "Holiday set for all physicians"
+        : op === "hide" ? "Holiday removed for all physicians"
+        : builtinHolidayName ? `Restored ${builtinHolidayName}` : "Holiday removed"
+      );
       router.refresh();
       onClose();
     } catch (err) {
@@ -154,7 +180,9 @@ export function DayStateEditor({
             <span>
               {holidayName}
               <span className="ml-1.5 font-normal opacity-70">
-                {isCustomHoliday ? "(added by admin)" : "(built-in)"}
+                {holidaySource === "custom" ? "(added by admin)"
+                  : holidaySource === "renamed" ? `(built-in ${builtinHolidayName}, renamed by admin)`
+                  : "(built-in)"}
               </span>
             </span>
           </div>
@@ -193,47 +221,81 @@ export function DayStateEditor({
         <div className="mt-6 border-t pt-4">
           <div className="text-sm font-semibold">Holiday</div>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Applies to every physician&apos;s calendar, not just {physicianName.split(" ")[0] || "this physician"}.
+            Applies to every physician&apos;s calendar and to schedule generation, not just {physicianName.split(" ")[0] || "this physician"}. Built-in holidays can be renamed, removed, or restored.
           </p>
-          {isCustomHoliday ? (
-            <div className="mt-3 flex gap-2">
-              <Input
-                value={holidayInput}
-                onChange={(e) => setHolidayInput(e.target.value)}
-                placeholder="Holiday name"
-                maxLength={60}
-                disabled={busy}
-                aria-label="Holiday name"
-              />
-              <Button variant="outline" disabled={busy || !holidayInput.trim()} onClick={() => setHoliday("POST")}>
-                Rename
-              </Button>
-              <Button variant="outline" className="text-destructive" disabled={busy} onClick={() => setHoliday("DELETE")}>
-                {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-              </Button>
+          {holidayName ? (
+            <div className="mt-3 space-y-2">
+              <div className="flex gap-2">
+                <Input
+                  value={holidayInput}
+                  onChange={(e) => setHolidayInput(e.target.value)}
+                  placeholder="Holiday name"
+                  maxLength={60}
+                  disabled={busy}
+                  aria-label="Holiday name"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !busy && holidayInput.trim()) setHoliday("set");
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={busy || !holidayInput.trim() || holidayInput.trim() === holidayName}
+                  onClick={() => setHoliday("set")}
+                >
+                  Rename
+                </Button>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  className="gap-2 text-destructive"
+                  disabled={busy}
+                  onClick={() => setHoliday(builtinHolidayName ? "hide" : "reset")}
+                  title="Everyone's calendar treats this day as a normal working day"
+                >
+                  {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                  Remove holiday
+                </Button>
+                {holidaySource === "renamed" && (
+                  <Button variant="ghost" disabled={busy} onClick={() => setHoliday("reset")}>
+                    Reset to &ldquo;{builtinHolidayName}&rdquo;
+                  </Button>
+                )}
+              </div>
             </div>
           ) : (
-            <div className="mt-3 flex gap-2">
-              <Input
-                value={holidayInput}
-                onChange={(e) => setHolidayInput(e.target.value)}
-                placeholder="Holiday name (e.g. Practice Retreat)"
-                maxLength={60}
-                disabled={busy}
-                aria-label="Holiday name"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !busy) setHoliday("POST");
-                }}
-              />
-              <Button
-                variant="outline"
-                className="shrink-0 gap-2 border-yellow-300 bg-yellow-100 text-yellow-900 hover:bg-yellow-200 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200"
-                disabled={busy}
-                onClick={() => setHoliday("POST")}
-              >
-                {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PartyPopper className="h-4 w-4" />}
-                Mark holiday
-              </Button>
+            <div className="mt-3 space-y-2">
+              {hiddenBuiltin && (
+                <div className="flex items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                  <span>Built-in <strong>{builtinHolidayName}</strong> was removed by an admin.</span>
+                  <Button size="sm" variant="outline" disabled={busy} onClick={() => setHoliday("reset")}>
+                    Restore
+                  </Button>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Input
+                  value={holidayInput}
+                  onChange={(e) => setHolidayInput(e.target.value)}
+                  placeholder="Holiday name (e.g. Practice Retreat)"
+                  maxLength={60}
+                  disabled={busy}
+                  aria-label="Holiday name"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !busy) setHoliday("set");
+                  }}
+                />
+                <Button
+                  variant="outline"
+                  className="shrink-0 gap-2 border-yellow-300 bg-yellow-100 text-yellow-900 hover:bg-yellow-200 dark:border-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-200"
+                  disabled={busy}
+                  onClick={() => setHoliday("set")}
+                >
+                  {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <PartyPopper className="h-4 w-4" />}
+                  Mark holiday
+                </Button>
+              </div>
             </div>
           )}
         </div>

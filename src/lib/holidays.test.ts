@@ -42,4 +42,16 @@ describe("getAllHolidayDatesForYear", () => {
     expect(h.get("2027-01-18")).toBe("MLK (custom)");
     expect(h.get("2027-02-15")).toBe("Presidents' Day");
   });
+
+  it("removes a built-in holiday when an admin hides that date", () => {
+    const h = getAllHolidayDatesForYear(2027, [{ date: "2027-12-23", name: "Christmas Eve", hidden: true }]);
+    expect(h.has("2027-12-23")).toBe(false);
+    expect(h.get("2027-12-24")).toBe("Christmas Day"); // neighbours untouched
+  });
+
+  it("ignores a hidden row on a date that had no holiday", () => {
+    const h = getAllHolidayDatesForYear(2027, [{ date: "2027-03-03", name: "x", hidden: true }]);
+    expect(h.has("2027-03-03")).toBe(false);
+    expect(h.size).toBe(getFederalHolidayDatesForYear(2027).size);
+  });
 });

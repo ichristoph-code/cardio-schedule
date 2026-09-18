@@ -111,7 +111,7 @@ export default async function SchedulePage({
           lte: new Date(Date.UTC(selectedSchedule.year + 1, 11, 31)),
         },
       },
-      select: { date: true, name: true },
+      select: { date: true, name: true, hidden: true },
     }),
   ]);
 
@@ -165,6 +165,7 @@ export default async function SchedulePage({
         customHolidays={customHolidayRows.map((h) => ({
           date: h.date.toISOString().split("T")[0],
           name: h.name,
+          hidden: h.hidden,
         }))}
       />
     </div>

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DayStateEditor, type DayState } from "@/components/vacation/DayStateEditor";
-import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -188,7 +188,8 @@ export function YearlyVacationCalendar({
   const noCallSet = new Set(noCallDays);
   // Built-in holidays + admin-marked custom holidays (global, all physicians).
   const holidays = getAllHolidayDatesForYear(year, customHolidays);
-  const customHolidaySet = new Set(customHolidays.map((h) => h.date));
+  const builtinHolidays = getFederalHolidayDatesForYear(year);
+  const customByDate = new Map(customHolidays.map((h) => [h.date, h] as const));
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -301,7 +302,8 @@ export function YearlyVacationCalendar({
           date={selectedDate}
           current={selectedState}
           holidayName={holidays.get(selectedDate)}
-          isCustomHoliday={customHolidaySet.has(selectedDate)}
+          builtinHolidayName={builtinHolidays.get(selectedDate)}
+          adminHoliday={customByDate.get(selectedDate)}
           callSource={selectedCallSource}
           onClose={() => setSelectedDate(null)}
         />

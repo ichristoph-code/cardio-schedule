@@ -72,17 +72,23 @@ export function getFederalHolidayDatesForYear(year: number): Map<string, string>
 export interface CustomHolidayInfo {
   date: string; // YYYY-MM-DD
   name: string;
+  /** True = an admin removed the holiday on this date (suppresses a built-in one). */
+  hidden?: boolean;
 }
 
 /**
- * Built-in holidays plus admin-added custom holidays for a year.
- * A custom holiday on the same date as a built-in one wins (its name shows).
+ * The effective holiday calendar for a year: built-in holidays, with admin
+ * edits applied on top. An admin row on a date either adds/renames the
+ * holiday there, or (hidden) removes it so the day counts as a working day.
  */
 export function getAllHolidayDatesForYear(
   year: number,
   customHolidays: CustomHolidayInfo[] = []
 ): Map<string, string> {
   const map = getFederalHolidayDatesForYear(year);
-  for (const h of customHolidays) map.set(h.date, h.name);
+  for (const h of customHolidays) {
+    if (h.hidden) map.delete(h.date);
+    else map.set(h.date, h.name);
+  }
   return map;
 }
