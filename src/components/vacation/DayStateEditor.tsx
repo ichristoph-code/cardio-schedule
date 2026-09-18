@@ -10,48 +10,17 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Palmtree, Sun, Moon, Building2, Stethoscope, Phone, PhoneOff, X, Loader2, Check, PartyPopper, Trash2, RotateCcw } from "lucide-react";
+import { Loader2, Check, PartyPopper, Trash2, RotateCcw } from "lucide-react";
+import { DAY_TYPE_OPTIONS, type DayState, type DayTypeOption } from "@/components/vacation/day-types";
 import { toast } from "sonner";
 
-// The day's current type, as derived from the calendar data.
-export type DayState =
-  | "VACATION"
-  | "HALF_AM"
-  | "HALF_PM"
-  | "FLOAT"
-  | "ROUNDER"
-  | "CALL"
-  | "NO_CALL"
-  | "NONE";
+export type { DayState };
 
 const MONTH_NAMES = [
   "January", "February", "March", "April", "May", "June",
   "July", "August", "September", "October", "November", "December",
 ];
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-// Each option maps a button to the /api/admin/calendar-day request it sends.
-// To add a new day type later: add an entry here, extend the API route's TYPES
-// (clear + apply), and add a color in YearlyVacationCalendar.tsx.
-interface Option {
-  state: DayState;
-  label: string;
-  icon: typeof Palmtree;
-  type: string;            // calendar-day API "type"
-  halfPeriod?: "MORNING" | "AFTERNOON";
-  active: string;          // classes when this option is the current state
-}
-
-const OPTIONS: Option[] = [
-  { state: "VACATION", label: "Full Vacation", icon: Palmtree, type: "vacation", active: "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" },
-  { state: "HALF_AM", label: "½ Day — AM", icon: Sun, type: "half_vacation", halfPeriod: "MORNING", active: "bg-emerald-300 text-emerald-950 border-emerald-300 hover:bg-emerald-400" },
-  { state: "HALF_PM", label: "½ Day — PM", icon: Moon, type: "half_vacation", halfPeriod: "AFTERNOON", active: "bg-emerald-300 text-emerald-950 border-emerald-300 hover:bg-emerald-400" },
-  { state: "FLOAT", label: "Hospital Float", icon: Building2, type: "float", active: "bg-blue-500 text-white border-blue-500 hover:bg-blue-600" },
-  { state: "ROUNDER", label: "ICU Rounder", icon: Stethoscope, type: "rounder", active: "bg-purple-500 text-white border-purple-500 hover:bg-purple-600" },
-  { state: "CALL", label: "General Call", icon: Phone, type: "call", active: "bg-neutral-900 text-white border-neutral-900 hover:bg-black" },
-  { state: "NO_CALL", label: "No-Call Day", icon: PhoneOff, type: "no_call", active: "bg-slate-500 text-white border-slate-500 hover:bg-slate-600" },
-  { state: "NONE", label: "Clear", icon: X, type: "clear", active: "bg-muted text-foreground border-border" },
-];
 
 interface Props {
   physicianId: string;
@@ -89,7 +58,7 @@ export function DayStateEditor({
   const d = new Date(date + "T12:00:00");
   const dayLabel = `${DAY_LABELS[d.getDay()]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 
-  async function apply(opt: Option) {
+  async function apply(opt: DayTypeOption) {
     if (saving) return;
     setSaving(opt.state);
     try {
@@ -181,7 +150,7 @@ export function DayStateEditor({
         )}
 
         <div className="mt-5 space-y-2">
-          {OPTIONS.map((opt) => {
+          {DAY_TYPE_OPTIONS.map((opt) => {
             const Icon = opt.icon;
             const isCurrent = current === opt.state;
             return (
