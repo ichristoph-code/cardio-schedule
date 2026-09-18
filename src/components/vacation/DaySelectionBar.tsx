@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Loader2, X } from "lucide-react";
@@ -37,6 +37,17 @@ interface Props {
   onClear: () => void;
   /** Called after a successful apply so the parent can drop the selection. */
   onApplied: () => void;
+  /**
+   * Reports how much vertical space the bar covers, so the calendar can reserve
+   * the same amount at the bottom of the page and keep every day reachable.
+   * Fires again whenever the bar re-wraps, and with 0 when it unmounts.
+   */
+  onHeightChange?: (height: number) => void;
+  /**
+   * True while a drag-select is in progress: the bar goes click-through and
+   * translucent so the drag can run past (and under) it.
+   */
+  passthrough?: boolean;
 }
 
 export function DaySelectionBar({
@@ -46,9 +57,27 @@ export function DaySelectionBar({
   dates,
   onClear,
   onApplied,
+  onHeightChange,
+  passthrough = false,
 }: Props) {
   const router = useRouter();
   const [saving, setSaving] = useState<DayState | null>(null);
+  const barRef = useRef<HTMLDivElement>(null);
+
+  // The bar wraps onto extra rows on narrow screens, so its height is measured
+  // rather than assumed.
+  useEffect(() => {
+    const el = barRef.current;
+    if (!el || !onHeightChange) return;
+    const report = () => onHeightChange(el.offsetHeight);
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      onHeightChange(0);
+    };
+  }, [onHeightChange]);
 
   async function apply(opt: DayTypeOption) {
     if (saving) return;
@@ -88,11 +117,16 @@ export function DaySelectionBar({
 
   return (
     <div
+      ref={barRef}
       role="region"
       aria-label="Bulk day editor"
       className="fixed inset-x-0 bottom-0 z-50 flex justify-center px-4 pb-4 pointer-events-none"
     >
-      <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-2 rounded-xl border bg-background/95 px-3 py-2.5 shadow-lg backdrop-blur supports-[backdrop-filter]:bg-background/80">
+      <div
+        className={`flex max-w-full flex-wrap items-center gap-2 rounded-xl border bg-background/95 px-3 py-2.5 shadow-lg backdrop-blur transition-opacity supports-[backdrop-filter]:bg-background/80 ${
+          passthrough ? "pointer-events-none opacity-60" : "pointer-events-auto"
+        }`}
+      >
         <div className="mr-1 flex flex-col leading-tight">
           <span className="text-sm font-semibold" aria-live="polite">
             {describeSelection(dates)}
