@@ -14,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Heart, Eye, EyeOff } from "lucide-react";
+import { LivingSky } from "@/components/login/LivingSky";
 
 function LoginForm() {
   const router = useRouter();
@@ -106,10 +107,16 @@ function LoginForm() {
 
 export default function LoginPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center bg-mesh-login px-4">
+    <div className="relative flex min-h-screen items-center justify-center bg-mesh-login px-4">
+      {/* Real-time sky: sun, moon, stars and planets where they actually are, plus current weather. */}
       <Suspense>
-        <LoginForm />
+        <LivingSky />
       </Suspense>
+      <div className="relative z-10 w-full max-w-md">
+        <Suspense>
+          <LoginForm />
+        </Suspense>
+      </div>
     </div>
   );
 }
