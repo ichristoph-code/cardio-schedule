@@ -57,10 +57,11 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
   const pathname = usePathname();
 
   const isAdmin = userRole === "ADMIN";
-  // Parked items are admin-visible too — greyed out below rather than linked.
-  const filteredItems = navItems.filter(
-    (item) => (!item.adminOnly && !item.parked) || isAdmin
-  );
+  const visible = navItems.filter((item) => (!item.adminOnly && !item.parked) || isAdmin);
+  // Working items first; parked ones (admins only) grouped under a caption at
+  // the bottom, so it is obvious where "works" ends and "paused" begins.
+  const activeItems = visible.filter((item) => !item.parked);
+  const parkedItems = visible.filter((item) => item.parked);
 
   return (
     <div className="flex h-full flex-col">
@@ -71,23 +72,8 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
         </Link>
       </div>
       <nav className="flex-1 space-y-0.5 px-3 py-3">
-        {filteredItems.map((item) => {
+        {activeItems.map((item) => {
           const Icon = item.icon;
-
-          if (item.parked) {
-            return (
-              <div
-                key={item.href}
-                aria-disabled="true"
-                title="Not in use"
-                className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-muted-foreground/40"
-              >
-                <Icon className="h-4 w-4" />
-                {item.label}
-              </div>
-            );
-          }
-
           const isActive =
             pathname === item.href ||
             (item.href !== "/dashboard" && pathname.startsWith(item.href));
@@ -110,6 +96,28 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
             </Link>
           );
         })}
+
+        {parkedItems.length > 0 && (
+          <div className="pt-4">
+            <p className="px-3 pb-1 text-[11px] leading-snug text-muted-foreground/60">
+              Greyed out: paused until the initial rollout is complete.
+            </p>
+            {parkedItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={item.href}
+                  aria-disabled="true"
+                  title="Paused until the initial rollout is complete"
+                  className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-muted-foreground/40"
+                >
+                  <Icon className="h-4 w-4" />
+                  {item.label}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </nav>
     </div>
   );
