@@ -61,6 +61,27 @@ describe("computeYearTallies", () => {
     expect(t.holidays + t.vacationDays + t.weekdaysWorked).toBe(t.weekdays);
   });
 
+  it("splits call days into weekday and weekend", () => {
+    // 2027-06-04 Fri, 2027-06-05 Sat, 2027-06-06 Sun, 2027-06-07 Mon.
+    const call = new Set(["2027-06-04", "2027-06-05", "2027-06-06", "2027-06-07"]);
+    const t = computeYearTallies(2027, NO_VACATION, NO_HOLIDAYS, call);
+    expect(t.weekdayCallDays).toBe(2);
+    expect(t.weekendCallDays).toBe(2);
+  });
+
+  it("still counts a weekday on call as a weekday worked", () => {
+    const call = new Set(["2027-06-07"]);
+    const t = computeYearTallies(2027, NO_VACATION, NO_HOLIDAYS, call);
+    expect(t.weekdayCallDays).toBe(1);
+    expect(t.weekdaysWorked).toBe(261);
+  });
+
+  it("reports no call days when none are scheduled", () => {
+    const t = computeYearTallies(2027, NO_VACATION, NO_HOLIDAYS);
+    expect(t.weekdayCallDays).toBe(0);
+    expect(t.weekendCallDays).toBe(0);
+  });
+
   it("handles a leap year", () => {
     // 2028 is a leap year: 366 days, 260 weekdays.
     const t = computeYearTallies(2028, NO_VACATION, NO_HOLIDAYS);

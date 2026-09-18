@@ -28,6 +28,10 @@ export interface YearTallies {
   vacationDays: number;
   /** Weekdays that are neither holiday nor vacation. Half days count 0.5. */
   weekdaysWorked: number;
+  /** Call days landing Mon–Fri. */
+  weekdayCallDays: number;
+  /** Call days landing Sat–Sun. */
+  weekendCallDays: number;
 }
 
 /**
@@ -36,25 +40,39 @@ export interface YearTallies {
  * @param year            Calendar year.
  * @param vacationByDate  "YYYY-MM-DD" → vacation state, as drawn on the calendar.
  * @param holidayDates    Holiday dates ("YYYY-MM-DD"), built-in plus custom.
+ * @param callDates       General Call dates ("YYYY-MM-DD").
  */
 export function computeYearTallies(
   year: number,
   vacationByDate: Map<string, VacationDayState>,
   holidayDates: Set<string> | Map<string, unknown>,
+  callDates: Set<string> | Map<string, unknown> = new Set(),
 ): YearTallies {
   let weekdays = 0;
   let holidays = 0;
   let fullDays = 0;
   let halfDays = 0;
   let weekdaysWorked = 0;
+  let weekdayCallDays = 0;
+  let weekendCallDays = 0;
 
   const cursor = new Date(year, 0, 1);
   while (cursor.getFullYear() === year) {
     const dow = cursor.getDay();
     // 0 = Sunday, 6 = Saturday.
-    if (dow !== 0 && dow !== 6) {
+    const isWeekend = dow === 0 || dow === 6;
+    const key = formatLocalDate(cursor);
+
+    // Call is tallied across the whole week, and separately from the figures
+    // below: a weekday spent on call is still a weekday worked, so it is not
+    // subtracted from weekdaysWorked.
+    if (callDates.has(key)) {
+      if (isWeekend) weekendCallDays += 1;
+      else weekdayCallDays += 1;
+    }
+
+    if (!isWeekend) {
       weekdays += 1;
-      const key = formatLocalDate(cursor);
 
       if (holidayDates.has(key)) {
         holidays += 1;
@@ -81,5 +99,7 @@ export function computeYearTallies(
     halfDays,
     vacationDays: fullDays + halfDays / 2,
     weekdaysWorked,
+    weekdayCallDays,
+    weekendCallDays,
   };
 }
