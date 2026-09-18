@@ -9,7 +9,7 @@ import { Calendar } from "lucide-react";
 export default async function SchedulePage({
   searchParams,
 }: {
-  searchParams: Promise<{ year?: string }>;
+  searchParams: Promise<{ year?: string; view?: string; month?: string; week?: string }>;
 }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -80,6 +80,15 @@ export default async function SchedulePage({
       : availableYears[0];
 
   const selectedSchedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
+
+  // Optional view state carried in the URL so the month/week arrows can cross
+  // into the neighbouring year's schedule (?year=2028&month=0&view=month).
+  const initialView = query.view === "month" || query.view === "year" ? query.view : query.view === "week" ? "week" : undefined;
+  const monthParam = query.month !== undefined ? parseInt(query.month, 10) : NaN;
+  const initialMonth = Number.isInteger(monthParam) && monthParam >= 0 && monthParam <= 11 ? monthParam : undefined;
+  const initialWeekStart = query.week && /^\d{4}-\d{2}-\d{2}$/.test(query.week) ? query.week : undefined;
+  const hasPrevYear = availableYears.includes(selectedSchedule.year - 1);
+  const hasNextYear = availableYears.includes(selectedSchedule.year + 1);
 
   const [assignments, physicians, customHolidayRows] = await Promise.all([
     prisma.scheduleAssignment.findMany({
@@ -162,6 +171,11 @@ export default async function SchedulePage({
         }))}
         isAdmin={isAdmin}
         showBackButton={false}
+        initialView={initialView}
+        initialMonth={initialMonth}
+        initialWeekStart={initialWeekStart}
+        hasPrevYear={hasPrevYear}
+        hasNextYear={hasNextYear}
         customHolidays={customHolidayRows.map((h) => ({
           date: h.date.toISOString().split("T")[0],
           name: h.name,

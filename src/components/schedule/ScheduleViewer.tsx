@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -168,6 +168,11 @@ export function ScheduleViewer({
   isAdmin,
   showBackButton = true,
   customHolidays = [],
+  initialView,
+  initialMonth,
+  initialWeekStart,
+  hasPrevYear = false,
+  hasNextYear = false,
 }: {
   schedule: ScheduleInfo;
   assignments: Assignment[];
@@ -177,13 +182,26 @@ export function ScheduleViewer({
   showBackButton?: boolean;
   /** Admin-marked holidays (global). Merged with the built-in federal holidays. */
   customHolidays?: CustomHolidayInfo[];
+  /** Initial tab / position, usually carried over from a year-boundary jump. */
+  initialView?: "week" | "month" | "year";
+  initialMonth?: number;          // 0–11
+  initialWeekStart?: string;      // YYYY-MM-DD
+  /** Whether a schedule exists for the neighbouring years (enables crossing the year edge). */
+  hasPrevYear?: boolean;
+  hasNextYear?: boolean;
 }) {
   const router = useRouter();
+  const [view, setView] = useState<"week" | "month" | "year">(initialView ?? "week");
   const [month, setMonth] = useState(() => {
+    if (initialMonth !== undefined) return initialMonth;
     const now = new Date();
     return now.getFullYear() === schedule.year ? now.getMonth() : 0;
   });
   const [weekStart, setWeekStart] = useState(() => {
+    if (initialWeekStart) {
+      const [y, m, d] = initialWeekStart.split("-").map(Number);
+      return getWeekStart(y, m - 1, d);
+    }
     const now = new Date();
     if (now.getFullYear() === schedule.year) {
       const ws = getWeekStart(now.getFullYear(), now.getMonth(), now.getDate());
@@ -193,6 +211,36 @@ export function ScheduleViewer({
     const jan1 = new Date(schedule.year, 0, 1);
     return getWeekStart(schedule.year, 0, jan1.getDate());
   });
+
+  // Jump to the neighbouring year's schedule, keeping the current tab and
+  // landing on the adjacent month / week so the arrows feel continuous.
+  function jumpToYear(year: number, pos: { month?: number; week?: Date }) {
+    const params = new URLSearchParams({ year: String(year), view });
+    if (pos.month !== undefined) params.set("month", String(pos.month));
+    if (pos.week) params.set("week", formatDate(pos.week.getFullYear(), pos.week.getMonth(), pos.week.getDate()));
+    router.push(`/dashboard/schedule?${params.toString()}`);
+  }
+
+  // Touch swipe: left = forward, right = back. Ignores mostly-vertical drags
+  // so normal scrolling still works.
+  const swipeStart = useRef<{ x: number; y: number } | null>(null);
+  function swipeHandlers(onBack: () => void, onForward: () => void) {
+    return {
+      onTouchStart: (e: React.TouchEvent) => {
+        swipeStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+      },
+      onTouchEnd: (e: React.TouchEvent) => {
+        const start = swipeStart.current;
+        swipeStart.current = null;
+        if (!start) return;
+        const dx = e.changedTouches[0].clientX - start.x;
+        const dy = e.changedTouches[0].clientY - start.y;
+        if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+        if (dx < 0) onForward();
+        else onBack();
+      },
+    };
+  }
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [overrideAssignment, setOverrideAssignment] = useState<Assignment | null>(null);
@@ -388,13 +436,24 @@ export function ScheduleViewer({
     const daysInMonth = new Date(schedule.year, month + 1, 0).getDate();
     const firstDow = dayOfWeekSun(schedule.year, month, 1);
 
+    const canGoBack = month > 0 || !!hasPrevYear;
+    const canGoForward = month < 11 || !!hasNextYear;
+    function prevMonth() {
+      if (month > 0) setMonth(month - 1);
+      else if (hasPrevYear) jumpToYear(schedule.year - 1, { month: 11 });
+    }
+    function nextMonth() {
+      if (month < 11) setMonth(month + 1);
+      else if (hasNextYear) jumpToYear(schedule.year + 1, { month: 0 });
+    }
+
     const cells: (number | null)[] = [];
     for (let i = 0; i < firstDow; i++) cells.push(null);
     for (let d = 1; d <= daysInMonth; d++) cells.push(d);
     while (cells.length % 7 !== 0) cells.push(null);
 
     return (
-      <div>
+      <div {...swipeHandlers(prevMonth, nextMonth)}>
         {/* Month navigation */}
         <div className="flex items-center justify-between mb-4 no-print">
           <div className="flex-1" />
@@ -402,8 +461,9 @@ export function ScheduleViewer({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setMonth((m) => Math.max(0, m - 1))}
-              disabled={month === 0}
+              onClick={prevMonth}
+              disabled={!canGoBack}
+              title={!canGoBack ? `No ${schedule.year - 1} schedule yet` : undefined}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -425,8 +485,9 @@ export function ScheduleViewer({
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setMonth((m) => Math.min(11, m + 1))}
-              disabled={month === 11}
+              onClick={nextMonth}
+              disabled={!canGoForward}
+              title={!canGoForward ? `No ${schedule.year + 1} schedule yet` : undefined}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -673,24 +734,25 @@ export function ScheduleViewer({
     const holidays = getAllHolidayDatesForYear(schedule.year, customHolidays);
     getFederalHolidayDatesForYear(schedule.year + 1).forEach((v, k) => holidays.set(k, v));
 
-    // Boundaries: allow navigating from the week containing Jan 1
-    // through the week containing Dec 31 of the schedule year
+    // Within the year: the week containing Jan 1 through the week containing
+    // Dec 31. Past either edge, jump to the neighbouring year's schedule when
+    // one exists (the window then reloads with that year's assignments).
     const earliestWeek = getWeekStart(schedule.year, 0, 1);
     const latestWeek = getWeekStart(schedule.year, 11, 31);
+    const canGoBack = weekStart > earliestWeek || !!hasPrevYear;
+    const canGoForward = weekStart < latestWeek || !!hasNextYear;
 
     function prevWeek() {
-      setWeekStart((prev) => {
-        const d = new Date(prev);
-        d.setDate(d.getDate() - 7);
-        return d >= earliestWeek ? d : prev;
-      });
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() - 7);
+      if (d >= earliestWeek) setWeekStart(d);
+      else if (hasPrevYear) jumpToYear(schedule.year - 1, { week: d });
     }
     function nextWeek() {
-      setWeekStart((prev) => {
-        const d = new Date(prev);
-        d.setDate(d.getDate() + 7);
-        return d <= latestWeek ? d : prev;
-      });
+      const d = new Date(weekStart);
+      d.setDate(d.getDate() + 7);
+      if (d <= latestWeek) setWeekStart(d);
+      else if (hasNextYear) jumpToYear(schedule.year + 1, { week: d });
     }
 
     const rangeLabel = (() => {
@@ -701,14 +763,14 @@ export function ScheduleViewer({
     })();
 
     return (
-      <div>
+      <div {...swipeHandlers(prevWeek, nextWeek)}>
         {/* Week navigation */}
         <div className="flex items-center justify-center gap-1 mb-4">
-          <Button variant="ghost" size="sm" onClick={prevWeek}>
+          <Button variant="ghost" size="sm" onClick={prevWeek} disabled={!canGoBack} title={!canGoBack ? `No ${schedule.year - 1} schedule yet` : undefined}>
             <ChevronLeft className="h-4 w-4" />
           </Button>
           <h3 className="text-lg font-semibold">{rangeLabel}</h3>
-          <Button variant="ghost" size="sm" onClick={nextWeek}>
+          <Button variant="ghost" size="sm" onClick={nextWeek} disabled={!canGoForward} title={!canGoForward ? `No ${schedule.year + 1} schedule yet` : undefined}>
             <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
@@ -1109,7 +1171,7 @@ export function ScheduleViewer({
       </div>
 
       {/* Tabs: Month / Week / Year */}
-      <Tabs defaultValue="week">
+      <Tabs value={view} onValueChange={(v) => setView(v as "week" | "month" | "year")}>
         <div className="flex items-center justify-between">
           <TabsList>
             <TabsTrigger value="week">Week View</TabsTrigger>
