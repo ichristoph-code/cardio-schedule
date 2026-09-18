@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DayStateEditor, type DayState } from "@/components/vacation/DayStateEditor";
-import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -188,7 +188,12 @@ export function YearlyVacationCalendar({
   const noCallSet = new Set(noCallDays);
   // Built-in holidays + admin-marked custom holidays (global, all physicians).
   const holidays = getAllHolidayDatesForYear(year, customHolidays);
-  const customHolidaySet = new Set(customHolidays.map((h) => h.date));
+  const customHolidaySet = new Set(customHolidays.filter((h) => !h.hidden).map((h) => h.date));
+  // Dates where an admin has suppressed a built-in holiday — keyed to the original name.
+  const builtInHolidays = getFederalHolidayDatesForYear(year);
+  const hiddenBuiltInMap = new Map(
+    customHolidays.filter((h) => h.hidden).map((h) => [h.date, builtInHolidays.get(h.date) ?? h.name])
+  );
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -302,6 +307,7 @@ export function YearlyVacationCalendar({
           current={selectedState}
           holidayName={holidays.get(selectedDate)}
           isCustomHoliday={customHolidaySet.has(selectedDate)}
+          hiddenBuiltInName={hiddenBuiltInMap.get(selectedDate)}
           callSource={selectedCallSource}
           onClose={() => setSelectedDate(null)}
         />

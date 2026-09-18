@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Palmtree, Sun, Moon, Building2, Stethoscope, Phone, PhoneOff, X, Loader2, Check, PartyPopper, Trash2 } from "lucide-react";
+import { Palmtree, Sun, Moon, Building2, Stethoscope, Phone, PhoneOff, X, Loader2, Check, PartyPopper, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 // The day's current type, as derived from the calendar data.
@@ -60,8 +60,10 @@ interface Props {
   date: string; // YYYY-MM-DD
   current: DayState;
   holidayName?: string;
-  /** True when the holiday on this date was added by an admin (and can be removed). */
+  /** True when the holiday on this date was added by an admin (can rename/delete). */
   isCustomHoliday?: boolean;
+  /** Set to the original holiday name when a built-in holiday has been hidden by an admin. */
+  hiddenBuiltInName?: string;
   callSource?: "AUTO" | "MANUAL"; // when current === "CALL"
   onClose: () => void;
 }
@@ -74,6 +76,7 @@ export function DayStateEditor({
   current,
   holidayName,
   isCustomHoliday = false,
+  hiddenBuiltInName,
   callSource,
   onClose,
 }: Props) {
@@ -117,20 +120,31 @@ export function DayStateEditor({
 
   // Holidays are global (every physician's calendar), so they use their own
   // endpoint rather than the per-physician calendar-day route above.
-  async function setHoliday(method: "POST" | "DELETE") {
+  async function setHoliday(action: "POST" | "DELETE" | "HIDE") {
     if (busy) return;
     setHolidaySaving(true);
     try {
+      const method = action === "DELETE" ? "DELETE" : "POST";
+      const body =
+        action === "HIDE"
+          ? { date, name: holidayName ?? hiddenBuiltInName ?? "Holiday", hidden: true }
+          : action === "POST"
+          ? { date, name: holidayInput }
+          : { date };
       const res = await fetch("/api/admin/custom-holidays", {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(method === "POST" ? { date, name: holidayInput } : { date }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Failed to update holiday");
       }
-      toast.success(method === "POST" ? "Holiday set for all physicians" : "Holiday removed");
+      const msg =
+        action === "HIDE" ? "Holiday removed from all calendars" :
+        action === "DELETE" ? (hiddenBuiltInName ? "Holiday restored" : "Holiday removed") :
+        "Holiday set for all physicians";
+      toast.success(msg);
       router.refresh();
       onClose();
     } catch (err) {
@@ -195,7 +209,9 @@ export function DayStateEditor({
           <p className="mt-0.5 text-xs text-muted-foreground">
             Applies to every physician&apos;s calendar, not just {physicianName.split(" ")[0] || "this physician"}.
           </p>
-          {isCustomHoliday ? (
+
+          {/* Case 1: admin-added custom holiday — can rename or delete */}
+          {isCustomHoliday && (
             <div className="mt-3 flex gap-2">
               <Input
                 value={holidayInput}
@@ -212,7 +228,43 @@ export function DayStateEditor({
                 {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
               </Button>
             </div>
-          ) : (
+          )}
+
+          {/* Case 2: visible built-in holiday — can remove it globally */}
+          {!isCustomHoliday && holidayName && !hiddenBuiltInName && (
+            <div className="mt-3">
+              <Button
+                variant="outline"
+                className="gap-2 text-destructive"
+                disabled={busy}
+                onClick={() => setHoliday("HIDE")}
+              >
+                {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Remove {holidayName} from all calendars
+              </Button>
+            </div>
+          )}
+
+          {/* Case 3: built-in holiday that an admin removed — can restore it */}
+          {hiddenBuiltInName && (
+            <div className="mt-3 space-y-2">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-medium text-destructive">{hiddenBuiltInName}</span> has been removed from all calendars.
+              </p>
+              <Button
+                variant="outline"
+                className="gap-2"
+                disabled={busy}
+                onClick={() => setHoliday("DELETE")}
+              >
+                {holidaySaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                Restore {hiddenBuiltInName}
+              </Button>
+            </div>
+          )}
+
+          {/* Case 4: no holiday on this date — can mark one */}
+          {!isCustomHoliday && !holidayName && !hiddenBuiltInName && (
             <div className="mt-3 flex gap-2">
               <Input
                 value={holidayInput}

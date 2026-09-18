@@ -280,6 +280,7 @@ export const CustomHolidayScalarFieldEnum = {
   id: 'id',
   date: 'date',
   name: 'name',
+  hidden: 'hidden',
   createdBy: 'createdBy',
   createdAt: 'createdAt'
 } as const
