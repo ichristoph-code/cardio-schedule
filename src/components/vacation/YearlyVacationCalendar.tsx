@@ -348,7 +348,7 @@ export function YearlyVacationCalendar({
 
   // Counted in weekdays, so a vacation spanning a weekend or landing on a
   // holiday doesn't inflate the total. See src/lib/year-tallies.ts.
-  const tallies = computeYearTallies(year, vacMap, holidays);
+  const tallies = computeYearTallies(year, vacMap, holidays, new Set(callMap.keys()));
 
   // Current type of the day being edited (for highlighting in the editor).
   const selectedState: DayState = selectedDate
@@ -401,12 +401,13 @@ export function YearlyVacationCalendar({
             <span className="text-muted-foreground">ICU Rounder — <strong>{rounderDays.length}</strong></span>
           </div>
         )}
-        {callDays.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900" />
-            <span className="text-muted-foreground">General Call — <strong>{callDays.length}</strong></span>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900" />
+          <span className="text-muted-foreground">
+            General Call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
+            <strong>{tallies.weekendCallDays}</strong> weekend
+          </span>
+        </div>
         {callDays.some((c) => c.manual) && (
           <div className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900 ring-2 ring-inset ring-amber-400" />
