@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { MyScheduleView } from "@/components/schedule/MyScheduleView";
 import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
+import { browsableYears, parseYearParam } from "@/lib/calendar-years";
 
 export default async function MySchedulePage({
   searchParams,
@@ -38,49 +39,41 @@ export default async function MySchedulePage({
     orderBy: { year: "desc" },
   });
 
-  if (allSchedules.length === 0) {
-    return (
-      <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">Personal Task Calendar</h1>
-        <p className="text-muted-foreground">
-          No schedule has been published yet. Check back later.
-        </p>
-      </div>
-    );
-  }
+  // Years to offer: the standard window plus any year that already has a
+  // schedule. Previously this was ONLY years with a published schedule, which
+  // meant a practice with one generated year had no way to reach the next one —
+  // and the picker hid itself entirely, since it rendered only when there was
+  // more than one option.
+  const availableYears = browsableYears(allSchedules.map((s) => s.year));
+  const selectedYear = parseYearParam(query.year);
 
-  const availableYears = allSchedules.map((s) => s.year);
-  const currentYear = new Date().getFullYear();
-
-  // Selected year: URL param > current year > latest available
-  const selectedYear = query.year
-    ? parseInt(query.year, 10)
-    : availableYears.includes(currentYear)
-      ? currentYear
-      : availableYears[0];
-
-  const schedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
+  // A schedule may not exist for the selected year yet. That is an ordinary
+  // state, not an error: assignments are simply empty, while approved vacation
+  // and no-call days for that year still show.
+  const schedule = allSchedules.find((s) => s.year === selectedYear);
 
   const [assignments, physician, vacations, noCallDays] = await Promise.all([
-    prisma.scheduleAssignment.findMany({
-      where: {
-        scheduleId: schedule.id,
-        physicianId,
-        isActive: true,
-      },
-      include: {
-        roleType: {
-          select: {
-            id: true,
-            name: true,
-            displayName: true,
-            category: true,
-            sortOrder: true,
+    schedule
+      ? prisma.scheduleAssignment.findMany({
+          where: {
+            scheduleId: schedule.id,
+            physicianId,
+            isActive: true,
           },
-        },
-      },
-      orderBy: [{ date: "asc" }, { roleType: { sortOrder: "asc" } }],
-    }),
+          include: {
+            roleType: {
+              select: {
+                id: true,
+                name: true,
+                displayName: true,
+                category: true,
+                sortOrder: true,
+              },
+            },
+          },
+          orderBy: [{ date: "asc" }, { roleType: { sortOrder: "asc" } }],
+        })
+      : [],
     prisma.physician.findUnique({
       where: { id: physicianId },
       select: { firstName: true, lastName: true },
@@ -89,8 +82,8 @@ export default async function MySchedulePage({
       where: {
         physicianId,
         status: "APPROVED",
-        startDate: { lte: new Date(schedule.year, 11, 31) },
-        endDate: { gte: new Date(schedule.year, 0, 1) },
+        startDate: { lte: new Date(selectedYear, 11, 31) },
+        endDate: { gte: new Date(selectedYear, 0, 1) },
       },
       orderBy: { startDate: "asc" },
     }),
@@ -99,8 +92,8 @@ export default async function MySchedulePage({
         physicianId,
         status: "APPROVED",
         date: {
-          gte: new Date(schedule.year, 0, 1),
-          lte: new Date(schedule.year, 11, 31),
+          gte: new Date(selectedYear, 0, 1),
+          lte: new Date(selectedYear, 11, 31),
         },
       },
       orderBy: { date: "asc" },
@@ -119,20 +112,23 @@ export default async function MySchedulePage({
             Personal Task Calendar
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {physicianName}&apos;s assignments for {schedule.year}
+            {physicianName}&apos;s assignments for {selectedYear}
           </p>
         </div>
-        {availableYears.length > 1 && (
-          <CalendarYearSelect
-            years={availableYears}
-            selectedYear={schedule.year}
-          />
-        )}
+        <CalendarYearSelect years={availableYears} selectedYear={selectedYear} />
       </div>
 
+      {!schedule && (
+        <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          No schedule has been published for {selectedYear} yet. Any approved
+          vacation and no-call days you already have for that year are shown
+          below.
+        </div>
+      )}
+
       <MyScheduleView
-        key={schedule.year}
-        year={schedule.year}
+        key={selectedYear}
+        year={selectedYear}
         physicianName={physicianName}
         assignments={assignments.map((a) => ({
           id: a.id,
