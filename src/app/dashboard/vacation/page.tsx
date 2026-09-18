@@ -3,8 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { VacationCalendarView } from "@/components/vacation/VacationCalendarView";
-import { PhysicianPicker } from "@/components/vacation/PhysicianPicker";
-import { LAST_PHYSICIAN_COOKIE, LAST_YEAR_COOKIE, selectableYears } from "@/lib/vacation-prefs";
+import { PhysicianPicker, LAST_PHYSICIAN_COOKIE } from "@/components/vacation/PhysicianPicker";
 import { Suspense } from "react";
 
 export default async function VacationPage({
@@ -19,6 +18,8 @@ export default async function VacationPage({
   const sessionPhysicianId = (session.user as Record<string, unknown>).physicianId as string | null;
 
   const query = await searchParams;
+  const currentYear = new Date().getFullYear();
+  const selectedYear = query.year ? parseInt(query.year, 10) : currentYear;
 
   // Admins see all physicians; regular users only see themselves
   const physicians = await prisma.physician.findMany({
@@ -38,24 +39,8 @@ export default async function VacationPage({
     );
   }
 
-  const cookieStore = await cookies();
-
-  // Resolve the year: URL param > last viewed (cookie) > this year. Planning
-  // runs ahead of the calendar, so once the practice is scheduling 2027 the
-  // default should follow rather than snapping back to today's year.
-  //
-  // A URL param is taken at face value within a sane range, so a hand-typed
-  // ?year= still works. The cookie is held to the picker's own list, so one
-  // left over from a year that has rolled out of range can't strand the page
-  // on an empty calendar.
-  const paramYear = Number.parseInt(query.year ?? "", 10);
-  const cookieYear = Number.parseInt(cookieStore.get(LAST_YEAR_COOKIE)?.value ?? "", 10);
-  const selectedYear =
-    (paramYear >= 2000 && paramYear <= 2100 && paramYear) ||
-    (selectableYears().includes(cookieYear) && cookieYear) ||
-    new Date().getFullYear();
-
   // Resolve selected physician: URL param > last viewed (cookie) > alphabetical first.
+  const cookieStore = await cookies();
   const lastViewed = cookieStore.get(LAST_PHYSICIAN_COOKIE)?.value;
   const selectedId =
     (query.physician && physicians.some((p) => p.id === query.physician) && query.physician) ||
