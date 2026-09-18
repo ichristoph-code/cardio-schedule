@@ -171,6 +171,7 @@ function MonthGrid({
               <button
                 key={i}
                 type="button"
+                data-date={dateStr}
                 title={title}
                 aria-pressed={isSelected}
                 className={className}
@@ -229,20 +230,37 @@ export function YearlyVacationCalendar({
   // Where the next shift-click measures from — the last cell the admin acted on.
   const anchorRef = useRef<string | null>(null);
   // Live drag, if one is in progress. `moved` stays false for a plain click.
-  const dragRef = useRef<{ start: string; moved: boolean } | null>(null);
+  const dragRef = useRef<{ start: string; moved: boolean; last?: string } | null>(null);
   // Set when a press was a selection gesture, so the click that follows it does
   // not also open the editor sheet.
   const suppressClickRef = useRef(false);
+  // The bulk bar is fixed to the bottom of the viewport, so the page reserves
+  // its measured height below the grid — otherwise December sits underneath it,
+  // unreadable and unclickable.
+  const [barHeight, setBarHeight] = useState(0);
+  // True once a drag has actually moved: the bar goes click-through so the drag
+  // can continue over the days it covers.
+  const [dragging, setDragging] = useState(false);
+  const gridRef = useRef<HTMLDivElement>(null);
+  // The day to scroll clear of the bar once the bar has been measured.
+  const revealRef = useRef<string | null>(null);
 
-  const clearSelection = useCallback(() => setSelectedDays(new Set()), []);
+  const clearSelection = useCallback(() => {
+    revealRef.current = null;
+    setSelectedDays(new Set());
+  }, []);
 
   // A drag can end anywhere — outside the grid, outside the window — so the
   // release is tracked globally rather than per cell.
   useEffect(() => {
     const onMouseUp = () => {
       const drag = dragRef.current;
-      if (drag?.moved) anchorRef.current = drag.start;
+      if (drag?.moved) {
+        anchorRef.current = drag.start;
+        revealRef.current = drag.last ?? drag.start;
+      }
       dragRef.current = null;
+      setDragging(false);
     };
     window.addEventListener("mouseup", onMouseUp);
     return () => window.removeEventListener("mouseup", onMouseUp);
@@ -264,6 +282,7 @@ export function YearlyVacationCalendar({
       // Shift-click: extend from the anchor to here.
       if (e.shiftKey && anchorRef.current) {
         suppressClickRef.current = true;
+        revealRef.current = date;
         const span = datesBetween(anchorRef.current, date);
         setSelectedDays((prev) => (additive ? new Set([...prev, ...span]) : new Set(span)));
         return;
@@ -272,6 +291,7 @@ export function YearlyVacationCalendar({
       // Cmd/Ctrl-click: toggle this one day in or out.
       if (additive) {
         suppressClickRef.current = true;
+        revealRef.current = date;
         setSelectedDays((prev) => {
           const next = new Set(prev);
           if (next.has(date)) next.delete(date);
@@ -283,7 +303,7 @@ export function YearlyVacationCalendar({
       }
 
       // Plain press: only becomes a selection if the pointer moves off this cell.
-      dragRef.current = { start: date, moved: false };
+      dragRef.current = { start: date, moved: false, last: date };
       suppressClickRef.current = false;
     },
     [isAdmin],
@@ -293,9 +313,23 @@ export function YearlyVacationCalendar({
     const drag = dragRef.current;
     if (!drag || date === drag.start) return;
     drag.moved = true;
+    drag.last = date;
     suppressClickRef.current = true;
+    setDragging(true);
     setSelectedDays(new Set(datesBetween(drag.start, date)));
   }, []);
+
+  // Once the bar is up and measured, nudge the day that was just selected above
+  // it. `block: "nearest"` means this is a no-op when the day is already clear.
+  useEffect(() => {
+    const date = revealRef.current;
+    if (dragging || barHeight === 0 || !date) return;
+    revealRef.current = null;
+    const cell = gridRef.current?.querySelector<HTMLElement>(`[data-date="${date}"]`);
+    if (!cell) return;
+    cell.style.scrollMarginBottom = `${barHeight + 8}px`;
+    cell.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, [barHeight, dragging, selectedDays]);
 
   const handleDayClick = useCallback((date: string) => {
     // Swallow the click that ends a drag or follows a modifier-click.
@@ -399,7 +433,7 @@ export function YearlyVacationCalendar({
         </div>
       )}
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
         {Array.from({ length: 12 }, (_, m) => (
           <MonthGrid
             key={m}
@@ -428,8 +462,13 @@ export function YearlyVacationCalendar({
           dates={[...selectedDays].sort()}
           onClear={clearSelection}
           onApplied={clearSelection}
+          onHeightChange={setBarHeight}
+          passthrough={dragging}
         />
       )}
+
+      {/* Keeps the last row of months scrollable clear of the fixed bar. */}
+      {barHeight > 0 && <div aria-hidden="true" style={{ height: barHeight }} />}
 
       {isAdmin && physicianId && selectedDate && (
         <DayStateEditor
