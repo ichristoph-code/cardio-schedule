@@ -49,7 +49,7 @@ export default async function MyPreferencesPage({
     select: { preferredTaskDay: true },
   });
 
-  const [vacations, noCallDays, mpiRoleType] = await Promise.all([
+  const [vacations, noCallDays, mpiRoleType, customHolidayRows] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId,
@@ -68,6 +68,12 @@ export default async function MyPreferencesPage({
       orderBy: { date: "asc" },
     }),
     prisma.roleType.findFirst({ where: { name: "MPI_READER" } }),
+    // Office holidays are global — the same yellow days every other calendar shows.
+    prisma.customHoliday.findMany({
+      where: { date: { gte: yearStart, lte: yearEnd } },
+      select: { date: true, name: true, hidden: true },
+      orderBy: { date: "asc" },
+    }),
   ]);
 
   // Check MPI eligibility and existing day preference
@@ -122,6 +128,11 @@ export default async function MyPreferencesPage({
         key={selectedYear}
         physicianId={physicianId}
         initialYear={selectedYear}
+        customHolidays={customHolidayRows.map((h) => ({
+          date: h.date.toISOString().split("T")[0],
+          name: h.name,
+          hidden: h.hidden,
+        }))}
         existingVacations={vacations.map((v) => ({
           id: v.id,
           startDate: v.startDate.toISOString().split("T")[0],

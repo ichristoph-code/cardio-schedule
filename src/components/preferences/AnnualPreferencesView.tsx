@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -90,16 +91,24 @@ export function AnnualPreferencesView({
   initialYear,
   existingVacations,
   existingNoCallDays,
+  customHolidays = [],
 }: {
   physicianId: string;
   initialYear: number;
   existingVacations: ExistingVacation[];
   existingNoCallDays: ExistingNoCallDay[];
+  customHolidays?: CustomHolidayInfo[];
 }) {
   const router = useRouter();
   // Year is owned by the URL (see my-preferences/page.tsx); the page re-keys
   // this component per year so all local state below starts fresh.
   const year = initialYear;
+  // Built-in federal holidays plus admin-marked ones, exactly as the vacation
+  // and schedule calendars derive them — same source, same days, same yellow.
+  const holidays = useMemo(
+    () => getAllHolidayDatesForYear(year, customHolidays),
+    [year, customHolidays],
+  );
   const [submitting, setSubmitting] = useState(false);
 
   // New selections (not yet saved)
@@ -498,6 +507,10 @@ export function AnnualPreferencesView({
               <div className="w-3 h-3 rounded border-2 border-amber-500 bg-white" />
               <span>New No-Call ({summary.newNoCall})</span>
             </div>
+            <div className="flex items-center gap-2">
+              <div className="w-3 h-3 rounded bg-yellow-300" />
+              <span>Office Holiday ({holidays.size})</span>
+            </div>
           </div>
           {rangeStart && (
             <div className="mt-2 text-xs text-muted-foreground">
@@ -516,6 +529,7 @@ export function AnnualPreferencesView({
             year={year}
             month={month}
             getDateStatus={getDateStatus}
+            holidays={holidays}
             onDayClick={handleDayClick}
             popoverDate={popoverDate}
             onSelectType={selectType}
@@ -654,6 +668,7 @@ function MonthCalendar({
   year,
   month,
   getDateStatus,
+  holidays,
   onDayClick,
   popoverDate,
   onSelectType,
@@ -662,6 +677,7 @@ function MonthCalendar({
   year: number;
   month: number;
   getDateStatus: (dateStr: string) => string;
+  holidays: Map<string, string>;
   onDayClick: (dateStr: string, shiftKey: boolean) => void;
   popoverDate: string | null;
   onSelectType: (type: SelectionType) => void;
@@ -705,8 +721,9 @@ function MonthCalendar({
             const dateStr = formatDate(year, month, day);
             const weekend = isWeekend(year, month, day);
             const status = getDateStatus(dateStr);
+            const holidayName = holidays.get(dateStr);
 
-            const cellClasses = getCellClasses(status, weekend);
+            const cellClasses = getCellClasses(status, weekend, holidayName !== undefined);
             const showDropdown = popoverDate === dateStr;
 
             return (
@@ -727,7 +744,11 @@ function MonthCalendar({
                       onClick={(e) => {
                         onDayClick(dateStr, e.shiftKey);
                       }}
-                      aria-label={getTooltip(status, dateStr)}
+                      aria-label={
+                        holidayName && status === "available"
+                          ? `${dateStr} — ${holidayName}`
+                          : getTooltip(status, dateStr)
+                      }
                       aria-pressed={status !== "available"}
                       title={getTooltip(status, dateStr)}
                     />
@@ -766,7 +787,7 @@ function MonthCalendar({
 
 // --- Styling Helpers ---
 
-function getCellClasses(status: string, weekend: boolean): string {
+function getCellClasses(status: string, weekend: boolean, holiday = false): string {
   switch (status) {
     case "vacation-approved":
       return "bg-green-500 text-white font-semibold";
@@ -781,6 +802,9 @@ function getCellClasses(status: string, weekend: boolean): string {
     case "nocall-new":
       return "bg-white border-2 border-amber-500 text-amber-700 font-semibold";
     default:
+      // A day the physician has marked keeps its own colour; the holiday tint is
+      // only for days they haven't claimed.
+      if (holiday) return "bg-yellow-300 text-yellow-900 font-semibold";
       return weekend ? "bg-gray-100 text-gray-600" : "bg-white text-gray-900";
   }
 }
