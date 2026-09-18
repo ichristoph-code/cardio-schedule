@@ -212,7 +212,7 @@ export default async function PhysiciansPage({
             {physicians.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={12} className="h-24 text-center text-muted-foreground">
-                  No physicians added yet. Click &quot;Add Physician&quot; to get started.
+                  No physicians added yet. Click &quot;Add User&quot; to get started.
                 </TableCell>
               </TableRow>
             ) : (
