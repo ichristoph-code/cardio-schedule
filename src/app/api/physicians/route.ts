@@ -10,7 +10,8 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { firstName, lastName, email, password, phone } = body;
+  const { firstName, lastName, email, password, phone, role } = body;
+  const userRole = role === "ADMIN" ? "ADMIN" : "PHYSICIAN";
 
   if (!firstName || !lastName || !email || !password) {
     return NextResponse.json(
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     data: {
       email,
       passwordHash,
-      role: "PHYSICIAN",
+      role: userRole,
       physician: {
         create: {
           firstName,
