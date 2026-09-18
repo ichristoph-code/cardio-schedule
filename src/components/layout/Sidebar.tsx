@@ -24,7 +24,6 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: Home },
   { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
   { label: "My Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
   { label: "Call and Vacation Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
@@ -33,6 +32,7 @@ const navItems: NavItem[] = [
   { label: "Physicians", href: "/dashboard/physicians", icon: Users, adminOnly: true },
   { label: "Rules", href: "/dashboard/rules", icon: Shield, adminOnly: true },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, adminOnly: true },
+  { label: "Dashboard", href: "/dashboard", icon: Home },
 ];
 
 interface SidebarProps {
