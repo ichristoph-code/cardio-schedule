@@ -2,59 +2,13 @@
 
 import { useState } from "react";
 import { DayStateEditor, type DayState } from "@/components/vacation/DayStateEditor";
+import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
   "July","August","September","October","November","December",
 ];
 const DAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-
-/** Returns a Map of "YYYY-MM-DD" → holiday name (the holidays the scheduler recognizes). */
-function getHolidayDatesForYear(year: number): Map<string, string> {
-  const map = new Map<string, string>();
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  // Federal "in lieu of" observance: Saturday -> preceding Friday, Sunday -> following Monday.
-  const observed = (d: Date) => {
-    const r = new Date(d);
-    const dow = r.getDay();
-    if (dow === 6) r.setDate(r.getDate() - 1);
-    else if (dow === 0) r.setDate(r.getDate() + 1);
-    return r;
-  };
-
-  map.set(fmt(observed(new Date(year, 0, 1))), "New Year's Day");
-  map.set(fmt(observed(new Date(year, 6, 4))), "Independence Day");
-
-  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
-  // When observed Christmas Day lands on Dec 24, shift the Eve one weekday earlier.
-  const christmasDay = observed(new Date(year, 11, 25));
-  const christmasEve = new Date(year, 11, 24);
-  if (fmt(christmasDay) === fmt(christmasEve)) {
-    christmasEve.setDate(christmasEve.getDate() - 1);
-    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
-      christmasEve.setDate(christmasEve.getDate() - 1);
-    }
-  }
-  map.set(fmt(christmasEve), "Christmas Eve");
-  map.set(fmt(christmasDay), "Christmas Day");
-
-  const memDay = new Date(year, 4, 31);
-  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
-  map.set(fmt(memDay), "Memorial Day");
-
-  const labDay = new Date(year, 8, 1);
-  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
-  map.set(fmt(labDay), "Labor Day");
-
-  const tg = new Date(year, 10, 1);
-  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
-  tg.setDate(tg.getDate() + 21);
-  map.set(fmt(tg), "Thanksgiving");
-
-  return map;
-}
 
 interface VacationInfo {
   id: string;
@@ -71,6 +25,7 @@ interface Props {
   rounderDays?: string[];
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
+  customHolidays?: CustomHolidayInfo[];
   daysWorked?: number;
   isAdmin?: boolean;
   physicianId?: string;
@@ -220,6 +175,7 @@ export function YearlyVacationCalendar({
   rounderDays = [],
   callDays = [],
   noCallDays = [],
+  customHolidays = [],
   daysWorked,
   isAdmin = false,
   physicianId,
@@ -230,7 +186,9 @@ export function YearlyVacationCalendar({
   const rounderSet = new Set(rounderDays);
   const callMap = new Map(callDays.map((c) => [c.date, c.manual] as const));
   const noCallSet = new Set(noCallDays);
-  const holidays = getHolidayDatesForYear(year);
+  // Built-in holidays + admin-marked custom holidays (global, all physicians).
+  const holidays = getAllHolidayDatesForYear(year, customHolidays);
+  const customHolidaySet = new Set(customHolidays.map((h) => h.date));
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
@@ -306,13 +264,13 @@ export function YearlyVacationCalendar({
         )}
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-yellow-300" />
-          <span className="text-muted-foreground">Federal holiday</span>
+          <span className="text-muted-foreground">Holiday</span>
         </div>
       </div>
 
       {isAdmin && (
         <p className="text-xs text-muted-foreground -mt-1">
-          Click any day to set vacation, ½ day, float, rounder, general call, or no-call.
+          Click any day to set vacation, ½ day, float, rounder, general call, or no-call — or mark it as a holiday for everyone.
         </p>
       )}
 
@@ -336,12 +294,14 @@ export function YearlyVacationCalendar({
 
       {isAdmin && physicianId && selectedDate && (
         <DayStateEditor
+          key={selectedDate}
           physicianId={physicianId}
           physicianName={physicianName ?? ""}
           year={year}
           date={selectedDate}
           current={selectedState}
           holidayName={holidays.get(selectedDate)}
+          isCustomHoliday={customHolidaySet.has(selectedDate)}
           callSource={selectedCallSource}
           onClose={() => setSelectedDate(null)}
         />

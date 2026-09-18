@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
-import { notFound } from "next/navigation";
+import { auth } from "@/lib/auth";
+import { notFound, redirect } from "next/navigation";
 import { PhysicianProfileForm } from "@/components/physicians/PhysicianProfileForm";
 import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
 import { PreferredTaskDay } from "@/components/preferences/PreferredTaskDay";
@@ -18,6 +19,12 @@ const DAY_NAMES: Record<number, string> = {
 };
 
 export default async function PhysicianDetailPage({ params }: PageProps) {
+  // Admin-only (profile edits, eligibilities, contact details).
+  const session = await auth();
+  if (!session || session.user.role !== "ADMIN") {
+    redirect("/dashboard");
+  }
+
   const { id } = await params;
 
   const physician = await prisma.physician.findUnique({

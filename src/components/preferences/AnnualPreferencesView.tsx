@@ -97,7 +97,9 @@ export function AnnualPreferencesView({
   existingNoCallDays: ExistingNoCallDay[];
 }) {
   const router = useRouter();
-  const [year, setYear] = useState(initialYear);
+  // Year is owned by the URL (see my-preferences/page.tsx); the page re-keys
+  // this component per year so all local state below starts fresh.
+  const year = initialYear;
   const [submitting, setSubmitting] = useState(false);
 
   // New selections (not yet saved)
@@ -413,6 +415,17 @@ export function AnnualPreferencesView({
 
   // --- Render ---
 
+  function goToYear(next: number) {
+    const unsaved = newVacationDates.size + newNoCallDates.size;
+    if (
+      unsaved > 0 &&
+      !window.confirm(`You have ${unsaved} unsaved selection(s) for ${year}. Switch to ${next} and discard them?`)
+    ) {
+      return;
+    }
+    router.push(`/dashboard/my-preferences?year=${next}`);
+  }
+
   return (
     <div className="space-y-6">
       {/* Year selector + summary */}
@@ -421,7 +434,7 @@ export function AnnualPreferencesView({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setYear((y) => y - 1)}
+            onClick={() => goToYear(year - 1)}
             disabled={year <= 2024}
           >
             <ChevronLeft className="h-4 w-4" />
@@ -430,7 +443,7 @@ export function AnnualPreferencesView({
           <Button
             variant="outline"
             size="icon"
-            onClick={() => setYear((y) => y + 1)}
+            onClick={() => goToYear(year + 1)}
             disabled={year >= 2100}
           >
             <ChevronRight className="h-4 w-4" />

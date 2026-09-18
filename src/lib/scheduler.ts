@@ -1,5 +1,6 @@
 import { prisma } from "./prisma";
 import { computeMonthlyTargets, assignEchoDates, ReaderSpec } from "./echoAllocator";
+import { getAllHolidayDatesForYear } from "./holidays";
 
 // --- Date Helpers ---
 
@@ -67,59 +68,6 @@ function hamiltonAllocate(
   return result;
 }
 
-// --- Holiday Date Calculator ---
-
-// Federal "in lieu of" observance rule: a holiday falling on Saturday is
-// observed the preceding Friday; one falling on Sunday is observed the
-// following Monday.
-function observedDate(d: Date): Date {
-  const result = new Date(d);
-  const dow = result.getDay();
-  if (dow === 6) result.setDate(result.getDate() - 1); // Saturday -> Friday
-  else if (dow === 0) result.setDate(result.getDate() + 1); // Sunday -> Monday
-  return result;
-}
-
-function getHolidayDatesForYear(year: number): Map<string, string> {
-  const map = new Map<string, string>();
-
-  // Fixed-date federal holidays use the observance rule.
-  map.set(formatDate(observedDate(new Date(year, 0, 1))), "New Year's Day");
-  map.set(formatDate(observedDate(new Date(year, 6, 4))), "Independence Day");
-
-  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
-  // When observed Christmas Day lands on Dec 24 (Dec 25 is a Saturday),
-  // shift Christmas Eve one weekday earlier so both remain distinct days.
-  const christmasDay = observedDate(new Date(year, 11, 25));
-  const christmasEve = new Date(year, 11, 24);
-  if (formatDate(christmasDay) === formatDate(christmasEve)) {
-    christmasEve.setDate(christmasEve.getDate() - 1);
-    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
-      christmasEve.setDate(christmasEve.getDate() - 1);
-    }
-  }
-  map.set(formatDate(christmasEve), "Christmas Eve");
-  map.set(formatDate(christmasDay), "Christmas Day");
-
-  // Memorial Day: last Monday of May
-  const memDay = new Date(year, 4, 31);
-  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
-  map.set(formatDate(memDay), "Memorial Day");
-
-  // Labor Day: first Monday of September
-  const labDay = new Date(year, 8, 1);
-  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
-  map.set(formatDate(labDay), "Labor Day");
-
-  // Thanksgiving: fourth Thursday of November
-  const tg = new Date(year, 10, 1);
-  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
-  tg.setDate(tg.getDate() + 21);
-  map.set(formatDate(tg), "Thanksgiving");
-
-  return map;
-}
-
 // --- Types ---
 
 interface PhysicianData {
@@ -149,6 +97,21 @@ export interface ScheduleStats {
   holidays: Record<string, Record<string, string>>; // holidayName -> roleId -> physicianId
   unfilledSlots: { date: string; roleName: string }[];
 }
+
+/**
+ * Which roles run on a given day.
+ *
+ * Holidays are treated exactly like weekend days: only ON_CALL roles
+ * (General Call, with Interventional and EP backup) are staffed. No rounders,
+ * no reading, no cardioversion/TEE, nothing routine.
+ */
+export function roleNeedsFilling(category: string, weekend: boolean, holiday: boolean): boolean {
+  if (category === "ON_CALL") return true; // every day, holidays included
+  return !weekend && !holiday;
+}
+
+// Exported for unit tests.
+export const __schedulingHelpers = { roleNeedsFilling };
 
 function countReadingDaysInMonth(year: number, month: number, holidayDates: Map<string, string>): number {
   let count = 0;
@@ -241,6 +204,36 @@ export async function generateSchedule(
     holidayWeights[h.name] = h.weight;
     holidayIdMap[h.name] = h.id;
   }
+
+  // Holiday dates = built-in federal holidays (incl. MLK and Presidents' Day)
+  // plus any days an admin marked as a holiday on the Physician Vacation &
+  // Work Calendar. Both kinds are staffed like a weekend (see roleNeedsFilling).
+  const customHolidayRows = await prisma.customHoliday.findMany({
+    where: { date: { gte: toDbDate(`${year}-01-01`), lte: toDbDate(`${year}-12-31`) } },
+    select: { date: true, name: true },
+  });
+  const holidayDates = getAllHolidayDatesForYear(
+    year,
+    customHolidayRows.map((h) => ({ date: formatDate(toLocalMidnight(h.date)), name: h.name }))
+  );
+
+  // Weekly rounder blocks run Mon–Fri with the same MD. When Monday (or Monday
+  // and Tuesday, …) is a holiday, the block starts on the first working day
+  // instead, but is still keyed by that week's Monday so Tue–Fri lookups match.
+  const mondayOf = (date: Date, dow: number): string => {
+    const monday = new Date(date);
+    monday.setDate(monday.getDate() - (dow - 1));
+    return formatDate(monday);
+  };
+  const startsRounderWeek = (date: Date, dow: number): boolean => {
+    if (dow < 1 || dow > 5) return false;
+    for (let k = 1; k < dow; k++) {
+      const earlier = new Date(date);
+      earlier.setDate(earlier.getDate() - (dow - k));
+      if (!holidayDates.has(formatDate(earlier))) return false;
+    }
+    return true;
+  };
 
   // Vacations
   const yearStart = new Date(year, 0, 1);
@@ -409,8 +402,8 @@ export async function generateSchedule(
         if (!weekdayCallCount[a.roleTypeId]) weekdayCallCount[a.roleTypeId] = {};
         weekdayCallCount[a.roleTypeId][a.physicianId] = (weekdayCallCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
       }
-      if ((roleInfo.name === "HOSPITAL_ROUNDER" || roleInfo.name === "ICU_ROUNDER") && dow === 1) {
-        weeklyRounderBlocks.set(`${dateStr}:${a.roleTypeId}`, a.physicianId);
+      if ((roleInfo.name === "HOSPITAL_ROUNDER" || roleInfo.name === "ICU_ROUNDER") && startsRounderWeek(parseDate(dateStr), dow)) {
+        weeklyRounderBlocks.set(`${mondayOf(parseDate(dateStr), dow)}:${a.roleTypeId}`, a.physicianId);
       }
     }
   }
@@ -437,8 +430,6 @@ export async function generateSchedule(
       if (poolA !== poolB) return poolA - poolB;
       return a.sortOrder - b.sortOrder;
     });
-
-  const holidayDates = getHolidayDatesForYear(year);
 
   // Hamilton (largest-remainder) integer quotas for READING roles.
   // Scoped to the date range being generated so proportions are correct for that window.
@@ -678,17 +669,7 @@ export async function generateSchedule(
 
     for (const role of sortedRoles) {
       // Determine if role needs filling today
-      const needsFilling = (() => {
-        if (role.category === "ON_CALL") return true; // every day
-        // DAYTIME roles: weekdays only, skip weekends AND holidays
-        // (no hospital/ICU rounders on weekends or holidays)
-        if (role.category === "DAYTIME") {
-          return !weekend && !holidayName;
-        }
-        if (role.category === "READING") return !weekend && !holidayName;
-        if (role.category === "SPECIAL") return !weekend;
-        return !weekend;
-      })();
+      const needsFilling = roleNeedsFilling(role.category, weekend, !!holidayName);
 
       if (!needsFilling) continue;
 
@@ -733,11 +714,7 @@ export async function generateSchedule(
       // Weekly rounder blocks: Hospital/ICU rounders are assigned Mon-Fri,
       // same MD all week. On Tue-Fri (dow 2-5), reuse Monday's assignment.
       if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && dow >= 2 && dow <= 5) {
-        // Find the Monday of this week
-        const monday = new Date(date);
-        monday.setDate(monday.getDate() - (dow - 1));
-        const mondayStr = formatDate(monday);
-        const blockKey = `${mondayStr}:${role.id}`;
+        const blockKey = `${mondayOf(date, dow)}:${role.id}`;
         const mondayPhysId = weeklyRounderBlocks.get(blockKey);
 
         if (mondayPhysId) {
@@ -1018,9 +995,10 @@ export async function generateSchedule(
         weekdayCallCount[role.id][winner.id] = (weekdayCallCount[role.id][winner.id] ?? 0) + 1;
       }
 
-      // If Monday rounder, store in weekly block map for Tue-Fri reuse
-      if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && dow === 1) {
-        weeklyRounderBlocks.set(`${dateStr}:${role.id}`, winner.id);
+      // First working day of the week for a rounder: store in the weekly block
+      // map (keyed by Monday) so the rest of the week reuses this MD.
+      if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && startsRounderWeek(date, dow)) {
+        weeklyRounderBlocks.set(`${mondayOf(date, dow)}:${role.id}`, winner.id);
       }
 
       // Update tracking

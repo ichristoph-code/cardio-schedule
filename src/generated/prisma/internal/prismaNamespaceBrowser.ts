@@ -65,6 +65,7 @@ export const ModelName = {
   SwapRequest: 'SwapRequest',
   Holiday: 'Holiday',
   HolidayAssignment: 'HolidayAssignment',
+  CustomHoliday: 'CustomHoliday',
   AuditLog: 'AuditLog'
 } as const
 
@@ -273,6 +274,17 @@ export const HolidayAssignmentScalarFieldEnum = {
 } as const
 
 export type HolidayAssignmentScalarFieldEnum = (typeof HolidayAssignmentScalarFieldEnum)[keyof typeof HolidayAssignmentScalarFieldEnum]
+
+
+export const CustomHolidayScalarFieldEnum = {
+  id: 'id',
+  date: 'date',
+  name: 'name',
+  createdBy: 'createdBy',
+  createdAt: 'createdAt'
+} as const
+
+export type CustomHolidayScalarFieldEnum = (typeof CustomHolidayScalarFieldEnum)[keyof typeof CustomHolidayScalarFieldEnum]
 
 
 export const AuditLogScalarFieldEnum = {

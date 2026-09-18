@@ -29,7 +29,7 @@ const navItems: NavItem[] = [
   { label: "My Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
   { label: "Call and Vacation Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
   { label: "Requests", href: "/dashboard/requests", icon: ClipboardList },
-  { label: "Vacation Calendar", href: "/dashboard/vacation", icon: Palmtree },
+  { label: "Physician Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
   { label: "Physicians", href: "/dashboard/physicians", icon: Users, adminOnly: true },
   { label: "Rules", href: "/dashboard/rules", icon: Shield, adminOnly: true },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, adminOnly: true },
@@ -67,6 +67,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
               key={item.href}
               href={item.href}
               onClick={onNavigate}
+              aria-current={isActive ? "page" : undefined}
               className={cn(
                 "flex items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium transition-all duration-200",
                 isActive

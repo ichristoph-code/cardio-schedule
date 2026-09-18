@@ -44,6 +44,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
+import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 
 // --- Types ---
 
@@ -126,56 +127,6 @@ function isToday(dateStr: string): boolean {
   return dateStr === new Date().toISOString().split("T")[0];
 }
 
-/** Returns a Map of "YYYY-MM-DD" → holiday name for all US holidays in the given year */
-function getHolidayDatesForYear(year: number): Map<string, string> {
-  const map = new Map<string, string>();
-  const fmt = (d: Date) =>
-    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-
-  // Federal "in lieu of" observance: Saturday -> preceding Friday, Sunday -> following Monday.
-  const observed = (d: Date) => {
-    const r = new Date(d);
-    const dow = r.getDay();
-    if (dow === 6) r.setDate(r.getDate() - 1);
-    else if (dow === 0) r.setDate(r.getDate() + 1);
-    return r;
-  };
-
-  // Fixed-date federal holidays
-  map.set(fmt(observed(new Date(year, 0, 1))), "New Year's Day");
-  map.set(fmt(observed(new Date(year, 6, 4))), "Independence Day");
-
-  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
-  // When observed Christmas Day lands on Dec 24, shift the Eve one weekday earlier.
-  const christmasDay = observed(new Date(year, 11, 25));
-  const christmasEve = new Date(year, 11, 24);
-  if (fmt(christmasDay) === fmt(christmasEve)) {
-    christmasEve.setDate(christmasEve.getDate() - 1);
-    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
-      christmasEve.setDate(christmasEve.getDate() - 1);
-    }
-  }
-  map.set(fmt(christmasEve), "Christmas Eve");
-  map.set(fmt(christmasDay), "Christmas Day");
-
-  // Memorial Day: last Monday of May
-  const memDay = new Date(year, 4, 31);
-  while (memDay.getDay() !== 1) memDay.setDate(memDay.getDate() - 1);
-  map.set(fmt(memDay), "Memorial Day");
-
-  // Labor Day: first Monday of September
-  const labDay = new Date(year, 8, 1);
-  while (labDay.getDay() !== 1) labDay.setDate(labDay.getDate() + 1);
-  map.set(fmt(labDay), "Labor Day");
-
-  // Thanksgiving: fourth Thursday of November
-  const tg = new Date(year, 10, 1);
-  while (tg.getDay() !== 4) tg.setDate(tg.getDate() + 1);
-  tg.setDate(tg.getDate() + 21);
-  map.set(fmt(tg), "Thanksgiving");
-
-  return map;
-}
 
 // Physician color palette — maximally distinct colors, ordered for contrast between neighbors
 // Removed near-duplicates (sky≈cyan, teal≈emerald, pink≈rose, amber≈orange)
@@ -216,6 +167,7 @@ export function ScheduleViewer({
   roleTypes,
   isAdmin,
   showBackButton = true,
+  customHolidays = [],
 }: {
   schedule: ScheduleInfo;
   assignments: Assignment[];
@@ -223,6 +175,8 @@ export function ScheduleViewer({
   roleTypes: RoleType[];
   isAdmin: boolean;
   showBackButton?: boolean;
+  /** Admin-marked holidays (global). Merged with the built-in federal holidays. */
+  customHolidays?: CustomHolidayInfo[];
 }) {
   const router = useRouter();
   const [month, setMonth] = useState(() => {
@@ -716,11 +670,8 @@ export function ScheduleViewer({
     }
 
     // Holiday lookup for the schedule year (and potentially year+1 if range spans Dec→Jan)
-    const holidays = getHolidayDatesForYear(schedule.year);
-    if (schedule.year + 1 <= new Date().getFullYear() + 2) {
-      const nextYearHolidays = getHolidayDatesForYear(schedule.year + 1);
-      nextYearHolidays.forEach((v, k) => holidays.set(k, v));
-    }
+    const holidays = getAllHolidayDatesForYear(schedule.year, customHolidays);
+    getFederalHolidayDatesForYear(schedule.year + 1).forEach((v, k) => holidays.set(k, v));
 
     // Boundaries: allow navigating from the week containing Jan 1
     // through the week containing Dec 31 of the schedule year
@@ -1101,31 +1052,6 @@ export function ScheduleViewer({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    );
-  }
-
-  // --- Stats Summary ---
-
-  function renderStats() {
-    // Group by role category
-    const byCategory: Record<string, number> = {};
-    for (const a of localAssignments) {
-      byCategory[a.roleCategory] = (byCategory[a.roleCategory] ?? 0) + 1;
-    }
-
-    return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        {Object.entries(byCategory).map(([cat, count]) => (
-          <Card key={cat} className="shadow-sm">
-            <CardContent className="p-3 text-center">
-              <div className="text-2xl font-bold">{count.toLocaleString()}</div>
-              <div className="text-xs text-muted-foreground">
-                {cat.replace("_", " ")}
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
     );
   }
 

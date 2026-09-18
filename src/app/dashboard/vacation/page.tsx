@@ -32,7 +32,7 @@ export default async function VacationPage({
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Vacation Calendar</h1>
+          <h1 className="text-2xl font-bold tracking-tight">Physician Vacation &amp; Work Calendar</h1>
           <p className="text-muted-foreground">No physician profile linked to your account.</p>
         </div>
       </div>
@@ -49,7 +49,7 @@ export default async function VacationPage({
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
-  const [vacations, floatAssignments, rounderAssignments, callAssignments, noCallReqs, workedAssignments] = await Promise.all([
+  const [vacations, floatAssignments, rounderAssignments, callAssignments, noCallReqs, workedAssignments, customHolidayRows] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId: selectedId,
@@ -123,6 +123,17 @@ export default async function VacationPage({
       },
       select: { date: true },
     }),
+    // Admin-marked holidays — global (not per physician), shown on every calendar.
+    prisma.customHoliday.findMany({
+      where: {
+        date: {
+          gte: new Date(Date.UTC(selectedYear, 0, 1)),
+          lte: new Date(Date.UTC(selectedYear, 11, 31)),
+        },
+      },
+      select: { date: true, name: true },
+      orderBy: { date: "asc" },
+    }),
   ]);
 
   const floatDays = floatAssignments.map((a) => a.date.toISOString().split("T")[0]);
@@ -132,6 +143,10 @@ export default async function VacationPage({
     manual: a.source === "MANUAL",
   }));
   const noCallDays = noCallReqs.map((a) => a.date.toISOString().split("T")[0]);
+  const customHolidays = customHolidayRows.map((h) => ({
+    date: h.date.toISOString().split("T")[0],
+    name: h.name,
+  }));
   // Distinct calendar days with at least one assignment (a physician may hold
   // multiple roles on the same day — count the day once).
   const daysWorked = new Set(
@@ -141,8 +156,8 @@ export default async function VacationPage({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Vacation Calendar</h1>
-        <p className="text-muted-foreground">Approved vacation days by physician.</p>
+        <h1 className="text-2xl font-bold tracking-tight">Physician Vacation &amp; Work Calendar</h1>
+        <p className="text-muted-foreground">Vacation, call, float, rounder, and holiday days by physician.</p>
       </div>
 
       {isAdmin && (
@@ -172,6 +187,7 @@ export default async function VacationPage({
         rounderDays={rounderDays}
         callDays={callDays}
         noCallDays={noCallDays}
+        customHolidays={customHolidays}
         daysWorked={daysWorked}
       />
     </div>

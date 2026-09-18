@@ -1,8 +1,17 @@
 import { prisma } from "@/lib/prisma";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
 import { AddRuleDialog } from "@/components/rules/AddRuleDialog";
 import { DraggableRulesTable } from "@/components/rules/DraggableRulesTable";
 
 export default async function RulesPage() {
+  // Admin-only page. The sidebar hides the link for physicians, but the URL
+  // must be guarded too — hiding a link is not access control.
+  const session = await auth();
+  if (!session || session.user.role !== "ADMIN") {
+    redirect("/dashboard");
+  }
+
   const [rules, roleTypes, physicians] = await Promise.all([
     prisma.schedulingRule.findMany({
       include: {

@@ -5,6 +5,7 @@ import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 import { YearlyVacationCalendar } from "@/components/vacation/YearlyVacationCalendar";
 import { CalendarDays, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
+import type { CustomHolidayInfo } from "@/lib/holidays";
 
 interface VacationInfo {
   id: string;
@@ -24,10 +25,11 @@ interface Props {
   rounderDays?: string[];
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
+  customHolidays?: CustomHolidayInfo[];
   daysWorked?: number;
 }
 
-export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], rounderDays = [], callDays = [], noCallDays = [], daysWorked }: Props) {
+export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], rounderDays = [], callDays = [], noCallDays = [], customHolidays = [], daysWorked }: Props) {
   const [view, setView] = useState<"monthly" | "yearly">("yearly");
 
   return (
@@ -69,6 +71,7 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           }))}
           vacations={vacations}
           noCallDays={noCallDays.map((date, i) => ({ id: `nocall-${i}`, date, reason: null }))}
+          customHolidays={customHolidays}
         />
       ) : (
         <YearlyVacationCalendar
@@ -78,6 +81,7 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           rounderDays={rounderDays}
           callDays={callDays}
           noCallDays={noCallDays}
+          customHolidays={customHolidays}
           daysWorked={daysWorked}
           isAdmin={isAdmin}
           physicianId={physicianId}

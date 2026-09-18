@@ -88,6 +88,11 @@ export type Holiday = Prisma.HolidayModel
  */
 export type HolidayAssignment = Prisma.HolidayAssignmentModel
 /**
+ * Model CustomHoliday
+ * 
+ */
+export type CustomHoliday = Prisma.CustomHolidayModel
+/**
  * Model AuditLog
  * 
  */

@@ -267,6 +267,16 @@ model HolidayAssignment {
   @@index([physicianId])
 }
 
+// Admin-marked holidays shown on every physician's calendar (global, one row per date).
+// Distinct from Holiday (call-weighting names used by the scheduler).
+model CustomHoliday {
+  id        String   @id @default(cuid())
+  date      DateTime @unique @db.Date
+  name      String
+  createdBy String?
+  createdAt DateTime @default(now())
+}
+
 model AuditLog {
   id         String   @id @default(cuid())
   userId     String

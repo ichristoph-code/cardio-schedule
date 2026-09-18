@@ -17,6 +17,8 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "CardioSchedule",
   description: "Cardiology practice scheduling platform",
+  // Private clinical tool — keep it out of search engines.
+  robots: { index: false, follow: false },
 };
 
 export default function RootLayout({
