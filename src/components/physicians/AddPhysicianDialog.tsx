@@ -58,11 +58,11 @@ export function AddPhysicianDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 text-sm font-medium hover:bg-primary/90">
         <Plus className="mr-2 h-4 w-4" />
-        Add Physician
+        Add User
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Physician</DialogTitle>
+          <DialogTitle>Add User</DialogTitle>
           <DialogDescription>
             Create a new physician account. They can log in with these credentials.
           </DialogDescription>
