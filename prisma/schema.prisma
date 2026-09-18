@@ -10,6 +10,7 @@ datasource db {
 enum UserRole {
   ADMIN
   PHYSICIAN
+  VIEWER
 }
 
 model User {
@@ -273,6 +274,7 @@ model CustomHoliday {
   id        String   @id @default(cuid())
   date      DateTime @unique @db.Date
   name      String
+  hidden    Boolean  @default(false)
   createdBy String?
   createdAt DateTime @default(now())
 }

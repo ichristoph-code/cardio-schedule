@@ -10,7 +10,9 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json();
-  const { firstName, lastName, email, password, phone } = body;
+  const { firstName, lastName, email, password, phone, role } = body;
+  const validRoles = ["ADMIN", "PHYSICIAN", "VIEWER"] as const;
+  const userRole = validRoles.includes(role) ? role as typeof validRoles[number] : "PHYSICIAN";
 
   if (!firstName || !lastName || !email || !password) {
     return NextResponse.json(
@@ -34,7 +36,7 @@ export async function POST(req: NextRequest) {
     data: {
       email,
       passwordHash,
-      role: "PHYSICIAN",
+      role: userRole,
       physician: {
         create: {
           firstName,

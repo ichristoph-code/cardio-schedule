@@ -19,7 +19,7 @@ async function requireAdmin() {
   return (session.user as Record<string, unknown>).id as string;
 }
 
-async function readBody(req: Request): Promise<{ date?: string; name?: string } | null> {
+async function readBody(req: Request): Promise<{ date?: string; name?: string; hidden?: boolean } | null> {
   try {
     return await req.json();
   } catch {
@@ -45,20 +45,21 @@ export async function POST(req: Request) {
   const dateObj = parseDate(body.date);
   if (!dateObj) return NextResponse.json({ error: "date must be YYYY-MM-DD" }, { status: 400 });
 
+  const hidden = body.hidden === true;
   const name = (typeof body.name === "string" ? body.name : "").trim().slice(0, MAX_NAME) || "Holiday";
 
-  // Upsert so re-marking a day simply renames it.
+  // Upsert so re-marking a day simply renames or hides it.
   const holiday = await prisma.customHoliday.upsert({
     where: { date: dateObj },
-    update: { name },
-    create: { date: dateObj, name, createdBy: userId },
+    update: { name, hidden },
+    create: { date: dateObj, name, hidden, createdBy: userId },
   });
 
-  await auditLog(userId, "ADMIN_SET_HOLIDAY", "CustomHoliday", holiday.id, {
-    date: body.date, name,
+  await auditLog(userId, hidden ? "ADMIN_HIDE_HOLIDAY" : "ADMIN_SET_HOLIDAY", "CustomHoliday", holiday.id, {
+    date: body.date, name, hidden,
   });
 
-  return NextResponse.json({ ok: true, date: body.date, name }, { status: 201 });
+  return NextResponse.json({ ok: true, date: body.date, name, hidden }, { status: 201 });
 }
 
 export async function DELETE(req: Request) {

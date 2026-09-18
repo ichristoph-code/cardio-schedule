@@ -15,6 +15,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Eye, EyeOff } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function AddPhysicianDialog() {
   const router = useRouter();
@@ -22,6 +29,7 @@ export function AddPhysicianDialog() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState("PHYSICIAN");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,6 +47,7 @@ export function AddPhysicianDialog() {
         email: formData.get("email"),
         password: formData.get("password"),
         phone: formData.get("phone") || null,
+        role,
       }),
     });
 
@@ -58,11 +67,11 @@ export function AddPhysicianDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 text-sm font-medium hover:bg-primary/90">
         <Plus className="mr-2 h-4 w-4" />
-        Add Physician
+        Add User
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Add Physician</DialogTitle>
+          <DialogTitle>Add User</DialogTitle>
           <DialogDescription>
             Create a new physician account. They can log in with these credentials.
           </DialogDescription>
@@ -115,6 +124,20 @@ export function AddPhysicianDialog() {
                 e.target.value = formatted;
               }}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={(v) => { if (v) setRole(v); }}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PHYSICIAN">Physician</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="VIEWER">Viewer</SelectItem>
+              </SelectContent>
+
+            </Select>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>

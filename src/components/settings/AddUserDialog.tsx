@@ -130,6 +130,7 @@ export function AddUserDialog({ onSuccess }: AddUserDialogProps) {
             >
               <option value="ADMIN">Admin</option>
               <option value="PHYSICIAN">Physician</option>
+              <option value="VIEWER">Viewer</option>
             </select>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
