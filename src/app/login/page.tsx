@@ -132,6 +132,15 @@ export default function LoginPage() {
           <LoginForm />
         </Suspense>
       </div>
+
+      {/* Quiet attribution, tucked under the weather line. */}
+      <p
+        className={`pointer-events-none fixed inset-x-0 bottom-3 z-0 px-4 text-center text-[11px] tracking-wide ${
+          skyDark ? "text-white/35" : "text-slate-800/35"
+        }`}
+      >
+        © {new Date().getFullYear()} Ian Christoph
+      </p>
     </div>
   );
 }
