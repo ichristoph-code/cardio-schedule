@@ -26,10 +26,9 @@ interface Props {
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
   customHolidays?: CustomHolidayInfo[];
-  daysWorked?: number;
 }
 
-export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], rounderDays = [], callDays = [], noCallDays = [], customHolidays = [], daysWorked }: Props) {
+export function VacationCalendarView({ year, physicianName, physicianId, isAdmin, vacations, floatDays = [], rounderDays = [], callDays = [], noCallDays = [], customHolidays = [] }: Props) {
   const [view, setView] = useState<"monthly" | "yearly">("yearly");
 
   return (
@@ -82,7 +81,6 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           callDays={callDays}
           noCallDays={noCallDays}
           customHolidays={customHolidays}
-          daysWorked={daysWorked}
           isAdmin={isAdmin}
           physicianId={physicianId}
           physicianName={physicianName}

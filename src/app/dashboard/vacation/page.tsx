@@ -49,7 +49,7 @@ export default async function VacationPage({
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
-  const [vacations, floatAssignments, rounderAssignments, callAssignments, noCallReqs, workedAssignments, customHolidayRows] = await Promise.all([
+  const [vacations, floatAssignments, rounderAssignments, callAssignments, noCallReqs, customHolidayRows] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId: selectedId,
@@ -111,18 +111,6 @@ export default async function VacationPage({
       select: { date: true },
       orderBy: { date: "asc" },
     }),
-    // All active assignments (any role) — used to tally distinct days worked.
-    prisma.scheduleAssignment.findMany({
-      where: {
-        physicianId: selectedId,
-        isActive: true,
-        date: {
-          gte: new Date(Date.UTC(selectedYear, 0, 1)),
-          lte: new Date(Date.UTC(selectedYear, 11, 31)),
-        },
-      },
-      select: { date: true },
-    }),
     // Admin-marked holidays — global (not per physician), shown on every calendar.
     prisma.customHoliday.findMany({
       where: {
@@ -148,12 +136,6 @@ export default async function VacationPage({
     name: h.name,
     hidden: h.hidden,
   }));
-  // Distinct calendar days with at least one assignment (a physician may hold
-  // multiple roles on the same day — count the day once).
-  const daysWorked = new Set(
-    workedAssignments.map((a) => a.date.toISOString().split("T")[0])
-  ).size;
-
   return (
     <div className="space-y-5">
       <div>
@@ -189,7 +171,6 @@ export default async function VacationPage({
         callDays={callDays}
         noCallDays={noCallDays}
         customHolidays={customHolidays}
-        daysWorked={daysWorked}
       />
     </div>
   );
