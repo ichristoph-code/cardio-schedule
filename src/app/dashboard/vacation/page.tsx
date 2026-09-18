@@ -3,7 +3,8 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { VacationCalendarView } from "@/components/vacation/VacationCalendarView";
-import { PhysicianPicker, LAST_PHYSICIAN_COOKIE, LAST_YEAR_COOKIE, selectableYears } from "@/components/vacation/PhysicianPicker";
+import { PhysicianPicker } from "@/components/vacation/PhysicianPicker";
+import { LAST_PHYSICIAN_COOKIE, LAST_YEAR_COOKIE, selectableYears } from "@/lib/vacation-prefs";
 import { Suspense } from "react";
 
 export default async function VacationPage({
