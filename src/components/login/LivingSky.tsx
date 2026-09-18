@@ -7,6 +7,7 @@ import {
   DEFAULT_LOCATION,
   PLANETS,
   degrees,
+  describeSunEvent,
   moonPhase,
   moonPosition,
   nextSunEvent,
@@ -509,10 +510,7 @@ export function LivingSky() {
         if (weather.windMph >= 8) parts.push(`wind ${Math.round(weather.windMph)} mph`);
       }
       const ev = nextSunEvent(now, lat, lon);
-      if (ev) {
-        const time = ev.at.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", timeZone: DEFAULT_LOCATION.timeZone });
-        parts.push(`${ev.kind === "sunrise" ? "sunrise" : "sunset"} ${time}`);
-      }
+      if (ev) parts.push(describeSunEvent(now, ev, DEFAULT_LOCATION.timeZone));
       const text = parts.join(" · ");
       const dark = darkness > 0.45;
       const key = `${text}|${dark}`;

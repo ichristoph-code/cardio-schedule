@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sunPosition, moonPosition, moonPhase, moonIllumination, nextSunEvent, degrees, starPosition, BRIGHT_STARS, planetEcliptic } from "./celestial";
+import { sunPosition, moonPosition, moonPhase, moonIllumination, nextSunEvent, describeSunEvent, degrees, starPosition, BRIGHT_STARS, planetEcliptic } from "./celestial";
 
 // San Francisco, 2027-06-21 (summer solstice). Published times (PDT, UTC-7):
 // sunrise ≈ 05:48, solar noon ≈ 13:11, sunset ≈ 20:35.
@@ -42,6 +42,38 @@ describe("nextSunEvent", () => {
     const rise = nextSunEvent(pdt(1, 0), SF.lat, SF.lon)!;
     expect(rise.kind).toBe("sunrise");
     expect(Math.abs(rise.at.valueOf() - pdt(5, 48).valueOf())).toBeLessThan(4 * 60_000);
+  });
+});
+
+describe("describeSunEvent", () => {
+  const TZ = "America/Los_Angeles";
+
+  it("calls the next sunset tonight, and reads as a sentence not a clock", () => {
+    const now = pdt(15, 0);
+    const ev = nextSunEvent(now, SF.lat, SF.lon)!;
+    const text = describeSunEvent(now, ev, TZ);
+    expect(text).toMatch(/^sunset at \d{1,2}:\d{2}\s?(AM|PM) tonight$/);
+    expect(text).toContain("8:3"); // ~20:35 PDT on the solstice
+  });
+
+  it("calls a pre-dawn sunrise this morning", () => {
+    const now = pdt(1, 0);
+    const ev = nextSunEvent(now, SF.lat, SF.lon)!;
+    expect(describeSunEvent(now, ev, TZ)).toMatch(/^sunrise at .+ this morning$/);
+  });
+
+  it("calls an after-dark sunrise tomorrow", () => {
+    const now = pdt(22, 0); // after the 20:35 sunset — next event is tomorrow's sunrise
+    const ev = nextSunEvent(now, SF.lat, SF.lon)!;
+    expect(ev.kind).toBe("sunrise");
+    expect(describeSunEvent(now, ev, TZ)).toMatch(/^sunrise at .+ tomorrow$/);
+  });
+
+  it("renders the time in the given zone, not the host's", () => {
+    const now = pdt(15, 0);
+    const ev = nextSunEvent(now, SF.lat, SF.lon)!;
+    // Same instant, different zone → a different wall-clock time.
+    expect(describeSunEvent(now, ev, TZ)).not.toBe(describeSunEvent(now, ev, "UTC"));
   });
 });
 

@@ -25,7 +25,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
-  { label: "My Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
+  { label: "Personal Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
   { label: "Call and Vacation Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
   { label: "Requests", href: "/dashboard/requests", icon: ClipboardList },
   { label: "Physician Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },

@@ -1,7 +1,10 @@
 "use client";
 
-import { useState } from "react";
-import { DayStateEditor, type DayState } from "@/components/vacation/DayStateEditor";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { DayStateEditor } from "@/components/vacation/DayStateEditor";
+import { DaySelectionBar } from "@/components/vacation/DaySelectionBar";
+import type { DayState } from "@/components/vacation/day-types";
+import { datesBetween } from "@/lib/calendar-dates";
 import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 
 const MONTH_NAMES = [
@@ -62,7 +65,10 @@ function MonthGrid({
   noCallSet,
   holidays,
   isAdmin,
-  onSelect,
+  selected,
+  onDayClick,
+  onDayMouseDown,
+  onDayMouseEnter,
 }: {
   year: number;
   month: number;
@@ -73,7 +79,10 @@ function MonthGrid({
   noCallSet: Set<string>;
   holidays: Map<string, string>;
   isAdmin: boolean;
-  onSelect: (date: string) => void;
+  selected: Set<string>;
+  onDayClick: (date: string) => void;
+  onDayMouseDown: (date: string, e: React.MouseEvent) => void;
+  onDayMouseEnter: (date: string) => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
   const firstDay = new Date(year, month, 1).getDay();
@@ -108,15 +117,22 @@ function MonthGrid({
           const isNoCall = noCallSet.has(dateStr);
           const holidayName = holidays.get(dateStr);
           const isToday = dateStr === today;
+          const isSelected = selected.has(dateStr);
 
           // Manual call gets an amber ring so system- vs manually-set is visible
           // at a glance — but only when call is the displayed state (not when a
           // vacation/half overrides it).
           const callRing = !vac && call === true ? " ring-2 ring-inset ring-amber-400" : "";
 
+          // Drawn outside the cell (not inset) and lifted above its
+          // neighbours so a multi-day run reads as one continuous band.
+          const selectionRing = isSelected
+            ? " relative z-10 ring-2 ring-sky-600 dark:ring-sky-400"
+            : "";
+
           const className = [
             "text-[11px] text-center rounded py-[3px] leading-none select-none",
-            isAdmin ? "cursor-pointer hover:ring-2 hover:ring-primary/40" : "",
+            isAdmin ? (isSelected ? "cursor-pointer" : "cursor-pointer hover:ring-2 hover:ring-primary/40") : "",
             (vac === "VACATION"
               ? "bg-emerald-500 text-white font-semibold"
               : vac === "HALF_AM" || vac === "HALF_PM"
@@ -133,7 +149,7 @@ function MonthGrid({
                           ? "bg-yellow-300 text-yellow-900 font-semibold"
                           : isToday
                             ? "bg-primary/15 text-primary font-bold"
-                            : "text-foreground hover:bg-muted/50") + callRing,
+                            : "text-foreground hover:bg-muted/50") + callRing + selectionRing,
           ].join(" ");
 
           const title =
@@ -152,7 +168,16 @@ function MonthGrid({
 
           if (isAdmin) {
             return (
-              <button key={i} type="button" title={title} className={className} onClick={() => onSelect(dateStr)}>
+              <button
+                key={i}
+                type="button"
+                title={title}
+                aria-pressed={isSelected}
+                className={className}
+                onMouseDown={(e) => onDayMouseDown(dateStr, e)}
+                onMouseEnter={() => onDayMouseEnter(dateStr)}
+                onClick={() => onDayClick(dateStr)}
+              >
                 {content}
               </button>
             );
@@ -196,6 +221,93 @@ export function YearlyVacationCalendar({
   );
 
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+
+  // ── Multi-day selection (drag / shift-click / cmd-click) ───────────────────
+  // A plain click still opens the single-day editor; a selection only starts
+  // once the pointer moves onto another cell or a modifier key is held.
+  const [selectedDays, setSelectedDays] = useState<Set<string>>(new Set());
+  // Where the next shift-click measures from — the last cell the admin acted on.
+  const anchorRef = useRef<string | null>(null);
+  // Live drag, if one is in progress. `moved` stays false for a plain click.
+  const dragRef = useRef<{ start: string; moved: boolean } | null>(null);
+  // Set when a press was a selection gesture, so the click that follows it does
+  // not also open the editor sheet.
+  const suppressClickRef = useRef(false);
+
+  const clearSelection = useCallback(() => setSelectedDays(new Set()), []);
+
+  // A drag can end anywhere — outside the grid, outside the window — so the
+  // release is tracked globally rather than per cell.
+  useEffect(() => {
+    const onMouseUp = () => {
+      const drag = dragRef.current;
+      if (drag?.moved) anchorRef.current = drag.start;
+      dragRef.current = null;
+    };
+    window.addEventListener("mouseup", onMouseUp);
+    return () => window.removeEventListener("mouseup", onMouseUp);
+  }, []);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") clearSelection();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [clearSelection]);
+
+  const handleDayMouseDown = useCallback(
+    (date: string, e: React.MouseEvent) => {
+      if (!isAdmin || e.button !== 0) return;
+      const additive = e.metaKey || e.ctrlKey;
+
+      // Shift-click: extend from the anchor to here.
+      if (e.shiftKey && anchorRef.current) {
+        suppressClickRef.current = true;
+        const span = datesBetween(anchorRef.current, date);
+        setSelectedDays((prev) => (additive ? new Set([...prev, ...span]) : new Set(span)));
+        return;
+      }
+
+      // Cmd/Ctrl-click: toggle this one day in or out.
+      if (additive) {
+        suppressClickRef.current = true;
+        setSelectedDays((prev) => {
+          const next = new Set(prev);
+          if (next.has(date)) next.delete(date);
+          else next.add(date);
+          return next;
+        });
+        anchorRef.current = date;
+        return;
+      }
+
+      // Plain press: only becomes a selection if the pointer moves off this cell.
+      dragRef.current = { start: date, moved: false };
+      suppressClickRef.current = false;
+    },
+    [isAdmin],
+  );
+
+  const handleDayMouseEnter = useCallback((date: string) => {
+    const drag = dragRef.current;
+    if (!drag || date === drag.start) return;
+    drag.moved = true;
+    suppressClickRef.current = true;
+    setSelectedDays(new Set(datesBetween(drag.start, date)));
+  }, []);
+
+  const handleDayClick = useCallback((date: string) => {
+    // Swallow the click that ends a drag or follows a modifier-click.
+    if (suppressClickRef.current) {
+      suppressClickRef.current = false;
+      return;
+    }
+    // A plain click drops any selection and edits just this day, as in a spreadsheet.
+    setSelectedDays(new Set());
+    anchorRef.current = date;
+    setSelectedDate(date);
+  }, []);
 
   const totalFull = [...vacMap.values()].filter((v) => v === "VACATION").length;
   const totalHalf = [...vacMap.values()].filter((v) => v === "HALF_AM" || v === "HALF_PM").length;
@@ -274,9 +386,17 @@ export function YearlyVacationCalendar({
       </div>
 
       {isAdmin && (
-        <p className="text-xs text-muted-foreground -mt-1">
-          Click any day to set vacation, ½ day, float, rounder, general call, or no-call — or mark it as a holiday for everyone.
-        </p>
+        <div className="-mt-1 space-y-1 text-xs text-muted-foreground">
+          <p>
+            Click any day to set vacation, ½ day, float, rounder, general call, or no-call — or mark it as a holiday for everyone.
+          </p>
+          <p>
+            To fill many days at once: <strong>drag</strong> across a run of days,{" "}
+            <strong>shift-click</strong> to extend to a day, or{" "}
+            <strong>⌘/Ctrl-click</strong> to pick scattered days — then choose a
+            type from the bar at the bottom. <kbd className="rounded border px-1">Esc</kbd> deselects.
+          </p>
+        </div>
       )}
 
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -292,10 +412,24 @@ export function YearlyVacationCalendar({
             noCallSet={noCallSet}
             holidays={holidays}
             isAdmin={isAdmin}
-            onSelect={setSelectedDate}
+            selected={selectedDays}
+            onDayClick={handleDayClick}
+            onDayMouseDown={handleDayMouseDown}
+            onDayMouseEnter={handleDayMouseEnter}
           />
         ))}
       </div>
+
+      {isAdmin && physicianId && selectedDays.size > 0 && (
+        <DaySelectionBar
+          physicianId={physicianId}
+          physicianName={physicianName ?? ""}
+          year={year}
+          dates={[...selectedDays].sort()}
+          onClear={clearSelection}
+          onApplied={clearSelection}
+        />
+      )}
 
       {isAdmin && physicianId && selectedDate && (
         <DayStateEditor
