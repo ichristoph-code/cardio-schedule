@@ -14,3 +14,7 @@ scripts/diagnostics/
 
 # Transient review-loop tracking notes (not part of the shipped codebase).
 .loop-review/
+
+# Database dumps from scripts/backup-db.sh — real schedule data, never commit.
+*.dump
+*.sql.gz
