@@ -543,7 +543,7 @@ export function LivingSky() {
       <canvas ref={canvasRef} aria-hidden="true" className="pointer-events-none fixed inset-0 z-0" />
       {caption.text && (
         <p
-          className={`pointer-events-none fixed inset-x-0 bottom-4 z-0 px-4 text-center text-[12px] tracking-wide ${caption.dark ? "text-white/70" : "text-slate-800/60"}`}
+          className={`pointer-events-none fixed inset-x-0 bottom-9 z-0 px-4 text-center text-[12px] tracking-wide ${caption.dark ? "text-white/70" : "text-slate-800/60"}`}
           aria-live="polite"
         >
           {caption.text}
