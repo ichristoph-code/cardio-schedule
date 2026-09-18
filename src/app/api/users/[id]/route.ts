@@ -21,7 +21,7 @@ export async function PUT(
   const body = await req.json();
   const { email, role } = body;
 
-  const validRoles = ["ADMIN", "PHYSICIAN"];
+  const validRoles = ["ADMIN", "PHYSICIAN", "VIEWER"];
   if (role && !validRoles.includes(role)) {
     return NextResponse.json(
       { error: `Role must be one of: ${validRoles.join(", ")}` },

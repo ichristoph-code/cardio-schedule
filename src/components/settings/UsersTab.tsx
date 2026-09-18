@@ -142,6 +142,8 @@ export function UsersTab({ users, currentUserId }: UsersTabProps) {
         return "bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-300";
       case "PHYSICIAN":
         return "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+      case "VIEWER":
+        return "bg-gray-100 text-gray-700 dark:bg-gray-800/50 dark:text-gray-300";
       default:
         return "";
     }
@@ -285,6 +287,7 @@ export function UsersTab({ users, currentUserId }: UsersTabProps) {
                 >
                   <option value="ADMIN">Admin</option>
                   <option value="PHYSICIAN">Physician</option>
+                  <option value="VIEWER">Viewer</option>
                 </select>
               </div>
               {editError && (

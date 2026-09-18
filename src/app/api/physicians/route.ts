@@ -11,7 +11,8 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const { firstName, lastName, email, password, phone, role } = body;
-  const userRole = role === "ADMIN" ? "ADMIN" : "PHYSICIAN";
+  const validRoles = ["ADMIN", "PHYSICIAN", "VIEWER"] as const;
+  const userRole = validRoles.includes(role) ? role as typeof validRoles[number] : "PHYSICIAN";
 
   if (!firstName || !lastName || !email || !password) {
     return NextResponse.json(
