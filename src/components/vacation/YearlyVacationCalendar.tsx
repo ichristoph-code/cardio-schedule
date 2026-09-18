@@ -13,6 +13,9 @@ const MONTH_NAMES = [
 ];
 const DAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
+/** Breathing room between the bulk bar and the days it must not cover. */
+const BAR_CLEARANCE = 24;
+
 interface VacationInfo {
   id: string;
   startDate: string;
@@ -324,10 +327,11 @@ export function YearlyVacationCalendar({
   useEffect(() => {
     const date = revealRef.current;
     if (dragging || barHeight === 0 || !date) return;
-    revealRef.current = null;
     const cell = gridRef.current?.querySelector<HTMLElement>(`[data-date="${date}"]`);
     if (!cell) return;
-    cell.style.scrollMarginBottom = `${barHeight + 8}px`;
+    // Kept (not cleared) so a later, taller measurement scrolls again. Repeats
+    // are free: `block: "nearest"` does nothing once the day is already clear.
+    cell.style.scrollMarginBottom = `${barHeight + BAR_CLEARANCE}px`;
     cell.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [barHeight, dragging, selectedDays]);
 
@@ -468,7 +472,7 @@ export function YearlyVacationCalendar({
       )}
 
       {/* Keeps the last row of months scrollable clear of the fixed bar. */}
-      {barHeight > 0 && <div aria-hidden="true" style={{ height: barHeight }} />}
+      {barHeight > 0 && <div aria-hidden="true" style={{ height: barHeight + BAR_CLEARANCE }} />}
 
       {isAdmin && physicianId && selectedDate && (
         <DayStateEditor
