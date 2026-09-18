@@ -42,18 +42,24 @@ export function getFederalHolidayDatesForYear(year: number): Map<string, string>
   map.set(fmt(nthWeekdayOfMonth(year, 1, 1, 3)), "Presidents' Day");
   map.set(fmt(observed(new Date(year, 6, 4))), "Independence Day");
 
-  // Christmas Eve stays on Dec 24; Christmas Day follows the federal rule.
-  // When observed Christmas Day lands on Dec 24, shift the Eve one weekday earlier.
-  const christmasDay = observed(new Date(year, 11, 25));
+  // Christmas Eve is Dec 24 — a date, not a floating observance. It never moves.
+  //
+  // Christmas Day follows the federal rule, which lands it on Dec 24 when Dec 25
+  // is a Saturday (2027, 2032). That collides with the Eve, so the Christmas Day
+  // OBSERVANCE steps back to the preceding weekday and the Eve keeps its date.
+  // The practice still gets two days; they are just named truthfully.
   const christmasEve = new Date(year, 11, 24);
+  const christmasDay = observed(new Date(year, 11, 25));
   if (fmt(christmasDay) === fmt(christmasEve)) {
-    christmasEve.setDate(christmasEve.getDate() - 1);
-    while (christmasEve.getDay() === 0 || christmasEve.getDay() === 6) {
-      christmasEve.setDate(christmasEve.getDate() - 1);
-    }
+    do {
+      christmasDay.setDate(christmasDay.getDate() - 1);
+    } while (christmasDay.getDay() === 0 || christmasDay.getDay() === 6);
   }
   map.set(fmt(christmasEve), "Christmas Eve");
-  map.set(fmt(christmasDay), "Christmas Day");
+  map.set(
+    fmt(christmasDay),
+    fmt(christmasDay) === fmt(new Date(year, 11, 25)) ? "Christmas Day" : "Christmas Day (observed)",
+  );
 
   // Memorial Day: last Monday of May
   const memDay = new Date(year, 4, 31);
