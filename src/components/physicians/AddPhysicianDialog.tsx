@@ -15,6 +15,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Plus, Eye, EyeOff } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export function AddPhysicianDialog() {
   const router = useRouter();
@@ -22,6 +29,7 @@ export function AddPhysicianDialog() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [role, setRole] = useState("PHYSICIAN");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -39,6 +47,7 @@ export function AddPhysicianDialog() {
         email: formData.get("email"),
         password: formData.get("password"),
         phone: formData.get("phone") || null,
+        role,
       }),
     });
 
@@ -115,6 +124,19 @@ export function AddPhysicianDialog() {
                 e.target.value = formatted;
               }}
             />
+          </div>
+          <div className="space-y-2">
+            <Label>Role</Label>
+            <Select value={role} onValueChange={(v) => { if (v) setRole(v); }}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PHYSICIAN">Physician</SelectItem>
+                <SelectItem value="ADMIN">Admin</SelectItem>
+              </SelectContent>
+
+            </Select>
           </div>
           {error && <p className="text-sm text-destructive">{error}</p>}
           <DialogFooter>
