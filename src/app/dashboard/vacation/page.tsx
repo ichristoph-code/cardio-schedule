@@ -131,7 +131,7 @@ export default async function VacationPage({
           lte: new Date(Date.UTC(selectedYear, 11, 31)),
         },
       },
-      select: { date: true, name: true },
+      select: { date: true, name: true, hidden: true },
       orderBy: { date: "asc" },
     }),
   ]);
@@ -146,6 +146,7 @@ export default async function VacationPage({
   const customHolidays = customHolidayRows.map((h) => ({
     date: h.date.toISOString().split("T")[0],
     name: h.name,
+    hidden: h.hidden,
   }));
   // Distinct calendar days with at least one assignment (a physician may hold
   // multiple roles on the same day — count the day once).

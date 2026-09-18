@@ -72,17 +72,25 @@ export function getFederalHolidayDatesForYear(year: number): Map<string, string>
 export interface CustomHolidayInfo {
   date: string; // YYYY-MM-DD
   name: string;
+  hidden?: boolean;
 }
 
 /**
  * Built-in holidays plus admin-added custom holidays for a year.
- * A custom holiday on the same date as a built-in one wins (its name shows).
+ * - hidden: true → suppresses the built-in holiday on that date
+ * - hidden: false/undefined → adds or renames the holiday on that date
  */
 export function getAllHolidayDatesForYear(
   year: number,
   customHolidays: CustomHolidayInfo[] = []
 ): Map<string, string> {
   const map = getFederalHolidayDatesForYear(year);
-  for (const h of customHolidays) map.set(h.date, h.name);
+  for (const h of customHolidays) {
+    if (h.hidden) {
+      map.delete(h.date);
+    } else {
+      map.set(h.date, h.name);
+    }
+  }
   return map;
 }
