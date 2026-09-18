@@ -139,7 +139,7 @@ export default function LoginPage() {
           skyDark ? "text-white/35" : "text-slate-800/35"
         }`}
       >
-        © {new Date().getFullYear()} Ian Christoph
+        © {new Date().getFullYear()} Ian Christoph, MD
       </p>
     </div>
   );
