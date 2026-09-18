@@ -179,15 +179,15 @@
 
 /* Glass card for login */
 .card-glass {
-  background: oklch(1 0 0 / 0.7) !important;
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  border: 1px solid oklch(1 0 0 / 0.5) !important;
+  background: oklch(1 0 0 / 0.55) !important;
+  backdrop-filter: blur(30px) saturate(1.4);
+  -webkit-backdrop-filter: blur(30px) saturate(1.4);
+  border: 1px solid oklch(1 0 0 / 0.32) !important;
 }
 
 .dark .card-glass {
-  background: oklch(0.2 0.01 250 / 0.6) !important;
-  border-color: oklch(1 0 0 / 0.08) !important;
+  background: oklch(0.22 0.015 250 / 0.42) !important;
+  border-color: oklch(1 0 0 / 0.12) !important;
 }
 
 /* Heart icon gradient */

@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,6 +14,8 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Heart, Eye, EyeOff } from "lucide-react";
+import { LivingSky } from "@/components/login/LivingSky";
+import { degrees, sunPosition } from "@/lib/celestial";
 
 function LoginForm() {
   const router = useRouter();
@@ -48,7 +50,7 @@ function LoginForm() {
   }
 
   return (
-    <Card className="w-full max-w-md card-glass">
+    <Card className="w-full max-w-sm card-glass">
       <CardHeader className="text-center">
         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/50">
           <Heart className="h-6 w-6 text-rose-500" />
@@ -105,11 +107,31 @@ function LoginForm() {
 }
 
 export default function LoginPage() {
+  // Let the card follow the sky: dark glass after dusk, light glass by day,
+  // so it sits in the scene instead of on top of it.
+  const [skyDark, setSkyDark] = useState(false);
+  useEffect(() => {
+    const update = () => setSkyDark(degrees(sunPosition(new Date()).alt) < 2);
+    update();
+    const id = setInterval(update, 60_000);
+    return () => clearInterval(id);
+  }, []);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-mesh-login px-4">
+    <div
+      className={`relative flex min-h-screen items-center justify-center bg-mesh-login px-4${
+        skyDark ? " dark" : ""
+      }`}
+    >
+      {/* Real-time sky: sun, moon, stars and planets where they actually are, plus current weather. */}
       <Suspense>
-        <LoginForm />
+        <LivingSky />
       </Suspense>
+      <div className="relative z-10 w-full max-w-sm">
+        <Suspense>
+          <LoginForm />
+        </Suspense>
+      </div>
     </div>
   );
 }
