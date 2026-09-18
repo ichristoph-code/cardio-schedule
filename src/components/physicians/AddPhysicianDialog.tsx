@@ -134,6 +134,7 @@ export function AddPhysicianDialog() {
               <SelectContent>
                 <SelectItem value="PHYSICIAN">Physician</SelectItem>
                 <SelectItem value="ADMIN">Admin</SelectItem>
+                <SelectItem value="VIEWER">Viewer</SelectItem>
               </SelectContent>
 
             </Select>

@@ -11,7 +11,8 @@
 
 export const UserRole = {
   ADMIN: 'ADMIN',
-  PHYSICIAN: 'PHYSICIAN'
+  PHYSICIAN: 'PHYSICIAN',
+  VIEWER: 'VIEWER'
 } as const
 
 export type UserRole = (typeof UserRole)[keyof typeof UserRole]

@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const validRoles = ["ADMIN", "PHYSICIAN"];
+  const validRoles = ["ADMIN", "PHYSICIAN", "VIEWER"];
   if (role && !validRoles.includes(role)) {
     return NextResponse.json(
       { error: `Role must be one of: ${validRoles.join(", ")}` },
@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
     data: {
       email: email.trim().toLowerCase(),
       passwordHash,
-      role: (role as "ADMIN" | "PHYSICIAN") ?? "PHYSICIAN",
+      role: (role as "ADMIN" | "PHYSICIAN" | "VIEWER") ?? "PHYSICIAN",
     },
     select: {
       id: true,
