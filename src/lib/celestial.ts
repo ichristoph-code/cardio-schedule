@@ -89,6 +89,39 @@ export function nextSunEvent(
   return null;
 }
 
+/** The local calendar day at `timeZone`, as YYYY-MM-DD (en-CA formats that way). */
+function localDay(date: Date, timeZone: string): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+/**
+ * Phrase the next sun event for the sky caption — "sunset at 7:14 PM tonight"
+ * rather than a bare "sunset 7:14 PM", which reads like a clock.
+ *
+ * The day word is derived, not assumed: a sunset is always later the same day
+ * (once it has passed, the next event is the sunrise), but a sunrise is either
+ * later this morning (seen pre-dawn) or tomorrow's (seen after dark).
+ */
+export function describeSunEvent(
+  now: Date,
+  event: { kind: "sunrise" | "sunset"; at: Date },
+  timeZone: string = DEFAULT_LOCATION.timeZone,
+): string {
+  const time = event.at.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone,
+  });
+  if (event.kind === "sunset") return `sunset at ${time} tonight`;
+  const sameDay = localDay(now, timeZone) === localDay(event.at, timeZone);
+  return `sunrise at ${time} ${sameDay ? "this morning" : "tomorrow"}`;
+}
+
 export const degrees = (rad: number) => rad / RAD;
 
 // ── Bright stars (J2000 RA/Dec in degrees, visual magnitude) ────────────────
