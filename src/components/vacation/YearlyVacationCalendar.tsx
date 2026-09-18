@@ -6,6 +6,7 @@ import { DaySelectionBar } from "@/components/vacation/DaySelectionBar";
 import type { DayState } from "@/components/vacation/day-types";
 import { datesBetween } from "@/lib/calendar-dates";
 import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { computeYearTallies } from "@/lib/year-tallies";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -29,7 +30,6 @@ interface Props {
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
   customHolidays?: CustomHolidayInfo[];
-  daysWorked?: number;
   isAdmin?: boolean;
   physicianId?: string;
   physicianName?: string;
@@ -202,7 +202,6 @@ export function YearlyVacationCalendar({
   callDays = [],
   noCallDays = [],
   customHolidays = [],
-  daysWorked,
   isAdmin = false,
   physicianId,
   physicianName,
@@ -343,8 +342,9 @@ export function YearlyVacationCalendar({
     setSelectedDate(date);
   }, []);
 
-  const totalFull = [...vacMap.values()].filter((v) => v === "VACATION").length;
-  const totalHalf = [...vacMap.values()].filter((v) => v === "HALF_AM" || v === "HALF_PM").length;
+  // Counted in weekdays, so a vacation spanning a weekend or landing on a
+  // holiday doesn't inflate the total. See src/lib/year-tallies.ts.
+  const tallies = computeYearTallies(year, vacMap, holidays);
 
   // Current type of the day being edited (for highlighting in the editor).
   const selectedState: DayState = selectedDate
@@ -369,20 +369,22 @@ export function YearlyVacationCalendar({
       <div className="flex items-center gap-6 text-sm flex-wrap">
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
-          <span className="text-muted-foreground">Full day — <strong>{totalFull}</strong></span>
+          <span className="text-muted-foreground">Full day — <strong>{tallies.fullDays}</strong></span>
         </div>
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-emerald-200" />
-          <span className="text-muted-foreground">Half day — <strong>{totalHalf}</strong></span>
+          <span className="text-muted-foreground">Half day — <strong>{tallies.halfDays}</strong></span>
         </div>
         <div className="text-muted-foreground">
-          Vacation total: <strong>{totalFull + totalHalf * 0.5}</strong> days
+          Vacation days: <strong>{tallies.vacationDays}</strong>
         </div>
-        {daysWorked !== undefined && (
-          <div className="text-muted-foreground">
-            Days worked: <strong>{daysWorked}</strong>
-          </div>
-        )}
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-3 h-3 rounded-sm bg-yellow-300" />
+          <span className="text-muted-foreground">Holidays — <strong>{tallies.holidays}</strong></span>
+        </div>
+        <div className="text-muted-foreground">
+          Weekdays worked: <strong>{tallies.weekdaysWorked}</strong>
+        </div>
         {floatDays.length > 0 && (
           <div className="flex items-center gap-2">
             <span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />
@@ -413,10 +415,6 @@ export function YearlyVacationCalendar({
             <span className="text-muted-foreground">No-call — <strong>{noCallDays.length}</strong></span>
           </div>
         )}
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-yellow-300" />
-          <span className="text-muted-foreground">Holiday</span>
-        </div>
       </div>
 
       {isAdmin && (
