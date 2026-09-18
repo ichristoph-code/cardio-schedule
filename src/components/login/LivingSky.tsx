@@ -144,7 +144,10 @@ export function LivingSky() {
       : clamp(weather?.cloudCover ?? 0, 0, 100);
     const windMph = weather?.windMph ?? 6;
     const hasPrecip = kind === "rain" || kind === "snow" || kind === "storm";
-    const animated = !reduceMotion && (hasPrecip || cloudCover > 15 || kind === "fog");
+    // Animate after dark too: the bridge traffic and tower beacons move on a
+    // clear night, when there's no cloud or rain to carry the animation.
+    const isDark = degrees(sunPosition(new Date()).alt) < 2;
+    const animated = !reduceMotion && (hasPrecip || cloudCover > 15 || kind === "fog" || isDark);
 
     let W = 0, H = 0, dpr = 1;
     let clouds: Cloud[] = [];
@@ -175,7 +178,7 @@ export function LivingSky() {
         : [];
     }
 
-    const horizonY = () => H * 0.72;
+    const horizonY = () => H * 0.88;
     const skyXY = (p: HorizontalPos) => {
       const azDeg = ((degrees(p.az) % 360) + 360) % 360;
       const x = W * (((azDeg + 180) % 360) / 360);
@@ -199,6 +202,144 @@ export function LivingSky() {
     let last = performance.now();
     let flashUntil = 0;
     let nextFlash = performance.now() + 6000 + Math.random() * 8000;
+
+    // SF skyline on the horizon: Golden Gate Bridge, Sutro Tower, Coit Tower,
+    // the Pyramid and Salesforce Tower. Deliberately low-contrast — it should
+    // read as depth behind the card, never compete with it.
+    function drawSkyline(darkness: number, t: number, hor: string) {
+      const c = ctx!;
+      const hy = horizonY();
+      const S = H * 0.1;                                  // tallest landmark above the line
+      // Opaque, and tinted from the horizon colour so it stays atmospheric at
+      // any hour. Translucent shapes looked wrong where landmarks overlapped.
+      const tone = mix(hor, "#04070e", 0.6 + darkness * 0.34);
+      const alpha = 1;
+      const px = (v: number) => Math.max(1, v);
+      c.save();
+      c.fillStyle = rgba(tone, alpha);
+      c.strokeStyle = rgba(tone, alpha);
+
+      // Hills
+      c.beginPath();
+      c.moveTo(0, hy);
+      c.quadraticCurveTo(W * 0.16, hy - S * 0.3, W * 0.34, hy - S * 0.16);
+      c.quadraticCurveTo(W * 0.52, hy - S * 0.02, W * 0.72, hy - S * 0.1);
+      c.quadraticCurveTo(W * 0.88, hy - S * 0.18, W, hy - S * 0.05);
+      c.lineTo(W, hy + 2); c.lineTo(0, hy + 2); c.closePath(); c.fill();
+
+      // Golden Gate Bridge
+      const tA = W * 0.07, tB = W * 0.19, deck = hy - S * 0.2, top = hy - S * 0.62;
+      c.lineWidth = px(W * 0.0012);
+      c.beginPath();
+      c.moveTo(tA, top); c.quadraticCurveTo((tA + tB) / 2, deck + S * 0.12, tB, top);
+      c.moveTo(tA, top); c.quadraticCurveTo(tA - W * 0.035, deck + S * 0.04, tA - W * 0.055, deck);
+      c.moveTo(tB, top); c.quadraticCurveTo(tB + W * 0.035, deck + S * 0.04, tB + W * 0.055, deck);
+      c.stroke();
+      c.fillRect(tA - W * 0.055, deck, W * 0.3, px(S * 0.025));
+      for (const tx of [tA, tB]) c.fillRect(tx - px(W * 0.0025), top, px(W * 0.005), deck - top + S * 0.2);
+
+      // Bridge traffic: warm headlights one way, red taillights the other
+      if (darkness > 0.35) {
+        const dx0 = tA - W * 0.055, span = W * 0.3, carY = deck - px(S * 0.022);
+        for (let i = 0; i < 12; i++) {
+          const east = i % 2 === 0;
+          const u = ((t / 1000) * (0.03 + (i % 3) * 0.007) + i * 0.13) % 1;
+          c.fillStyle = east
+            ? `rgba(255,238,205,${0.8 * darkness})`
+            : `rgba(255,95,75,${0.7 * darkness})`;
+          c.fillRect(dx0 + (east ? u : 1 - u) * span, carY, px(W * 0.002), px(S * 0.015));
+        }
+        c.fillStyle = rgba(tone, alpha);   // restore — buildings below rely on it
+      }
+
+      // Sutro Tower — legs pinch at the waist, flare back out to the crown,
+      // then three antenna masts continue above it
+      const sx = W * 0.35;
+      const sBase = hy - S * 0.16;
+      const sWaist = sBase - S * 0.34;
+      const sCrown = sBase - S * 0.52;
+      const sTop = sBase - S * 0.78;
+      const sBaseHW = S * 0.12, sWaistHW = S * 0.038, sCrownHW = S * 0.075;
+      c.lineWidth = px(W * 0.0015);
+      c.beginPath();
+      for (const sd of [-1, 1]) {
+        c.moveTo(sx + sd * sBaseHW, sBase);
+        c.quadraticCurveTo(sx + sd * sWaistHW * 1.4, sWaist + S * 0.11, sx + sd * sWaistHW, sWaist);
+        c.lineTo(sx + sd * sCrownHW, sCrown);
+      }
+      c.moveTo(sx, sBase); c.lineTo(sx, sCrown);
+      c.moveTo(sx - sBaseHW * 0.72, sBase - S * 0.17); c.lineTo(sx + sBaseHW * 0.72, sBase - S * 0.17);
+      c.moveTo(sx - sWaistHW - S * 0.012, sWaist); c.lineTo(sx + sWaistHW + S * 0.012, sWaist);
+      c.moveTo(sx - sCrownHW - S * 0.014, sCrown); c.lineTo(sx + sCrownHW + S * 0.014, sCrown);
+      for (const sd of [-1, 0, 1]) {
+        c.moveTo(sx + sd * sCrownHW, sCrown); c.lineTo(sx + sd * sCrownHW, sTop);
+      }
+      c.stroke();
+
+      // Downtown blocks
+      for (const [x, w, h] of [
+        [0.6, 0.03, 0.34], [0.645, 0.022, 0.5], [0.75, 0.028, 0.4],
+        [0.815, 0.026, 0.3], [0.9, 0.03, 0.44], [0.95, 0.024, 0.32],
+      ] as [number, number, number][]) c.fillRect(W * x, hy - S * h, W * w, S * h);
+
+      // Telegraph Hill, with Coit Tower on top
+      const coitX = W * 0.52;
+      c.beginPath();
+      c.moveTo(coitX - W * 0.06, hy);
+      c.quadraticCurveTo(coitX, hy - S * 0.32, coitX + W * 0.06, hy);
+      c.closePath(); c.fill();
+      c.fillRect(coitX - S * 0.028, hy - S * 0.54, S * 0.056, S * 0.34);
+      c.fillRect(coitX - S * 0.04, hy - S * 0.565, S * 0.08, S * 0.035);
+
+      // Transamerica Pyramid
+      const pyx = W * 0.695;
+      c.beginPath();
+      c.moveTo(pyx, hy - S * 0.78); c.lineTo(pyx + S * 0.1, hy); c.lineTo(pyx - S * 0.1, hy);
+      c.closePath(); c.fill();
+
+      // Salesforce Tower — tallest, tapered crown
+      const fx = W * 0.855, fw = S * 0.11, fh = S * 0.9;
+      c.beginPath();
+      c.moveTo(fx - fw / 2, hy);
+      c.lineTo(fx - fw * 0.34, hy - fh);
+      c.quadraticCurveTo(fx, hy - fh - S * 0.06, fx + fw * 0.34, hy - fh);
+      c.lineTo(fx + fw / 2, hy);
+      c.closePath(); c.fill();
+
+      // Night dressing: warm windows and slow red aircraft beacons
+      if (darkness > 0.45) {
+        const rnd = mulberry32(7);
+        c.fillStyle = `rgba(255,212,150,${0.45 * darkness})`;
+        for (let i = 0; i < 90; i++) {
+          const bx = W * (0.59 + rnd() * 0.39), by = hy - rnd() * S * 0.5;
+          if (rnd() < 0.5) c.fillRect(bx, by, px(W * 0.0011), px(W * 0.0016));
+        }
+        // Sutro's three mast tips: a slow red pulse, each slightly out of step
+        for (let i = 0; i < 3; i++) {
+          const bx = sx + (i - 1) * sCrownHW;
+          const pulse = 0.5 + 0.5 * Math.sin((t / 1000) * 1.7 + i * 0.9);
+          const a = (0.2 + 0.8 * pulse) * darkness;
+          const rGlow = px(W * 0.009);
+          const glow = c.createRadialGradient(bx, sTop, 0, bx, sTop, rGlow);
+          glow.addColorStop(0, `rgba(255,80,66,${0.55 * a})`);
+          glow.addColorStop(1, "rgba(255,80,66,0)");
+          c.fillStyle = glow;
+          c.beginPath(); c.arc(bx, sTop, rGlow, 0, Math.PI * 2); c.fill();
+          c.fillStyle = `rgba(255,110,92,${a})`;
+          c.beginPath(); c.arc(bx, sTop, px(W * 0.0018), 0, Math.PI * 2); c.fill();
+        }
+
+        const beacons: [number, number][] = [
+          [fx, hy - fh - S * 0.06], [tA, top], [tB, top],
+        ];
+        for (let i = 0; i < beacons.length; i++) {
+          const on = ((t / 1000 + i * 0.7) % 3) < 0.35;
+          c.fillStyle = `rgba(255,70,60,${(on ? 0.85 : 0.15) * darkness})`;
+          c.beginPath(); c.arc(beacons[i][0], beacons[i][1], px(W * 0.0018), 0, Math.PI * 2); c.fill();
+        }
+      }
+      c.restore();
+    }
 
     function draw(t: number) {
       const dt = Math.min(0.05, (t - last) / 1000);
@@ -323,11 +464,15 @@ export function LivingSky() {
         c.fillStyle = fg; c.fillRect(0, 0, W, H);
       }
 
-      // Ground: a soft dark band so the horizon reads
+      // The bay: blue water by day, deep navy after dark
+      const bayNear = mix("#3b7fb5", "#0a0e1a", darkness);
+      const bayFar = mix("#1e5183", "#05080f", darkness);
       const ground = c.createLinearGradient(0, horizonY(), 0, H);
-      ground.addColorStop(0, darkness > 0.5 ? "rgba(10,14,26,0.55)" : "rgba(40,55,80,0.10)");
-      ground.addColorStop(1, darkness > 0.5 ? "rgba(6,9,18,0.9)" : "rgba(30,45,70,0.30)");
+      ground.addColorStop(0, rgba(bayFar, 0.35 + darkness * 0.3));
+      ground.addColorStop(1, rgba(bayNear, 0.5 + darkness * 0.42));
       c.fillStyle = ground; c.fillRect(0, horizonY(), W, H - horizonY());
+
+      drawSkyline(darkness, t, hor);
 
       // Precipitation
       if (hasPrecip) {
