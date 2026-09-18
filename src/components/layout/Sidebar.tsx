@@ -30,13 +30,13 @@ interface NavItem {
   parked?: boolean;
 }
 
-// A physician sees exactly these four, in this order: what they fill in first at
-// the top, the group view they only read at the bottom.
+// A physician sees exactly these four, in this order: the calendars they use
+// day to day first, and the standing preferences they rarely touch last.
 const navItems: NavItem[] = [
-  { label: "Call and Vacation Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
-  { label: "Personal Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
   { label: "Physician Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
+  { label: "Personal Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
   { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
+  { label: "My Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
 
   // Admin-only below.
   { label: "Physicians/Users", href: "/dashboard/physicians", icon: Users, adminOnly: true },
