@@ -3,23 +3,12 @@
 import { useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { LAST_PHYSICIAN_COOKIE, LAST_YEAR_COOKIE, selectableYears } from "@/lib/vacation-prefs";
 
-// Cookie the vacation page reads to default to the last-viewed physician.
-export const LAST_PHYSICIAN_COOKIE = "vac_last_physician";
-// Same, for the last-viewed year.
-export const LAST_YEAR_COOKIE = "vac_last_year";
-
-/**
- * The years offered in the picker: last year through three ahead.
- *
- * The vacation page validates the remembered year against this list, so the two
- * cannot drift apart — and a stale cookie from a year that has rolled out of
- * range falls back to today rather than showing an empty calendar.
- */
-export function selectableYears(): number[] {
-  const thisYear = new Date().getFullYear();
-  return Array.from({ length: 5 }, (_, i) => thisYear - 1 + i);
-}
+// Cookie names and the year list live in @/lib/vacation-prefs, not here: this is
+// a Client Component, and the server-rendered page needs the same values. They
+// are deliberately not re-exported from this file — importing them through a
+// "use client" module is the trap this was moved to avoid.
 
 interface Physician {
   id: string;
