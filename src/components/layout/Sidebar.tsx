@@ -21,6 +21,8 @@ interface NavItem {
   href: string;
   icon: React.ElementType;
   adminOnly?: boolean;
+  /** Pages an admin account has no use for — they carry no personal schedule. */
+  physicianOnly?: boolean;
   /**
    * Parked: hidden from physicians entirely, and shown to admins greyed out and
    * unclickable — present so an admin can see the section still exists, without
@@ -31,12 +33,13 @@ interface NavItem {
 }
 
 // A physician sees exactly these four, in this order: the calendars they use
-// day to day first, and the standing preferences they rarely touch last.
+// day to day first, and the standing preferences they rarely touch last. An
+// admin sees only the two that aren't personal.
 const navItems: NavItem[] = [
   { label: "Physician Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
-  { label: "Personal Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays },
+  { label: "Personal Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays, physicianOnly: true },
   { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
-  { label: "My Preferences", href: "/dashboard/my-preferences", icon: CalendarClock },
+  { label: "My Preferences", href: "/dashboard/my-preferences", icon: CalendarClock, physicianOnly: true },
 
   // Admin-only below.
   { label: "Physicians/Users", href: "/dashboard/physicians", icon: Users, adminOnly: true },
@@ -57,7 +60,9 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
   const pathname = usePathname();
 
   const isAdmin = userRole === "ADMIN";
-  const visible = navItems.filter((item) => (!item.adminOnly && !item.parked) || isAdmin);
+  const visible = navItems.filter((item) =>
+    isAdmin ? !item.physicianOnly : !item.adminOnly && !item.parked
+  );
   // Working items first; parked ones (admins only) grouped under a caption at
   // the bottom, so it is obvious where "works" ends and "paused" begins.
   const activeItems = visible.filter((item) => !item.parked);
