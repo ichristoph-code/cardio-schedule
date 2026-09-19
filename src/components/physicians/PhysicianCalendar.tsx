@@ -125,7 +125,6 @@ function shortRoleName(name: string): string {
   return name
     .replace("Interventional Call", "Intv Call")
     .replace("Interventional", "Intv")
-    .replace("Hospital Rounder", "Hosp Rnd")
     .replace("ICU Rounder", "ICU Rnd")
     .replace("Cardioversion / TEE", "CV/TEE")
     .replace("Doc in the Box", "DITB")

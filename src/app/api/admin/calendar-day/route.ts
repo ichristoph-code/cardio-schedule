@@ -22,7 +22,7 @@ import type { Prisma } from "@/generated/prisma/client";
 //   rounder                -> ScheduleAssignment (ICU_ROUNDER, MANUAL)
 //   call                   -> ScheduleAssignment (GENERAL_CALL, MANUAL)
 //   no_call                -> NoCallDayRequest (APPROVED)
-//   clear                  -> removes this physician's vacation + manual float/rounder + no-call + general call
+//   clear                  -> removes this physician's vacation + float + manual rounder + no-call + general call
 //
 // Every write is set-based over the whole date list rather than a loop over
 // days, so applying a type to a 300-day selection costs the same handful of
@@ -179,16 +179,30 @@ export async function POST(req: Request) {
         await tx.vacationRequest.createMany({ data: survivingVacations });
       }
 
-      // This physician's manual float/rounder assignments on the selected days.
-      const editableRoleIds = [floatRole?.id, icuRole?.id].filter((x): x is string => !!x);
-      if (editableRoleIds.length > 0) {
+      // This physician's manual ICU rounder assignments on the selected days.
+      if (icuRole) {
         await tx.scheduleAssignment.deleteMany({
           where: {
             scheduleId: schedule.id,
             physicianId,
             date: { in: dateObjs },
-            roleTypeId: { in: editableRoleIds },
+            roleTypeId: icuRole.id,
             source: "MANUAL",
+          },
+        });
+      }
+
+      // This physician's hospital float — any source, for the same reason as
+      // general call below: the generator fills the float slot too, the
+      // Physician Calendar draws those days, and "Clear" or a vacation set on
+      // one must actually release it.
+      if (floatRole) {
+        await tx.scheduleAssignment.deleteMany({
+          where: {
+            scheduleId: schedule.id,
+            physicianId,
+            date: { in: dateObjs },
+            roleTypeId: floatRole.id,
           },
         });
       }

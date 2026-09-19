@@ -31,7 +31,6 @@ interface Props {
  * A role not listed here falls back to its initials.
  */
 const CELL_CODES: Record<string, string> = {
-  HOSPITAL_ROUNDER: "HR",
   DOC_IN_BOX: "DITB",
   ECHO_READER: "Echo",
   MPI_READER: "MPI",
@@ -40,7 +39,6 @@ const CELL_CODES: Record<string, string> = {
 
 /** Roles with a colour of their own; any other duty is orange. */
 const ROLE_COLORS: Record<string, { cell: string; swatch: string }> = {
-  HOSPITAL_ROUNDER: DAY_COLORS.hospitalRounder,
   DOC_IN_BOX: DAY_COLORS.docInBox,
   ECHO_READER: DAY_COLORS.echoReader,
   MPI_READER: DAY_COLORS.mpiReader,
