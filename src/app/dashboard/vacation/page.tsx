@@ -5,6 +5,7 @@ import { cookies } from "next/headers";
 import { VacationCalendarView } from "@/components/vacation/VacationCalendarView";
 import { PhysicianPicker, LAST_PHYSICIAN_COOKIE } from "@/components/vacation/PhysicianPicker";
 import { Suspense } from "react";
+import { parseYearParam } from "@/lib/calendar-years";
 
 export default async function VacationPage({
   searchParams,
@@ -18,8 +19,8 @@ export default async function VacationPage({
   const sessionPhysicianId = (session.user as Record<string, unknown>).physicianId as string | null;
 
   const query = await searchParams;
-  const currentYear = new Date().getFullYear();
-  const selectedYear = query.year ? parseInt(query.year, 10) : currentYear;
+  // URL param wins; otherwise the shared default year (2027 for now).
+  const selectedYear = parseYearParam(query.year);
 
   // Admins see all physicians; regular users only see themselves
   const physicians = await prisma.physician.findMany({
