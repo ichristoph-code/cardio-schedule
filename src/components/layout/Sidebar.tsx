@@ -18,6 +18,8 @@ import {
 
 interface NavItem {
   label: string;
+  /** What a physician sees, where it differs — "My …" rather than "Physician …". */
+  physicianLabel?: string;
   href: string;
   icon: React.ElementType;
   adminOnly?: boolean;
@@ -36,8 +38,8 @@ interface NavItem {
 // day to day first, and the standing preferences they rarely touch last. An
 // admin sees only the two that aren't personal.
 const navItems: NavItem[] = [
-  { label: "Physician Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
-  { label: "Personal Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays, physicianOnly: true },
+  { label: "Physician Vacation & Work Calendar", physicianLabel: "My Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
+  { label: "My Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays, physicianOnly: true },
   { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
   { label: "My Preferences", href: "/dashboard/my-preferences", icon: CalendarClock, physicianOnly: true },
 
@@ -66,6 +68,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
   // Working items first; parked ones (admins only) grouped under a caption at
   // the bottom, so it is obvious where "works" ends and "paused" begins.
   const activeItems = visible.filter((item) => !item.parked);
+  const navLabel = (item: NavItem) => (!isAdmin && item.physicianLabel) || item.label;
   const parkedItems = visible.filter((item) => item.parked);
 
   return (
@@ -97,7 +100,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
               )}
             >
               <Icon className="h-4 w-4" />
-              {item.label}
+              {navLabel(item)}
             </Link>
           );
         })}
@@ -117,7 +120,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
                   className="flex cursor-not-allowed items-center gap-3 rounded-xl px-3 py-2 text-[13px] font-medium text-muted-foreground/40"
                 >
                   <Icon className="h-4 w-4" />
-                  {item.label}
+                  {navLabel(item)}
                 </div>
               );
             })}
