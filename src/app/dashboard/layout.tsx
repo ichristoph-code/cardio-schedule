@@ -15,14 +15,14 @@ export default async function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="bg-sky flex h-screen overflow-hidden">
       {/* Desktop sidebar */}
       <aside className="hidden w-64 shrink-0 border-r border-black/[0.04] bg-white/70 backdrop-blur-xl backdrop-saturate-150 lg:block dark:border-white/[0.06] dark:bg-card/70">
         <Sidebar userRole={session.user.role} />
       </aside>
 
       {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden bg-mesh">
+      <div className="flex flex-1 flex-col overflow-hidden">
         <Header
           userName={session.user.name ?? "User"}
           userRole={session.user.role}
