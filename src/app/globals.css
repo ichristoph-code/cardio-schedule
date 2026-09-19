@@ -129,21 +129,20 @@
   }
 }
 
-/* Gradient mesh background — subtle Apple Ventura / iCloud vibes */
-.bg-mesh {
-  background-color: oklch(0.978 0 0);
-  background-image:
-    radial-gradient(ellipse at 0% 0%, oklch(0.95 0.03 250 / 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse at 100% 0%, oklch(0.96 0.025 200 / 0.3) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 100%, oklch(0.96 0.02 280 / 0.25) 0%, transparent 50%);
+/* Dashboard sky — the login page's sky with the scene removed.
+   Stops are lifted from LivingSky (src/components/login/LivingSky.tsx): the
+   light theme uses its calm mid-day sky (sun ~35° up), the dark theme its
+   deep dusk (sun ~12° below). Same 0 / 55% / 100% positions the canvas uses,
+   so the fade has the same shape. Static on purpose: the sky animates and
+   tracks the real sun; this only needs to look like it, consistently. */
+.bg-sky {
+  background-color: #cfe0f5;
+  background-image: linear-gradient(to bottom, #a6c6ec 0%, #cfe0f5 55%, #eef3f9 100%);
 }
 
-.dark .bg-mesh {
-  background-color: oklch(0.145 0 0);
-  background-image:
-    radial-gradient(ellipse at 0% 0%, oklch(0.20 0.04 250 / 0.5) 0%, transparent 50%),
-    radial-gradient(ellipse at 100% 0%, oklch(0.18 0.03 200 / 0.4) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 100%, oklch(0.18 0.025 280 / 0.3) 0%, transparent 50%);
+.dark .bg-sky {
+  background-color: #141d36;
+  background-image: linear-gradient(to bottom, #0b1122 0%, #141d36 55%, #25304e 100%);
 }
 
 /* Login gradient — slightly more saturated with rose accent */
