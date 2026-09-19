@@ -33,7 +33,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const [assignments, vacations, customHolidayRows] = await Promise.all([
     // Every active assignment, whatever its schedule's status. This mirrors the
-    // Physician Vacation & Work Calendar, which is what the practice treats as
+    // Physician Calendar, which is what the practice treats as
     // the truth: when an admin hand-sets a call or rounder day it lands on that
     // year's schedule immediately — created as a DRAFT if none exists yet — and
     // the physician sees it in the app at once. A feed that waited for

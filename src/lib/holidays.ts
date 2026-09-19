@@ -2,7 +2,7 @@
 //
 // Two kinds of holiday feed the calendars:
 //   1. Built-in federal holidays, computed from the year (below).
-//   2. Custom holidays an admin marks on the Physician Vacation & Work Calendar.
+//   2. Custom holidays an admin marks on the Physician Calendar.
 //      These live in the CustomHoliday table and apply to every physician.
 //
 // NOTE: The scheduler (src/lib/scheduler.ts) keeps its own holiday list for

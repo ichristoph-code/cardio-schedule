@@ -46,7 +46,6 @@ export const DAY_COLORS = {
   rounder: {
     cell: "bg-purple-400 text-white font-semibold",
     swatch: "bg-purple-400",
-    active: "bg-purple-500 text-white border-purple-500 hover:bg-purple-600",
   },
   call: {
     cell: "bg-neutral-900 text-white font-semibold",

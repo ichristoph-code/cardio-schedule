@@ -56,8 +56,8 @@ function cellCode(a: PersonalAssignment): string {
 }
 
 /**
- * A physician's own year, drawn exactly like the Physician Vacation & Work
- * Calendar: same grid, same palette, same legend row. Where that calendar
+ * A physician's own year, drawn exactly like the Physician Calendar (the
+ * physician's My Vacation & Work Calendar): same grid, same palette, same legend row. Where that calendar
  * shows the day types an admin sets, this one shows the roles the schedule
  * assigned. A day takes the colour of its most significant duty; the tooltip
  * carries the full detail.
