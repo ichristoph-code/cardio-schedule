@@ -107,6 +107,7 @@ export const PhysicianScalarFieldEnum = {
   isInterventionalist: 'isInterventionalist',
   isEP: 'isEP',
   preferredTaskDay: 'preferredTaskDay',
+  calendarToken: 'calendarToken',
   createdAt: 'createdAt',
   updatedAt: 'updatedAt'
 } as const
