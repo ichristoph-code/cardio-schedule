@@ -29,7 +29,6 @@ interface Props {
   year: number;
   vacations: VacationInfo[];
   floatDays?: string[];
-  rounderDays?: string[];
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
   customHolidays?: CustomHolidayInfo[];
@@ -44,7 +43,6 @@ function MonthGrid({
   month,
   vacMap,
   floatSet,
-  rounderSet,
   callMap,
   noCallSet,
   holidays,
@@ -58,7 +56,6 @@ function MonthGrid({
   month: number;
   vacMap: Map<string, VacationDayState>;
   floatSet: Set<string>;
-  rounderSet: Set<string>;
   callMap: Map<string, boolean>; // date -> manual? (true = manually set, false = system-assigned)
   noCallSet: Set<string>;
   holidays: Map<string, string>;
@@ -87,7 +84,6 @@ function MonthGrid({
           const call = callMap.get(dateStr); // undefined | true (manual) | false (auto)
           const isCall = call !== undefined;
           const isFloat = floatSet.has(dateStr);
-          const isRounder = rounderSet.has(dateStr);
           const isNoCall = noCallSet.has(dateStr);
           const holidayName = holidays.get(dateStr);
           const isToday = dateStr === today;
@@ -115,15 +111,13 @@ function MonthGrid({
                   ? DAY_COLORS.call.cell
                   : isFloat
                     ? DAY_COLORS.float.cell
-                    : isRounder
-                      ? DAY_COLORS.rounder.cell
-                      : isNoCall
-                        ? DAY_COLORS.noCall.cell
-                        : holidayName
-                          ? DAY_COLORS.holiday.cell
-                          : isToday
-                            ? DAY_TODAY
-                            : DAY_IDLE) + callRing + selectionRing,
+                    : isNoCall
+                      ? DAY_COLORS.noCall.cell
+                      : holidayName
+                        ? DAY_COLORS.holiday.cell
+                        : isToday
+                          ? DAY_TODAY
+                          : DAY_IDLE) + callRing + selectionRing,
           ].join(" ");
 
           const title =
@@ -132,7 +126,6 @@ function MonthGrid({
             : vac === "VACATION" ? "Vacation day"
             : isCall ? (call ? "General Call (manually set)" : "General Call (system-assigned)")
             : isFloat ? "Hospital Float"
-            : isRounder ? "ICU Rounder"
             : isNoCall ? "No-call day"
             : holidayName ?? undefined;
 
@@ -172,7 +165,6 @@ export function YearlyVacationCalendar({
   year,
   vacations,
   floatDays = [],
-  rounderDays = [],
   callDays = [],
   noCallDays = [],
   customHolidays = [],
@@ -182,7 +174,6 @@ export function YearlyVacationCalendar({
 }: Props) {
   const vacMap = buildVacationStateMap(vacations);
   const floatSet = new Set(floatDays);
-  const rounderSet = new Set(rounderDays);
   const callMap = new Map(callDays.map((c) => [c.date, c.manual] as const));
   const noCallSet = new Set(noCallDays);
   // Built-in holidays + admin-marked custom holidays (global, all physicians).
@@ -328,11 +319,9 @@ export function YearlyVacationCalendar({
           ? "CALL"
           : floatSet.has(selectedDate)
             ? "FLOAT"
-            : rounderSet.has(selectedDate)
-              ? "ROUNDER"
-              : noCallSet.has(selectedDate)
-                ? "NO_CALL"
-                : "NONE"))
+            : noCallSet.has(selectedDate)
+              ? "NO_CALL"
+              : "NONE"))
     : "NONE";
   const selectedCallSource: "AUTO" | "MANUAL" | undefined =
     selectedDate && callMap.has(selectedDate)
@@ -350,9 +339,6 @@ export function YearlyVacationCalendar({
         {floatDays.length > 0 && (
           <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{floatDays.length}</strong></LegendItem>
         )}
-        {rounderDays.length > 0 && (
-          <LegendItem swatch={DAY_COLORS.rounder.swatch}>ICU Rounder — <strong>{rounderDays.length}</strong></LegendItem>
-        )}
         <LegendItem swatch={DAY_COLORS.call.swatch}>General Call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
             <strong>{tallies.weekendCallDays}</strong> weekend</LegendItem>
         {callDays.some((c) => c.manual) && (
@@ -366,7 +352,7 @@ export function YearlyVacationCalendar({
       {isAdmin && (
         <div className="-mt-1 space-y-1 text-xs text-muted-foreground">
           <p>
-            Click any day to set vacation, ½ day, float, rounder, general call, or no-call — or mark it as a holiday for everyone.
+            Click any day to set vacation, ½ day, float, general call, or no-call — or mark it as a holiday for everyone.
           </p>
           <p>
             To fill many days at once: <strong>drag</strong> across a run of days,{" "}
@@ -385,7 +371,6 @@ export function YearlyVacationCalendar({
             month={m}
             vacMap={vacMap}
             floatSet={floatSet}
-            rounderSet={rounderSet}
             callMap={callMap}
             noCallSet={noCallSet}
             holidays={holidays}

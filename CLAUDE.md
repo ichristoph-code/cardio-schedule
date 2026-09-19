@@ -58,6 +58,10 @@ up; don't lecture.
   for an existing concept. On the Full Year view of My Task Calendar each of
   those duty days also carries a short code under the number (HR, Echo, MPI,
   DITB) and the legend spells the code out — colour is never the only signal.
+- **The Vacation & Work Calendar is the high-level view**: vacation, holidays,
+  call, float and no-call days only. ICU rounder is deliberately not on it —
+  neither drawn nor settable there — because My Task Calendar and the Group
+  Schedule already show it. Don't add task-level duties to it.
 - **Calendar feed** (`/api/ics/<token>`): all-day events, no reminders,
   no-call days left out. These were explicit choices.
 

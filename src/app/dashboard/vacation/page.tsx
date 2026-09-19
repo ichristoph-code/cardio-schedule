@@ -51,7 +51,7 @@ export default async function VacationPage({
 
   const physician = physicians.find((p) => p.id === selectedId)!;
 
-  const [vacations, floatAssignments, rounderAssignments, callAssignments, noCallReqs, customHolidayRows] = await Promise.all([
+  const [vacations, floatAssignments, callAssignments, noCallReqs, customHolidayRows] = await Promise.all([
     prisma.vacationRequest.findMany({
       where: {
         physicianId: selectedId,
@@ -66,19 +66,6 @@ export default async function VacationPage({
         physicianId: selectedId,
         isActive: true,
         roleType: { name: "HOSPITAL_FLOAT" },
-        date: {
-          gte: new Date(Date.UTC(selectedYear, 0, 1)),
-          lte: new Date(Date.UTC(selectedYear, 11, 31)),
-        },
-      },
-      select: { date: true },
-      orderBy: { date: "asc" },
-    }),
-    prisma.scheduleAssignment.findMany({
-      where: {
-        physicianId: selectedId,
-        isActive: true,
-        roleType: { name: "ICU_ROUNDER" },
         date: {
           gte: new Date(Date.UTC(selectedYear, 0, 1)),
           lte: new Date(Date.UTC(selectedYear, 11, 31)),
@@ -127,7 +114,6 @@ export default async function VacationPage({
   ]);
 
   const floatDays = floatAssignments.map((a) => a.date.toISOString().split("T")[0]);
-  const rounderDays = rounderAssignments.map((a) => a.date.toISOString().split("T")[0]);
   const callDays = callAssignments.map((a) => ({
     date: a.date.toISOString().split("T")[0],
     manual: a.source === "MANUAL",
@@ -144,8 +130,8 @@ export default async function VacationPage({
         <h1 className="text-2xl font-bold tracking-tight">{isAdmin ? "Physician Vacation & Work Calendar" : "My Vacation & Work Calendar"}</h1>
         <p className="text-muted-foreground">
           {isAdmin
-            ? "Vacation, call, float, rounder, and holiday days by physician."
-            : "Your vacation, call, float, rounder, and holiday days."}
+            ? "Vacation, call, float, and holiday days by physician."
+            : "Your vacation, call, float, and holiday days."}
         </p>
       </div>
 
@@ -182,7 +168,6 @@ export default async function VacationPage({
           halfDay: v.halfDay,
         }))}
         floatDays={floatDays}
-        rounderDays={rounderDays}
         callDays={callDays}
         noCallDays={noCallDays}
         customHolidays={customHolidays}
