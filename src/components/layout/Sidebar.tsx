@@ -38,7 +38,7 @@ interface NavItem {
 // day to day first, and the standing preferences they rarely touch last. An
 // admin sees only the two that aren't personal.
 const navItems: NavItem[] = [
-  { label: "Physician Vacation & Work Calendar", physicianLabel: "My Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
+  { label: "Physician Calendar", physicianLabel: "My Vacation & Work Calendar", href: "/dashboard/vacation", icon: Palmtree },
   { label: "My Task Calendar", href: "/dashboard/my-schedule", icon: CalendarDays, physicianOnly: true },
   { label: "Group Schedule", href: "/dashboard/schedule", icon: Calendar },
   { label: "My Preferences", href: "/dashboard/my-preferences", icon: CalendarClock, physicianOnly: true },

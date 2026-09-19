@@ -93,7 +93,7 @@ export function MyScheduleView({
   const [month, setMonth] = useState(
     now.getFullYear() === year ? now.getMonth() : 0
   );
-  // "year" is the same grid as the Physician Vacation & Work Calendar and the
+  // "year" is the same grid as the Physician Calendar and the
   // default, so the two calendars a physician sees open on the same picture.
   const [viewMode, setViewMode] = useState<"year" | "month" | "upcoming" | "list">("year");
 

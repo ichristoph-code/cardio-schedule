@@ -80,8 +80,9 @@ up; don't lecture.
 ## Physician vs admin
 
 Physicians see four nav items: My Vacation & Work Calendar, My Task Calendar,
-Group Schedule, My Preferences. Admins see Physician Vacation & Work
-Calendar, Group Schedule, Physicians/Users, Rules, Settings, then the parked
+Group Schedule, My Preferences. Admins see Physician Calendar
+(the admin's name for the same page physicians see as My Vacation & Work
+Calendar), Group Schedule, Physicians/Users, Rules, Settings, then the parked
 pair greyed out. My Preferences holds only preferred task day, MPI reading
 day, and the calendar-subscription link.
 

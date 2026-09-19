@@ -1,6 +1,6 @@
 // The look of a year-at-a-glance calendar: twelve month cards of small day
-// chips, with a legend row above. Shared by the Physician Vacation & Work
-// Calendar and the Personal Task Calendar so the two cannot drift apart — a
+// chips, with a legend row above. Shared by the Physician Calendar
+// (My Vacation & Work Calendar) and the Personal Task Calendar so the two cannot drift apart — a
 // physician moving between them should see the same grid, not a cousin of it.
 
 export const YEAR_GRID = "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4";

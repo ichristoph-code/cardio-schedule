@@ -34,7 +34,7 @@ export default async function VacationPage({
     return (
       <div className="space-y-6">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">{isAdmin ? "Physician Vacation & Work Calendar" : "My Vacation & Work Calendar"}</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{isAdmin ? "Physician Calendar" : "My Vacation & Work Calendar"}</h1>
           <p className="text-muted-foreground">No physician profile linked to your account.</p>
         </div>
       </div>
@@ -127,7 +127,7 @@ export default async function VacationPage({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{isAdmin ? "Physician Vacation & Work Calendar" : "My Vacation & Work Calendar"}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{isAdmin ? "Physician Calendar" : "My Vacation & Work Calendar"}</h1>
         <p className="text-muted-foreground">
           {isAdmin
             ? "Vacation, call, float, and holiday days by physician."

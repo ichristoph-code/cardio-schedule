@@ -206,8 +206,8 @@ export async function generateSchedule(
   }
 
   // Holiday dates = built-in federal holidays (incl. MLK and Presidents' Day)
-  // plus any days an admin marked as a holiday on the Physician Vacation &
-  // Work Calendar. Both kinds are staffed like a weekend (see roleNeedsFilling).
+  // plus any days an admin marked as a holiday on the Physician
+  // Calendar. Both kinds are staffed like a weekend (see roleNeedsFilling).
   const customHolidayRows = await prisma.customHoliday.findMany({
     where: { date: { gte: toDbDate(`${year}-01-01`), lte: toDbDate(`${year}-12-31`) } },
     select: { date: true, name: true },
