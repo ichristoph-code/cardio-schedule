@@ -12,8 +12,8 @@ import { browsableYears } from "@/lib/calendar-years";
 // My Preferences; whoever holds the link can read that one physician's
 // schedule and nothing else. Treat it like a Google Calendar "secret address".
 //
-// Contents, by decision: every published assignment, approved vacation and
-// office holiday. No-call days are the absence of a duty and are left out.
+// Contents, by decision: every assignment, approved vacation and office
+// holiday. No-call days are the absence of a duty and are left out.
 // Everything is all-day and nothing carries a reminder — see src/lib/ics.ts.
 
 export const dynamic = "force-dynamic";
@@ -32,9 +32,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   if (!physician) return NOT_FOUND;
 
   const [assignments, vacations, customHolidayRows] = await Promise.all([
-    // Only what's been published: a draft schedule isn't a commitment yet.
+    // Every active assignment, whatever its schedule's status. This mirrors the
+    // Physician Vacation & Work Calendar, which is what the practice treats as
+    // the truth: when an admin hand-sets a call or rounder day it lands on that
+    // year's schedule immediately — created as a DRAFT if none exists yet — and
+    // the physician sees it in the app at once. A feed that waited for
+    // "published" showed vacation but silently dropped exactly those days.
     prisma.scheduleAssignment.findMany({
-      where: { physicianId: physician.id, isActive: true, schedule: { status: "PUBLISHED" } },
+      where: { physicianId: physician.id, isActive: true },
       select: { id: true, date: true, roleType: { select: { displayName: true } } },
     }),
     prisma.vacationRequest.findMany({
