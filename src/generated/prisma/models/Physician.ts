@@ -46,6 +46,7 @@ export type PhysicianMinAggregateOutputType = {
   isInterventionalist: boolean | null
   isEP: boolean | null
   preferredTaskDay: number | null
+  calendarToken: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -60,6 +61,7 @@ export type PhysicianMaxAggregateOutputType = {
   isInterventionalist: boolean | null
   isEP: boolean | null
   preferredTaskDay: number | null
+  calendarToken: string | null
   createdAt: Date | null
   updatedAt: Date | null
 }
@@ -74,6 +76,7 @@ export type PhysicianCountAggregateOutputType = {
   isInterventionalist: number
   isEP: number
   preferredTaskDay: number
+  calendarToken: number
   createdAt: number
   updatedAt: number
   _all: number
@@ -100,6 +103,7 @@ export type PhysicianMinAggregateInputType = {
   isInterventionalist?: true
   isEP?: true
   preferredTaskDay?: true
+  calendarToken?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -114,6 +118,7 @@ export type PhysicianMaxAggregateInputType = {
   isInterventionalist?: true
   isEP?: true
   preferredTaskDay?: true
+  calendarToken?: true
   createdAt?: true
   updatedAt?: true
 }
@@ -128,6 +133,7 @@ export type PhysicianCountAggregateInputType = {
   isInterventionalist?: true
   isEP?: true
   preferredTaskDay?: true
+  calendarToken?: true
   createdAt?: true
   updatedAt?: true
   _all?: true
@@ -229,6 +235,7 @@ export type PhysicianGroupByOutputType = {
   isInterventionalist: boolean
   isEP: boolean
   preferredTaskDay: number | null
+  calendarToken: string | null
   createdAt: Date
   updatedAt: Date
   _count: PhysicianCountAggregateOutputType | null
@@ -266,6 +273,7 @@ export type PhysicianWhereInput = {
   isInterventionalist?: Prisma.BoolFilter<"Physician"> | boolean
   isEP?: Prisma.BoolFilter<"Physician"> | boolean
   preferredTaskDay?: Prisma.IntNullableFilter<"Physician"> | number | null
+  calendarToken?: Prisma.StringNullableFilter<"Physician"> | string | null
   createdAt?: Prisma.DateTimeFilter<"Physician"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Physician"> | Date | string
   user?: Prisma.XOR<Prisma.UserScalarRelationFilter, Prisma.UserWhereInput>
@@ -291,6 +299,7 @@ export type PhysicianOrderByWithRelationInput = {
   isInterventionalist?: Prisma.SortOrder
   isEP?: Prisma.SortOrder
   preferredTaskDay?: Prisma.SortOrderInput | Prisma.SortOrder
+  calendarToken?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   user?: Prisma.UserOrderByWithRelationInput
@@ -309,6 +318,7 @@ export type PhysicianOrderByWithRelationInput = {
 export type PhysicianWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   userId?: string
+  calendarToken?: string
   AND?: Prisma.PhysicianWhereInput | Prisma.PhysicianWhereInput[]
   OR?: Prisma.PhysicianWhereInput[]
   NOT?: Prisma.PhysicianWhereInput | Prisma.PhysicianWhereInput[]
@@ -332,7 +342,7 @@ export type PhysicianWhereUniqueInput = Prisma.AtLeast<{
   swapRequestsTo?: Prisma.SwapRequestListRelationFilter
   holidayAssignments?: Prisma.HolidayAssignmentListRelationFilter
   schedulingRules?: Prisma.SchedulingRuleListRelationFilter
-}, "id" | "userId">
+}, "id" | "userId" | "calendarToken">
 
 export type PhysicianOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -344,6 +354,7 @@ export type PhysicianOrderByWithAggregationInput = {
   isInterventionalist?: Prisma.SortOrder
   isEP?: Prisma.SortOrder
   preferredTaskDay?: Prisma.SortOrderInput | Prisma.SortOrder
+  calendarToken?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   _count?: Prisma.PhysicianCountOrderByAggregateInput
@@ -366,6 +377,7 @@ export type PhysicianScalarWhereWithAggregatesInput = {
   isInterventionalist?: Prisma.BoolWithAggregatesFilter<"Physician"> | boolean
   isEP?: Prisma.BoolWithAggregatesFilter<"Physician"> | boolean
   preferredTaskDay?: Prisma.IntNullableWithAggregatesFilter<"Physician"> | number | null
+  calendarToken?: Prisma.StringNullableWithAggregatesFilter<"Physician"> | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Physician"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Physician"> | Date | string
 }
@@ -379,6 +391,7 @@ export type PhysicianCreateInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -404,6 +417,7 @@ export type PhysicianUncheckedCreateInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -427,6 +441,7 @@ export type PhysicianUpdateInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -452,6 +467,7 @@ export type PhysicianUncheckedUpdateInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -476,6 +492,7 @@ export type PhysicianCreateManyInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
 }
@@ -489,6 +506,7 @@ export type PhysicianUpdateManyMutationInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -503,6 +521,7 @@ export type PhysicianUncheckedUpdateManyInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -522,6 +541,7 @@ export type PhysicianCountOrderByAggregateInput = {
   isInterventionalist?: Prisma.SortOrder
   isEP?: Prisma.SortOrder
   preferredTaskDay?: Prisma.SortOrder
+  calendarToken?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -541,6 +561,7 @@ export type PhysicianMaxOrderByAggregateInput = {
   isInterventionalist?: Prisma.SortOrder
   isEP?: Prisma.SortOrder
   preferredTaskDay?: Prisma.SortOrder
+  calendarToken?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -555,6 +576,7 @@ export type PhysicianMinOrderByAggregateInput = {
   isInterventionalist?: Prisma.SortOrder
   isEP?: Prisma.SortOrder
   preferredTaskDay?: Prisma.SortOrder
+  calendarToken?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
 }
@@ -776,6 +798,7 @@ export type PhysicianCreateWithoutUserInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityCreateNestedManyWithoutPhysicianInput
@@ -799,6 +822,7 @@ export type PhysicianUncheckedCreateWithoutUserInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -838,6 +862,7 @@ export type PhysicianUpdateWithoutUserInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUpdateManyWithoutPhysicianNestedInput
@@ -861,6 +886,7 @@ export type PhysicianUncheckedUpdateWithoutUserInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -884,6 +910,7 @@ export type PhysicianCreateWithoutEligibilitiesInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -908,6 +935,7 @@ export type PhysicianUncheckedCreateWithoutEligibilitiesInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   officeDays?: Prisma.PhysicianOfficeDayUncheckedCreateNestedManyWithoutPhysicianInput
@@ -946,6 +974,7 @@ export type PhysicianUpdateWithoutEligibilitiesInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -970,6 +999,7 @@ export type PhysicianUncheckedUpdateWithoutEligibilitiesInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   officeDays?: Prisma.PhysicianOfficeDayUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -992,6 +1022,7 @@ export type PhysicianCreateWithoutOfficeDaysInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1016,6 +1047,7 @@ export type PhysicianUncheckedCreateWithoutOfficeDaysInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1054,6 +1086,7 @@ export type PhysicianUpdateWithoutOfficeDaysInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1078,6 +1111,7 @@ export type PhysicianUncheckedUpdateWithoutOfficeDaysInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1100,6 +1134,7 @@ export type PhysicianCreateWithoutWeeklyDaysOffInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1124,6 +1159,7 @@ export type PhysicianUncheckedCreateWithoutWeeklyDaysOffInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1162,6 +1198,7 @@ export type PhysicianUpdateWithoutWeeklyDaysOffInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1186,6 +1223,7 @@ export type PhysicianUncheckedUpdateWithoutWeeklyDaysOffInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1208,6 +1246,7 @@ export type PhysicianCreateWithoutSchedulingRulesInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1232,6 +1271,7 @@ export type PhysicianUncheckedCreateWithoutSchedulingRulesInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1270,6 +1310,7 @@ export type PhysicianUpdateWithoutSchedulingRulesInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1294,6 +1335,7 @@ export type PhysicianUncheckedUpdateWithoutSchedulingRulesInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1316,6 +1358,7 @@ export type PhysicianCreateWithoutAssignmentsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1340,6 +1383,7 @@ export type PhysicianUncheckedCreateWithoutAssignmentsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1378,6 +1422,7 @@ export type PhysicianUpdateWithoutAssignmentsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1402,6 +1447,7 @@ export type PhysicianUncheckedUpdateWithoutAssignmentsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1424,6 +1470,7 @@ export type PhysicianCreateWithoutVacationRequestsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1448,6 +1495,7 @@ export type PhysicianUncheckedCreateWithoutVacationRequestsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1486,6 +1534,7 @@ export type PhysicianUpdateWithoutVacationRequestsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1510,6 +1559,7 @@ export type PhysicianUncheckedUpdateWithoutVacationRequestsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1532,6 +1582,7 @@ export type PhysicianCreateWithoutNoCallDayRequestsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1556,6 +1607,7 @@ export type PhysicianUncheckedCreateWithoutNoCallDayRequestsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1594,6 +1646,7 @@ export type PhysicianUpdateWithoutNoCallDayRequestsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1618,6 +1671,7 @@ export type PhysicianUncheckedUpdateWithoutNoCallDayRequestsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1640,6 +1694,7 @@ export type PhysicianCreateWithoutSwapRequestsFromInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1664,6 +1719,7 @@ export type PhysicianUncheckedCreateWithoutSwapRequestsFromInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1691,6 +1747,7 @@ export type PhysicianCreateWithoutSwapRequestsToInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1715,6 +1772,7 @@ export type PhysicianUncheckedCreateWithoutSwapRequestsToInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1753,6 +1811,7 @@ export type PhysicianUpdateWithoutSwapRequestsFromInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1777,6 +1836,7 @@ export type PhysicianUncheckedUpdateWithoutSwapRequestsFromInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1810,6 +1870,7 @@ export type PhysicianUpdateWithoutSwapRequestsToInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1834,6 +1895,7 @@ export type PhysicianUncheckedUpdateWithoutSwapRequestsToInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -1856,6 +1918,7 @@ export type PhysicianCreateWithoutHolidayAssignmentsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   user: Prisma.UserCreateNestedOneWithoutPhysicianInput
@@ -1880,6 +1943,7 @@ export type PhysicianUncheckedCreateWithoutHolidayAssignmentsInput = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: number | null
+  calendarToken?: string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedCreateNestedManyWithoutPhysicianInput
@@ -1918,6 +1982,7 @@ export type PhysicianUpdateWithoutHolidayAssignmentsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   user?: Prisma.UserUpdateOneRequiredWithoutPhysicianNestedInput
@@ -1942,6 +2007,7 @@ export type PhysicianUncheckedUpdateWithoutHolidayAssignmentsInput = {
   isInterventionalist?: Prisma.BoolFieldUpdateOperationsInput | boolean
   isEP?: Prisma.BoolFieldUpdateOperationsInput | boolean
   preferredTaskDay?: Prisma.NullableIntFieldUpdateOperationsInput | number | null
+  calendarToken?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   eligibilities?: Prisma.PhysicianEligibilityUncheckedUpdateManyWithoutPhysicianNestedInput
@@ -2077,6 +2143,7 @@ export type PhysicianSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: boolean
+  calendarToken?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -2103,6 +2170,7 @@ export type PhysicianSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: boolean
+  calendarToken?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -2118,6 +2186,7 @@ export type PhysicianSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: boolean
+  calendarToken?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
@@ -2133,11 +2202,12 @@ export type PhysicianSelectScalar = {
   isInterventionalist?: boolean
   isEP?: boolean
   preferredTaskDay?: boolean
+  calendarToken?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type PhysicianOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "firstName" | "lastName" | "phone" | "fteDays" | "isInterventionalist" | "isEP" | "preferredTaskDay" | "createdAt" | "updatedAt", ExtArgs["result"]["physician"]>
+export type PhysicianOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "userId" | "firstName" | "lastName" | "phone" | "fteDays" | "isInterventionalist" | "isEP" | "preferredTaskDay" | "calendarToken" | "createdAt" | "updatedAt", ExtArgs["result"]["physician"]>
 export type PhysicianInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   user?: boolean | Prisma.UserDefaultArgs<ExtArgs>
   eligibilities?: boolean | Prisma.Physician$eligibilitiesArgs<ExtArgs>
@@ -2184,6 +2254,11 @@ export type $PhysicianPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     isInterventionalist: boolean
     isEP: boolean
     preferredTaskDay: number | null
+    /**
+     * Secret in the physician's calendar-subscription URL. Null = no feed.
+     * Rotating it invalidates every copy of the old URL.
+     */
+    calendarToken: string | null
     createdAt: Date
     updatedAt: Date
   }, ExtArgs["result"]["physician"]>
@@ -2629,6 +2704,7 @@ export interface PhysicianFieldRefs {
   readonly isInterventionalist: Prisma.FieldRef<"Physician", 'Boolean'>
   readonly isEP: Prisma.FieldRef<"Physician", 'Boolean'>
   readonly preferredTaskDay: Prisma.FieldRef<"Physician", 'Int'>
+  readonly calendarToken: Prisma.FieldRef<"Physician", 'String'>
   readonly createdAt: Prisma.FieldRef<"Physician", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Physician", 'DateTime'>
 }

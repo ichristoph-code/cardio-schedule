@@ -3,8 +3,10 @@ import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
 import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
 import { PreferredTaskDay } from "@/components/preferences/PreferredTaskDay";
+import { CalendarSubscribeCard } from "@/components/preferences/CalendarSubscribeCard";
 
-// Deliberately small: preferred task day and MPI reading day, nothing else.
+// Deliberately small: preferred task day, MPI reading day, and the calendar
+// subscription link — nothing else.
 //
 // The annual vacation / no-call request calendar that used to sit below these
 // (src/components/preferences/AnnualPreferencesView.tsx) is parked, not deleted.
@@ -37,7 +39,7 @@ export default async function MyPreferencesPage() {
   const [physician, mpiRoleType] = await Promise.all([
     prisma.physician.findUnique({
       where: { id: physicianId },
-      select: { preferredTaskDay: true },
+      select: { preferredTaskDay: true, calendarToken: true },
     }),
     prisma.roleType.findFirst({ where: { name: "MPI_READER" } }),
   ]);
@@ -87,6 +89,8 @@ export default async function MyPreferencesPage() {
         initialPreferredDay={mpiPreferredDay}
         isMpiEligible={isMpiEligible}
       />
+
+      <CalendarSubscribeCard initialToken={physician?.calendarToken ?? null} />
     </div>
   );
 }

@@ -38,6 +38,10 @@ model Physician {
 
   preferredTaskDay Int?
 
+  /// Secret in the physician's calendar-subscription URL. Null = no feed.
+  /// Rotating it invalidates every copy of the old URL.
+  calendarToken String? @unique
+
   eligibilities        PhysicianEligibility[]
   officeDays           PhysicianOfficeDay[]
   weeklyDaysOff        PhysicianWeeklyDayOff[]
