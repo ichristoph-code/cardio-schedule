@@ -7,6 +7,7 @@ import type { DayState } from "@/components/vacation/day-types";
 import { datesBetween } from "@/lib/calendar-dates";
 import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 import { computeYearTallies } from "@/lib/year-tallies";
+import { DAY_COLORS } from "@/lib/colors";
 
 const MONTH_NAMES = [
   "January","February","March","April","May","June",
@@ -137,19 +138,19 @@ function MonthGrid({
             "text-[11px] text-center rounded py-[3px] leading-none select-none",
             isAdmin ? (isSelected ? "cursor-pointer" : "cursor-pointer hover:ring-2 hover:ring-primary/40") : "",
             (vac === "VACATION"
-              ? "bg-emerald-500 text-white font-semibold"
+              ? DAY_COLORS.vacation.cell
               : vac === "HALF_AM" || vac === "HALF_PM"
-                ? "bg-emerald-200 text-emerald-900 font-semibold"
+                ? DAY_COLORS.halfDay.cell
                 : isCall
-                  ? "bg-neutral-900 text-white font-semibold"
+                  ? DAY_COLORS.call.cell
                   : isFloat
-                    ? "bg-blue-400 text-white font-semibold"
+                    ? DAY_COLORS.float.cell
                     : isRounder
-                      ? "bg-purple-400 text-white font-semibold"
+                      ? DAY_COLORS.rounder.cell
                       : isNoCall
-                        ? "bg-slate-400 text-white font-semibold"
+                        ? DAY_COLORS.noCall.cell
                         : holidayName
-                          ? "bg-yellow-300 text-yellow-900 font-semibold"
+                          ? DAY_COLORS.holiday.cell
                           : isToday
                             ? "bg-primary/15 text-primary font-bold"
                             : "text-foreground hover:bg-muted/50") + callRing + selectionRing,
@@ -372,18 +373,18 @@ export function YearlyVacationCalendar({
     <div className="space-y-4">
       <div className="flex items-center gap-6 text-sm flex-wrap">
         <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-emerald-500" />
+          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.vacation.swatch}`} />
           <span className="text-muted-foreground">Full day — <strong>{tallies.fullDays}</strong></span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-emerald-200" />
+          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.halfDay.swatch}`} />
           <span className="text-muted-foreground">Half day — <strong>{tallies.halfDays}</strong></span>
         </div>
         <div className="text-muted-foreground">
           Vacation days: <strong>{tallies.vacationDays}</strong>
         </div>
         <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-yellow-300" />
+          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.holiday.swatch}`} />
           <span className="text-muted-foreground">Holidays — <strong>{tallies.holidays}</strong></span>
         </div>
         <div className="text-muted-foreground">
@@ -391,18 +392,18 @@ export function YearlyVacationCalendar({
         </div>
         {floatDays.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm bg-blue-400" />
+            <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.float.swatch}`} />
             <span className="text-muted-foreground">Hospital Float — <strong>{floatDays.length}</strong></span>
           </div>
         )}
         {rounderDays.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm bg-purple-400" />
+            <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.rounder.swatch}`} />
             <span className="text-muted-foreground">ICU Rounder — <strong>{rounderDays.length}</strong></span>
           </div>
         )}
         <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900" />
+          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.call.swatch}`} />
           <span className="text-muted-foreground">
             General Call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
             <strong>{tallies.weekendCallDays}</strong> weekend
@@ -410,13 +411,13 @@ export function YearlyVacationCalendar({
         </div>
         {callDays.some((c) => c.manual) && (
           <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm bg-neutral-900 ring-2 ring-inset ring-amber-400" />
+            <span className={`inline-block w-3 h-3 rounded-sm ring-2 ring-inset ring-amber-400 ${DAY_COLORS.call.swatch}`} />
             <span className="text-muted-foreground">Call — manually set</span>
           </div>
         )}
         {noCallDays.length > 0 && (
           <div className="flex items-center gap-2">
-            <span className="inline-block w-3 h-3 rounded-sm bg-slate-400" />
+            <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.noCall.swatch}`} />
             <span className="text-muted-foreground">No-call — <strong>{noCallDays.length}</strong></span>
           </div>
         )}

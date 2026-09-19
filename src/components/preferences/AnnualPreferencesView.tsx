@@ -484,27 +484,27 @@ export function AnnualPreferencesView({
         <CardContent className="py-4">
           <div className="flex flex-wrap gap-x-6 gap-y-2 text-sm">
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-green-500" />
+              <div className="w-3 h-3 rounded bg-emerald-500" />
               <span>Approved Vacation ({summary.approvedVacations})</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-green-200 border border-green-400" />
+              <div className="w-3 h-3 rounded bg-emerald-200 border border-emerald-400" />
               <span>Pending Vacation ({summary.pendingVacations})</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded border-2 border-green-500 bg-white" />
+              <div className="w-3 h-3 rounded border-2 border-emerald-500 bg-white" />
               <span>New Vacation ({summary.newVacations})</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-amber-500" />
+              <div className="w-3 h-3 rounded bg-slate-500" />
               <span>Approved No-Call ({summary.approvedNoCall})</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded bg-amber-200 border border-amber-400" />
+              <div className="w-3 h-3 rounded bg-slate-200 border border-slate-400" />
               <span>Pending No-Call ({summary.pendingNoCall})</span>
             </div>
             <div className="flex items-center gap-2">
-              <div className="w-3 h-3 rounded border-2 border-amber-500 bg-white" />
+              <div className="w-3 h-3 rounded border-2 border-slate-500 bg-white" />
               <span>New No-Call ({summary.newNoCall})</span>
             </div>
             <div className="flex items-center gap-2">
@@ -787,20 +787,22 @@ function MonthCalendar({
 
 // --- Styling Helpers ---
 
+// Hues follow src/lib/colors.ts: vacation is emerald, no-call is slate,
+// holidays are yellow — the same as every other calendar.
 function getCellClasses(status: string, weekend: boolean, holiday = false): string {
   switch (status) {
     case "vacation-approved":
-      return "bg-green-500 text-white font-semibold";
+      return "bg-emerald-500 text-white font-semibold";
     case "vacation-pending":
-      return "bg-green-200 text-green-800 border border-green-400";
+      return "bg-emerald-200 text-emerald-800 border border-emerald-400";
     case "vacation-new":
-      return "bg-white border-2 border-green-500 text-green-700 font-semibold";
+      return "bg-white border-2 border-emerald-500 text-emerald-700 font-semibold";
     case "nocall-approved":
-      return "bg-amber-500 text-white font-semibold";
+      return "bg-slate-500 text-white font-semibold";
     case "nocall-pending":
-      return "bg-amber-200 text-amber-800 border border-amber-400";
+      return "bg-slate-200 text-slate-800 border border-slate-400";
     case "nocall-new":
-      return "bg-white border-2 border-amber-500 text-amber-700 font-semibold";
+      return "bg-white border-2 border-slate-500 text-slate-700 font-semibold";
     default:
       // A day the physician has marked keeps its own colour; the holiday tint is
       // only for days they haven't claimed.

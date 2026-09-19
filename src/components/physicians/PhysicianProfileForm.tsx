@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Save, Eye, EyeOff } from "lucide-react";
+import { CATEGORY_TINT } from "@/lib/colors";
 
 interface RoleType {
   id: string;
@@ -65,12 +66,6 @@ const CATEGORY_LABELS: Record<string, string> = {
   SPECIAL: "Special Procedures",
 };
 
-const CATEGORY_COLORS: Record<string, string> = {
-  ON_CALL: "bg-blue-50 border-blue-200",
-  DAYTIME: "bg-green-50 border-green-200",
-  READING: "bg-orange-50 border-orange-200",
-  SPECIAL: "bg-purple-50 border-purple-200",
-};
 
 export function PhysicianProfileForm({ physician, roleTypes }: Props) {
   const router = useRouter();
@@ -402,7 +397,7 @@ export function PhysicianProfileForm({ physician, roleTypes }: Props) {
                     <div className="mb-3 flex items-center gap-2">
                       <Badge
                         variant="outline"
-                        className={CATEGORY_COLORS[category]}
+                        className={CATEGORY_TINT[category]}
                       >
                         {label}
                       </Badge>

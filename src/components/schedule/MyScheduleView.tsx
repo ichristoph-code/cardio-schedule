@@ -21,6 +21,7 @@ import {
   Palmtree,
 } from "lucide-react";
 import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
+import { CATEGORY_COLORS } from "@/lib/colors";
 
 interface Assignment {
   id: string;
@@ -51,12 +52,6 @@ const MONTH_NAMES = [
 
 const DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  ON_CALL: "bg-red-100 text-red-800 border-red-200",
-  DAYTIME: "bg-blue-100 text-blue-800 border-blue-200",
-  READING: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  SPECIAL: "bg-purple-100 text-purple-800 border-purple-200",
-};
 
 const CATEGORY_DOT: Record<string, string> = {
   ON_CALL: "bg-red-500",
