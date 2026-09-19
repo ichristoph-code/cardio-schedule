@@ -26,6 +26,36 @@ interface Props {
 }
 
 /**
+ * What a day of any other duty says under its number. The cell is about
+ * 19px wide on a phone, so these are shorter than the Monthly view's labels.
+ * A role not listed here falls back to its initials.
+ */
+const CELL_CODES: Record<string, string> = {
+  HOSPITAL_ROUNDER: "HR",
+  DOC_IN_BOX: "DITB",
+  ECHO_READER: "Echo",
+  MPI_READER: "MPI",
+  CARDIOVERSION_TEE: "CV",
+};
+
+/** Roles with a colour of their own; any other duty is orange. */
+const ROLE_COLORS: Record<string, { cell: string; swatch: string }> = {
+  HOSPITAL_ROUNDER: DAY_COLORS.hospitalRounder,
+  DOC_IN_BOX: DAY_COLORS.docInBox,
+  ECHO_READER: DAY_COLORS.echoReader,
+  MPI_READER: DAY_COLORS.mpiReader,
+};
+
+function roleColor(a: PersonalAssignment) {
+  return ROLE_COLORS[a.roleName] ?? DAY_COLORS.otherDuty;
+}
+
+function cellCode(a: PersonalAssignment): string {
+  return CELL_CODES[a.roleName]
+    ?? a.roleDisplayName.split(/\s+/).map((w) => w[0]).join("").toUpperCase();
+}
+
+/**
  * A physician's own year, drawn exactly like the Physician Vacation & Work
  * Calendar: same grid, same palette, same legend row. Where that calendar
  * shows the day types an admin sets, this one shows the roles the schedule
@@ -59,14 +89,22 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
   // Legend counts follow the same precedence the cells use, so the numbers
   // describe what is actually drawn.
   const counts = useMemo(() => {
-    let float = 0, rounder = 0, other = 0;
+    let float = 0, rounder = 0;
+    // Every other duty, per role: roleName -> legend label, swatch and number of days.
+    const other = new Map<string, { label: string; swatch: string; days: number }>();
     for (const [date, duties] of byDate) {
       if (vacMap.has(date) || callDates.has(date)) continue;
       if (duties.some((a) => a.roleName === "HOSPITAL_FLOAT")) float += 1;
       else if (duties.some((a) => a.roleName === "ICU_ROUNDER")) rounder += 1;
-      else other += 1;
+      else {
+        for (const a of duties) {
+          const entry = other.get(a.roleName) ?? { label: `${a.roleDisplayName} (${cellCode(a)})`, swatch: roleColor(a).swatch, days: 0 };
+          entry.days += 1;
+          other.set(a.roleName, entry);
+        }
+      }
     }
-    return { float, rounder, other };
+    return { float, rounder, other: [...other.values()] };
   }, [byDate, vacMap, callDates]);
 
   const today = formatLocalDate(new Date());
@@ -85,9 +123,9 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
         {counts.rounder > 0 && (
           <LegendItem swatch={DAY_COLORS.rounder.swatch}>ICU Rounder — <strong>{counts.rounder}</strong></LegendItem>
         )}
-        {counts.other > 0 && (
-          <LegendItem swatch={DAY_COLORS.otherDuty.swatch}>Other duty — <strong>{counts.other}</strong></LegendItem>
-        )}
+        {counts.other.map((o) => (
+          <LegendItem key={o.label} swatch={o.swatch}>{o.label} — <strong>{o.days}</strong></LegendItem>
+        ))}
         <LegendItem swatch={DAY_COLORS.call.swatch}>
           On call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
           <strong>{tallies.weekendCallDays}</strong> weekend
@@ -117,6 +155,7 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
                 // as vacation even on a holiday; a duty reads as that duty.
                 let colour: string;
                 let title: string | undefined;
+                let codes: string[] = [];
                 if (vac === "VACATION") {
                   colour = DAY_COLORS.vacation.cell; title = "Vacation";
                 } else if (vac) {
@@ -128,7 +167,9 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
                 } else if (duties.some((a) => a.roleName === "ICU_ROUNDER")) {
                   colour = DAY_COLORS.rounder.cell; title = names;
                 } else if (duties.length > 0) {
-                  colour = DAY_COLORS.otherDuty.cell; title = names;
+                  // Two duties on one day: the first (by sort order) gives the colour.
+                  colour = roleColor(duties[0]).cell; title = names;
+                  codes = duties.map(cellCode);
                 } else if (noCallSet.has(dateStr)) {
                   colour = DAY_COLORS.noCall.cell; title = "No-call day";
                 } else if (holidayName) {
@@ -149,6 +190,9 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
                 return (
                   <div key={i} title={title} className={`${DAY_CELL} ${colour}`}>
                     {content}
+                    {codes.map((c) => (
+                      <span key={c} className="block text-[7px] font-normal mt-px">{c}</span>
+                    ))}
                   </div>
                 );
               })}
