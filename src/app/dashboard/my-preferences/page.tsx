@@ -1,15 +1,18 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { AnnualPreferencesView } from "@/components/preferences/AnnualPreferencesView";
 import { MpiDayPreference } from "@/components/preferences/MpiDayPreference";
 import { PreferredTaskDay } from "@/components/preferences/PreferredTaskDay";
 
-export default async function MyPreferencesPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ year?: string }>;
-}) {
+// Deliberately small: preferred task day and MPI reading day, nothing else.
+//
+// The annual vacation / no-call request calendar that used to sit below these
+// (src/components/preferences/AnnualPreferencesView.tsx) is parked, not deleted.
+// The request-and-approval flow it drives is on hold; the component and its API
+// routes are intact, so bringing it back is a matter of rendering it again with
+// the year, vacation, no-call and holiday data it takes.
+
+export default async function MyPreferencesPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -31,49 +34,12 @@ export default async function MyPreferencesPage({
     );
   }
 
-  // The year lives in the URL (?year=2027) so switching years re-runs this
-  // server query. Previously only the current year was ever loaded, so a
-  // physician planning next year saw an empty calendar.
-  const query = await searchParams;
-  const currentYear = new Date().getFullYear();
-  const parsedYear = query.year ? parseInt(query.year, 10) : NaN;
-  const selectedYear =
-    Number.isInteger(parsedYear) && parsedYear >= 2024 && parsedYear <= 2100 ? parsedYear : currentYear;
-
-  // Load existing requests for the selected year
-  const yearStart = new Date(`${selectedYear}-01-01`);
-  const yearEnd = new Date(`${selectedYear}-12-31`);
-
-  const physician = await prisma.physician.findUnique({
-    where: { id: physicianId },
-    select: { preferredTaskDay: true },
-  });
-
-  const [vacations, noCallDays, mpiRoleType, customHolidayRows] = await Promise.all([
-    prisma.vacationRequest.findMany({
-      where: {
-        physicianId,
-        status: { in: ["PENDING", "APPROVED"] },
-        startDate: { lte: yearEnd },
-        endDate: { gte: yearStart },
-      },
-      orderBy: { startDate: "asc" },
-    }),
-    prisma.noCallDayRequest.findMany({
-      where: {
-        physicianId,
-        status: { in: ["PENDING", "APPROVED"] },
-        date: { gte: yearStart, lte: yearEnd },
-      },
-      orderBy: { date: "asc" },
+  const [physician, mpiRoleType] = await Promise.all([
+    prisma.physician.findUnique({
+      where: { id: physicianId },
+      select: { preferredTaskDay: true },
     }),
     prisma.roleType.findFirst({ where: { name: "MPI_READER" } }),
-    // Office holidays are global — the same yellow days every other calendar shows.
-    prisma.customHoliday.findMany({
-      where: { date: { gte: yearStart, lte: yearEnd } },
-      select: { date: true, name: true, hidden: true },
-      orderBy: { date: "asc" },
-    }),
   ]);
 
   // Check MPI eligibility and existing day preference
@@ -109,9 +75,7 @@ export default async function MyPreferencesPage({
       <div>
         <h1 className="text-2xl font-bold tracking-tight">My Preferences</h1>
         <p className="text-muted-foreground">
-          Select your vacation days and no-call day preferences for the year.
-          No-call days mean you&apos;re available for daytime roles but won&apos;t
-          be assigned night call.
+          Your standing preferences for how the schedule is built.
         </p>
       </div>
 
@@ -122,30 +86,6 @@ export default async function MyPreferencesPage({
       <MpiDayPreference
         initialPreferredDay={mpiPreferredDay}
         isMpiEligible={isMpiEligible}
-      />
-
-      <AnnualPreferencesView
-        key={selectedYear}
-        physicianId={physicianId}
-        initialYear={selectedYear}
-        customHolidays={customHolidayRows.map((h) => ({
-          date: h.date.toISOString().split("T")[0],
-          name: h.name,
-          hidden: h.hidden,
-        }))}
-        existingVacations={vacations.map((v) => ({
-          id: v.id,
-          startDate: v.startDate.toISOString().split("T")[0],
-          endDate: v.endDate.toISOString().split("T")[0],
-          reason: v.reason,
-          status: v.status,
-        }))}
-        existingNoCallDays={noCallDays.map((nc) => ({
-          id: nc.id,
-          date: nc.date.toISOString().split("T")[0],
-          reason: nc.reason,
-          status: nc.status,
-        }))}
       />
     </div>
   );
