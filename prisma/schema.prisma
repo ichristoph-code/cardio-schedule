@@ -19,8 +19,19 @@ model User {
   passwordHash String
   role         UserRole   @default(PHYSICIAN)
   physician    Physician?
+  avatar       UserAvatar?
   createdAt    DateTime   @default(now())
   updatedAt    DateTime   @updatedAt
+}
+
+// A user's profile photo: one 256x256 JPEG, resized in the browser before
+// upload. Its own table rather than a column on User, so the bytes never ride
+// along on the User queries that run on every request (login, session).
+model UserAvatar {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  data      Bytes
+  updatedAt DateTime @updatedAt
 }
 
 model Physician {

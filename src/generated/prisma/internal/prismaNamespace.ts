@@ -385,6 +385,7 @@ type FieldRefInputType<Model, FieldType> = Model extends never ? never : FieldRe
 
 export const ModelName = {
   User: 'User',
+  UserAvatar: 'UserAvatar',
   Physician: 'Physician',
   RoleType: 'RoleType',
   PhysicianEligibility: 'PhysicianEligibility',
@@ -415,7 +416,7 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
     omit: GlobalOmitOptions
   }
   meta: {
-    modelProps: "user" | "physician" | "roleType" | "physicianEligibility" | "physicianOfficeDay" | "physicianWeeklyDayOff" | "schedulingRule" | "schedule" | "scheduleAssignment" | "vacationRequest" | "noCallDayRequest" | "swapRequest" | "holiday" | "holidayAssignment" | "customHoliday" | "auditLog"
+    modelProps: "user" | "userAvatar" | "physician" | "roleType" | "physicianEligibility" | "physicianOfficeDay" | "physicianWeeklyDayOff" | "schedulingRule" | "schedule" | "scheduleAssignment" | "vacationRequest" | "noCallDayRequest" | "swapRequest" | "holiday" | "holidayAssignment" | "customHoliday" | "auditLog"
     txIsolationLevel: TransactionIsolationLevel
   }
   model: {
@@ -490,6 +491,80 @@ export type TypeMap<ExtArgs extends runtime.Types.Extensions.InternalArgs = runt
         count: {
           args: Prisma.UserCountArgs<ExtArgs>
           result: runtime.Types.Utils.Optional<Prisma.UserCountAggregateOutputType> | number
+        }
+      }
+    }
+    UserAvatar: {
+      payload: Prisma.$UserAvatarPayload<ExtArgs>
+      fields: Prisma.UserAvatarFieldRefs
+      operations: {
+        findUnique: {
+          args: Prisma.UserAvatarFindUniqueArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload> | null
+        }
+        findUniqueOrThrow: {
+          args: Prisma.UserAvatarFindUniqueOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>
+        }
+        findFirst: {
+          args: Prisma.UserAvatarFindFirstArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload> | null
+        }
+        findFirstOrThrow: {
+          args: Prisma.UserAvatarFindFirstOrThrowArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>
+        }
+        findMany: {
+          args: Prisma.UserAvatarFindManyArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>[]
+        }
+        create: {
+          args: Prisma.UserAvatarCreateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>
+        }
+        createMany: {
+          args: Prisma.UserAvatarCreateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        createManyAndReturn: {
+          args: Prisma.UserAvatarCreateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>[]
+        }
+        delete: {
+          args: Prisma.UserAvatarDeleteArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>
+        }
+        update: {
+          args: Prisma.UserAvatarUpdateArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>
+        }
+        deleteMany: {
+          args: Prisma.UserAvatarDeleteManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateMany: {
+          args: Prisma.UserAvatarUpdateManyArgs<ExtArgs>
+          result: BatchPayload
+        }
+        updateManyAndReturn: {
+          args: Prisma.UserAvatarUpdateManyAndReturnArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>[]
+        }
+        upsert: {
+          args: Prisma.UserAvatarUpsertArgs<ExtArgs>
+          result: runtime.Types.Utils.PayloadToResult<Prisma.$UserAvatarPayload>
+        }
+        aggregate: {
+          args: Prisma.UserAvatarAggregateArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.AggregateUserAvatar>
+        }
+        groupBy: {
+          args: Prisma.UserAvatarGroupByArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserAvatarGroupByOutputType>[]
+        }
+        count: {
+          args: Prisma.UserAvatarCountArgs<ExtArgs>
+          result: runtime.Types.Utils.Optional<Prisma.UserAvatarCountAggregateOutputType> | number
         }
       }
     }
@@ -1654,6 +1729,15 @@ export const UserScalarFieldEnum = {
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
 
 
+export const UserAvatarScalarFieldEnum = {
+  userId: 'userId',
+  data: 'data',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserAvatarScalarFieldEnum = (typeof UserAvatarScalarFieldEnum)[keyof typeof UserAvatarScalarFieldEnum]
+
+
 export const PhysicianScalarFieldEnum = {
   id: 'id',
   userId: 'userId',
@@ -1956,6 +2040,20 @@ export type ListDateTimeFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaM
 
 
 /**
+ * Reference to a field of type 'Bytes'
+ */
+export type BytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Bytes'>
+    
+
+
+/**
+ * Reference to a field of type 'Bytes[]'
+ */
+export type ListBytesFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Bytes[]'>
+    
+
+
+/**
  * Reference to a field of type 'Int'
  */
 export type IntFieldRefInput<$PrismaModel> = FieldRefInputType<$PrismaModel, 'Int'>
@@ -2183,6 +2281,7 @@ export type PrismaClientOptions = ({
 }
 export type GlobalOmitConfig = {
   user?: Prisma.UserOmit
+  userAvatar?: Prisma.UserAvatarOmit
   physician?: Prisma.PhysicianOmit
   roleType?: Prisma.RoleTypeOmit
   physicianEligibility?: Prisma.PhysicianEligibilityOmit
