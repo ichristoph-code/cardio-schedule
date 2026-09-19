@@ -63,6 +63,14 @@ export const DAY_COLORS = {
     text: "text-slate-700 dark:text-slate-300",
     textMuted: "text-slate-500",
   },
+  /**
+   * Any other assignment on the Personal Task Calendar — hospital rounder, doc
+   * in the box, reading, cardioversion. One hue; the tooltip names the role.
+   */
+  otherDuty: {
+    cell: "bg-orange-400 text-white font-semibold",
+    swatch: "bg-orange-400",
+  },
   holiday: {
     cell: "bg-yellow-300 text-yellow-900 font-semibold",
     swatch: "bg-yellow-300",

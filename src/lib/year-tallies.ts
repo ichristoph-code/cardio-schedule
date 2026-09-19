@@ -15,6 +15,34 @@ import { formatLocalDate } from "./holidays";
 
 export type VacationDayState = "VACATION" | "HALF_AM" | "HALF_PM";
 
+/** A vacation request as the calendars receive it: a date range, optionally a half day. */
+export interface VacationRange {
+  startDate: string; // YYYY-MM-DD
+  endDate: string;   // YYYY-MM-DD
+  halfDay?: string | null; // "MORNING" | "AFTERNOON" | null
+}
+
+/**
+ * Expand vacation ranges into a per-day map of vacation state.
+ *
+ * Keys are local-calendar dates. Every calendar keys its days the same way, so
+ * a range never lands a day off from the grid it is drawn on.
+ */
+export function buildVacationStateMap(vacations: VacationRange[]): Map<string, VacationDayState> {
+  const map = new Map<string, VacationDayState>();
+  for (const v of vacations) {
+    const end = new Date(v.endDate + "T12:00:00");
+    const state: VacationDayState =
+      v.halfDay === "MORNING" ? "HALF_AM" : v.halfDay === "AFTERNOON" ? "HALF_PM" : "VACATION";
+    const cursor = new Date(v.startDate + "T12:00:00");
+    while (cursor <= end) {
+      map.set(formatLocalDate(cursor), state);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  return map;
+}
+
 export interface YearTallies {
   /** Mon–Fri days in the year. */
   weekdays: number;

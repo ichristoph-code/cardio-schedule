@@ -15,13 +15,17 @@ import {
   ChevronLeft,
   ChevronRight,
   CalendarDays,
+  LayoutGrid,
   List,
   Clock,
   Activity,
   Palmtree,
 } from "lucide-react";
 import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
+import { PersonalYearCalendar } from "@/components/schedule/PersonalYearCalendar";
+import { SegmentedControl } from "@/components/calendar/SegmentedControl";
 import { CATEGORY_COLORS } from "@/lib/colors";
+import type { CustomHolidayInfo } from "@/lib/holidays";
 
 interface Assignment {
   id: string;
@@ -37,6 +41,7 @@ interface VacationInfo {
   startDate: string;
   endDate: string;
   reason: string | null;
+  halfDay?: string | null;
 }
 
 interface NoCallDayInfo {
@@ -73,20 +78,22 @@ export function MyScheduleView({
   assignments,
   vacations = [],
   noCallDays = [],
+  customHolidays = [],
 }: {
   year: number;
   physicianName: string;
   assignments: Assignment[];
   vacations?: VacationInfo[];
   noCallDays?: NoCallDayInfo[];
+  customHolidays?: CustomHolidayInfo[];
 }) {
   const now = new Date();
   const [month, setMonth] = useState(
     now.getFullYear() === year ? now.getMonth() : 0
   );
-  const [viewMode, setViewMode] = useState<"upcoming" | "month" | "calendar">(
-    "calendar"
-  );
+  // "year" is the same grid as the Physician Vacation & Work Calendar and the
+  // default, so the two calendars a physician sees open on the same picture.
+  const [viewMode, setViewMode] = useState<"year" | "month" | "upcoming" | "list">("year");
 
   const byDate = useMemo(() => {
     const map = new Map<string, Assignment[]>();
@@ -195,52 +202,42 @@ export function MyScheduleView({
     );
   }
 
-  // View mode toggle buttons
   const viewToggle = (
-    <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-1">
-      <Button
-        variant={viewMode === "upcoming" ? "default" : "ghost"}
-        size="sm"
-        className="gap-1.5 h-8 rounded-md"
-        onClick={() => setViewMode("upcoming")}
-      >
-        <Clock className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Upcoming</span>
-      </Button>
-      <Button
-        variant={viewMode === "month" ? "default" : "ghost"}
-        size="sm"
-        className="gap-1.5 h-8 rounded-md"
-        onClick={() => setViewMode("month")}
-      >
-        <List className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">By Month</span>
-      </Button>
-      <Button
-        variant={viewMode === "calendar" ? "default" : "ghost"}
-        size="sm"
-        className="gap-1.5 h-8 rounded-md"
-        onClick={() => setViewMode("calendar")}
-      >
-        <CalendarDays className="h-3.5 w-3.5" />
-        <span className="hidden sm:inline">Calendar</span>
-      </Button>
-    </div>
+    <SegmentedControl
+      value={viewMode}
+      onChange={setViewMode}
+      segments={[
+        { value: "year", label: "Full Year", icon: LayoutGrid },
+        { value: "month", label: "Monthly", icon: CalendarDays },
+        { value: "upcoming", label: "Upcoming", icon: Clock },
+        { value: "list", label: "List", icon: List },
+      ]}
+    />
   );
 
-  // Calendar view — delegates to PhysicianCalendar component
-  if (viewMode === "calendar") {
+  if (viewMode === "year" || viewMode === "month") {
     return (
       <div className="space-y-4">
         <div className="no-print">{viewToggle}</div>
 
-        <PhysicianCalendar
-          year={year}
-          physicianName={physicianName}
-          assignments={assignments}
-          vacations={vacations}
-          noCallDays={noCallDays}
-        />
+        {viewMode === "year" ? (
+          <PersonalYearCalendar
+            year={year}
+            assignments={assignments}
+            vacations={vacations}
+            noCallDays={noCallDays.map((nc) => nc.date)}
+            customHolidays={customHolidays}
+          />
+        ) : (
+          <PhysicianCalendar
+            year={year}
+            physicianName={physicianName}
+            assignments={assignments}
+            vacations={vacations}
+            noCallDays={noCallDays}
+            customHolidays={customHolidays}
+          />
+        )}
       </div>
     );
   }
@@ -281,7 +278,7 @@ export function MyScheduleView({
       {/* View toggle + month nav */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         {viewToggle}
-        {viewMode === "month" && (
+        {viewMode === "list" && (
           <div className="flex items-center gap-2">
             <Button
               variant="ghost"

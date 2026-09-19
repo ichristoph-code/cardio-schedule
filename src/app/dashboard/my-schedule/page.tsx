@@ -52,7 +52,7 @@ export default async function MySchedulePage({
   // and no-call days for that year still show.
   const schedule = allSchedules.find((s) => s.year === selectedYear);
 
-  const [assignments, physician, vacations, noCallDays] = await Promise.all([
+  const [assignments, physician, vacations, noCallDays, customHolidayRows] = await Promise.all([
     schedule
       ? prisma.scheduleAssignment.findMany({
           where: {
@@ -96,6 +96,12 @@ export default async function MySchedulePage({
           lte: new Date(selectedYear, 11, 31),
         },
       },
+      orderBy: { date: "asc" },
+    }),
+    // Office holidays are global — the same yellow days every other calendar shows.
+    prisma.customHoliday.findMany({
+      where: { date: { gte: new Date(selectedYear, 0, 1), lte: new Date(selectedYear, 11, 31) } },
+      select: { date: true, name: true, hidden: true },
       orderBy: { date: "asc" },
     }),
   ]);
@@ -143,11 +149,17 @@ export default async function MySchedulePage({
           startDate: v.startDate.toISOString().split("T")[0],
           endDate: v.endDate.toISOString().split("T")[0],
           reason: v.reason,
+          halfDay: v.halfDay,
         }))}
         noCallDays={noCallDays.map((nc) => ({
           id: nc.id,
           date: nc.date.toISOString().split("T")[0],
           reason: nc.reason,
+        }))}
+        customHolidays={customHolidayRows.map((h) => ({
+          date: h.date.toISOString().split("T")[0],
+          name: h.name,
+          hidden: h.hidden,
         }))}
       />
     </div>
