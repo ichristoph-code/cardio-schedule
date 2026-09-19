@@ -62,10 +62,6 @@ export const DAY_COLORS = {
     text: "text-slate-700 dark:text-slate-300",
     textMuted: "text-slate-500",
   },
-  hospitalRounder: {
-    cell: "bg-rose-500 text-white font-semibold",
-    swatch: "bg-rose-500",
-  },
   docInBox: {
     cell: "bg-amber-700 text-white font-semibold",
     swatch: "bg-amber-700",

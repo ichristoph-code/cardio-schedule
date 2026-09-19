@@ -148,9 +148,10 @@ export async function generateSchedule(
   if (existing) {
     if (!isPartial && !hasDateRange) {
       // Full regeneration: clear auto-generated assignments but PRESERVE
-      // manually-imported Hospital Float days. The generator never produces
-      // HOSPITAL_FLOAT rows (they only come from the admin Excel import), so
-      // wiping them on regen is pure data loss. Reuse the existing schedule
+      // hand-entered Hospital Float days (the admin Excel import, or a day set
+      // on the Physician Calendar). The generator fills the float slot only on
+      // days nobody entered by hand — see the manual-float seeding below — so
+      // wiping entered days on regen is pure data loss. Reuse the existing schedule
       // row instead of deleting it, otherwise the onDelete: Cascade would
       // remove the preserved rows too.
       await prisma.holidayAssignment.deleteMany({ where: { year } });
@@ -357,6 +358,42 @@ export async function generateSchedule(
     unfilledSlots: [],
   };
 
+  // Feed one already-saved assignment into the tracking state, so the scheduler
+  // respects that slot and that physician's day when placing new ones.
+  const seededIds = new Set<string>();
+  const seedExisting = (a: { id: string; date: Date; physicianId: string; roleTypeId: string }) => {
+    if (seededIds.has(a.id)) return;
+    seededIds.add(a.id);
+    const dateStr = formatDate(toLocalMidnight(a.date));
+    const dow = dayOfWeek(dateStr);
+    const roleInfo = roleData.find((r) => r.id === a.roleTypeId);
+    if (!roleInfo) return;
+
+    const key = `${dateStr}:${a.physicianId}`;
+    if (!dailyPhysicianRoles.has(key)) dailyPhysicianRoles.set(key, new Set());
+    dailyPhysicianRoles.get(key)!.add(a.roleTypeId);
+
+    if (!assignmentCount[a.roleTypeId]) assignmentCount[a.roleTypeId] = {};
+    assignmentCount[a.roleTypeId][a.physicianId] = (assignmentCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
+
+    if (!lastAssigned[a.physicianId]) lastAssigned[a.physicianId] = {};
+    const prev = lastAssigned[a.physicianId][a.roleTypeId];
+    if (!prev || dateStr > prev) lastAssigned[a.physicianId][a.roleTypeId] = dateStr;
+
+    if (roleInfo.category === "ON_CALL" && dow === 5) {
+      weekendCallBlocks.set(`${dateStr}:${a.roleTypeId}`, a.physicianId);
+      if (!weekendBlockCount[a.roleTypeId]) weekendBlockCount[a.roleTypeId] = {};
+      weekendBlockCount[a.roleTypeId][a.physicianId] = (weekendBlockCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
+    }
+    if (roleInfo.category === "ON_CALL" && dow >= 1 && dow <= 4) {
+      if (!weekdayCallCount[a.roleTypeId]) weekdayCallCount[a.roleTypeId] = {};
+      weekdayCallCount[a.roleTypeId][a.physicianId] = (weekdayCallCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
+    }
+    if ((roleInfo.name === "HOSPITAL_FLOAT" || roleInfo.name === "ICU_ROUNDER") && startsRounderWeek(parseDate(dateStr), dow)) {
+      weeklyRounderBlocks.set(`${mondayOf(parseDate(dateStr), dow)}:${a.roleTypeId}`, a.physicianId);
+    }
+  };
+
   // Pre-seed tracking state from assignments we're keeping (different role or outside date range)
   // so the scheduler respects already-assigned slots when placing new ones.
   if ((isPartial || hasDateRange) && existing) {
@@ -376,35 +413,23 @@ export async function generateSchedule(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const keptAssignments = await (prisma.scheduleAssignment.findMany as any)({ where: keptWhere });
 
-    for (const a of keptAssignments) {
-      const dateStr = formatDate(toLocalMidnight(a.date));
-      const dow = dayOfWeek(dateStr);
-      const roleInfo = roleData.find((r) => r.id === a.roleTypeId);
-      if (!roleInfo) continue;
+    for (const a of keptAssignments) seedExisting(a);
+  }
 
-      const key = `${dateStr}:${a.physicianId}`;
-      if (!dailyPhysicianRoles.has(key)) dailyPhysicianRoles.set(key, new Set());
-      dailyPhysicianRoles.get(key)!.add(a.roleTypeId);
-
-      if (!assignmentCount[a.roleTypeId]) assignmentCount[a.roleTypeId] = {};
-      assignmentCount[a.roleTypeId][a.physicianId] = (assignmentCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
-
-      if (!lastAssigned[a.physicianId]) lastAssigned[a.physicianId] = {};
-      const prev = lastAssigned[a.physicianId][a.roleTypeId];
-      if (!prev || dateStr > prev) lastAssigned[a.physicianId][a.roleTypeId] = dateStr;
-
-      if (roleInfo.category === "ON_CALL" && dow === 5) {
-        weekendCallBlocks.set(`${dateStr}:${a.roleTypeId}`, a.physicianId);
-        if (!weekendBlockCount[a.roleTypeId]) weekendBlockCount[a.roleTypeId] = {};
-        weekendBlockCount[a.roleTypeId][a.physicianId] = (weekendBlockCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
-      }
-      if (roleInfo.category === "ON_CALL" && dow >= 1 && dow <= 4) {
-        if (!weekdayCallCount[a.roleTypeId]) weekdayCallCount[a.roleTypeId] = {};
-        weekdayCallCount[a.roleTypeId][a.physicianId] = (weekdayCallCount[a.roleTypeId][a.physicianId] ?? 0) + 1;
-      }
-      if ((roleInfo.name === "HOSPITAL_ROUNDER" || roleInfo.name === "ICU_ROUNDER") && startsRounderWeek(parseDate(dateStr), dow)) {
-        weeklyRounderBlocks.set(`${mondayOf(parseDate(dateStr), dow)}:${a.roleTypeId}`, a.physicianId);
-      }
+  // Hand-entered Hospital Float days survive every kind of regeneration (see
+  // the deletes above), and the generator fills the same float slot. So each
+  // entered day is marked as handled — the day loop skips it, which also keeps
+  // the save clear of the one-row-per-role-per-day constraint — and seeded like
+  // any kept assignment, so that physician gets no other daytime or reading
+  // duty that day and the rest of a week started by hand follows the same MD.
+  const floatRole = roleData.find((r) => r.name === "HOSPITAL_FLOAT");
+  if (existing && floatRole) {
+    const manualFloat = await prisma.scheduleAssignment.findMany({
+      where: { scheduleId: existing.id, roleTypeId: floatRole.id, source: "MANUAL" },
+    });
+    for (const a of manualFloat) {
+      handledRoleDays.add(`${formatDate(toLocalMidnight(a.date))}:${a.roleTypeId}`);
+      if (a.isActive) seedExisting(a);
     }
   }
 
@@ -584,7 +609,7 @@ export async function generateSchedule(
       if (todayRoles) {
         for (const rid of todayRoles) {
           const rr = roleData.find((r) => r.id === rid);
-          if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER" || rr?.name === "HOSPITAL_FLOAT") return false;
+          if (rr?.name === "ICU_ROUNDER" || rr?.name === "HOSPITAL_FLOAT") return false;
         }
       }
       return true;
@@ -713,7 +738,7 @@ export async function generateSchedule(
 
       // Weekly rounder blocks: Hospital/ICU rounders are assigned Mon-Fri,
       // same MD all week. On Tue-Fri (dow 2-5), reuse Monday's assignment.
-      if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && dow >= 2 && dow <= 5) {
+      if ((role.name === "HOSPITAL_FLOAT" || role.name === "ICU_ROUNDER") && dow >= 2 && dow <= 5) {
         const blockKey = `${mondayOf(date, dow)}:${role.id}`;
         const mondayPhysId = weeklyRounderBlocks.get(blockKey);
 
@@ -857,7 +882,7 @@ export async function generateSchedule(
           if (role.category === "READING") {
             for (const rid of todayRoles) {
               const rr = roleData.find((r) => r.id === rid);
-              if (rr?.name === "HOSPITAL_ROUNDER" || rr?.name === "ICU_ROUNDER" || rr?.name === "HOSPITAL_FLOAT") return false;
+              if (rr?.name === "ICU_ROUNDER" || rr?.name === "HOSPITAL_FLOAT") return false;
             }
           }
         }
@@ -997,7 +1022,7 @@ export async function generateSchedule(
 
       // First working day of the week for a rounder: store in the weekly block
       // map (keyed by Monday) so the rest of the week reuses this MD.
-      if ((role.name === "HOSPITAL_ROUNDER" || role.name === "ICU_ROUNDER") && startsRounderWeek(date, dow)) {
+      if ((role.name === "HOSPITAL_FLOAT" || role.name === "ICU_ROUNDER") && startsRounderWeek(date, dow)) {
         weeklyRounderBlocks.set(`${mondayOf(date, dow)}:${role.id}`, winner.id);
       }
 

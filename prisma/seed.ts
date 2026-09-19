@@ -47,13 +47,13 @@ async function main() {
       },
     }),
     prisma.roleType.upsert({
-      where: { name: "HOSPITAL_ROUNDER" },
+      where: { name: "HOSPITAL_FLOAT" },
       update: {},
       create: {
-        name: "HOSPITAL_ROUNDER",
-        displayName: "Hospital Rounder",
+        name: "HOSPITAL_FLOAT",
+        displayName: "Hospital Float",
         category: "DAYTIME",
-        description: "Daytime hospital rounding physician",
+        description: "Daytime hospital coverage, one physician Mon-Fri. Generated in weekly blocks; a day an admin enters by hand wins. Blocks reading.",
         sortOrder: 4,
       },
     }),
@@ -110,18 +110,6 @@ async function main() {
         category: "SPECIAL",
         description: "Cardioversion and transesophageal echocardiography procedures",
         sortOrder: 11,
-      },
-    }),
-    prisma.roleType.upsert({
-      where: { name: "HOSPITAL_FLOAT" },
-      update: {},
-      create: {
-        name: "HOSPITAL_FLOAT",
-        displayName: "Hospital Float",
-        category: "DAYTIME",
-        description: "All-day hospital float coverage, admin-assigned. Blocks echo reading.",
-        sortOrder: 12,
-        minRequired: 0,
       },
     }),
   ]);
@@ -262,7 +250,7 @@ async function main() {
       roles: [
         "GENERAL_CALL",
         "INTERVENTIONAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "MPI_READER",
@@ -279,7 +267,7 @@ async function main() {
       roles: [
         "GENERAL_CALL",
         "INTERVENTIONAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "MPI_READER",
@@ -296,7 +284,7 @@ async function main() {
       roles: [
         "GENERAL_CALL",
         "INTERVENTIONAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "MPI_READER",
@@ -313,7 +301,7 @@ async function main() {
       roles: [
         "GENERAL_CALL",
         "EP_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -331,7 +319,7 @@ async function main() {
       roles: [
         "GENERAL_CALL",
         "EP_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -348,7 +336,7 @@ async function main() {
       officeDays: [1, 2, 3],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -364,7 +352,7 @@ async function main() {
       officeDays: [2, 4, 5],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -380,7 +368,7 @@ async function main() {
       officeDays: [1, 3, 4],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -396,7 +384,7 @@ async function main() {
       officeDays: [1, 2, 5],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -412,7 +400,7 @@ async function main() {
       officeDays: [3, 4, 5],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -428,7 +416,7 @@ async function main() {
       officeDays: [1, 2, 4],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -444,7 +432,7 @@ async function main() {
       officeDays: [2, 3, 5],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",
@@ -461,7 +449,7 @@ async function main() {
       officeDays: [1, 4, 5],
       roles: [
         "GENERAL_CALL",
-        "HOSPITAL_ROUNDER",
+        "HOSPITAL_FLOAT",
         "ICU_ROUNDER",
         "DOC_IN_BOX",
         "ECHO_READER",

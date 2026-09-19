@@ -102,7 +102,9 @@ export async function POST(req: Request) {
   const results: RowResult[] = [];
   let created = 0, skipped = 0, errors = 0;
 
-  // Pre-fetch existing float assignments for these dates once, then resolve
+  // Pre-fetch existing hand-entered float assignments for these dates once
+  // (the generator fills the float slot too, but an entered day wins, so its
+  // AUTO rows on imported dates are replaced below, not skipped), then resolve
   // every row in memory and insert in a single createMany — a create-per-date
   // loop is too many serial round-trips for a 40-day bulk import.
   const validDates = dates.filter((d) => /^\d{4}-\d{2}-\d{2}$/.test(d));
@@ -111,6 +113,7 @@ export async function POST(req: Request) {
       scheduleId: schedule.id,
       roleTypeId: floatRole.id,
       isActive: true,
+      source: "MANUAL",
       date: { in: validDates.map((d) => new Date(d + "T00:00:00Z")) },
     },
     select: { physicianId: true, date: true },
@@ -163,9 +166,19 @@ export async function POST(req: Request) {
 
   if (!dryRun && toCreate.length > 0) {
     try {
-      // skipDuplicates makes this race-safe against the
-      // @@unique([scheduleId, date, roleTypeId]) constraint.
-      const res = await prisma.scheduleAssignment.createMany({ data: toCreate, skipDuplicates: true });
+      // Free the slots the generator filled; skipDuplicates then makes the
+      // insert race-safe against @@unique([scheduleId, date, roleTypeId]).
+      const [, res] = await prisma.$transaction([
+        prisma.scheduleAssignment.deleteMany({
+          where: {
+            scheduleId: schedule.id,
+            roleTypeId: floatRole.id,
+            source: "AUTO",
+            date: { in: toCreate.map((r) => r.date) },
+          },
+        }),
+        prisma.scheduleAssignment.createMany({ data: toCreate, skipDuplicates: true }),
+      ]);
       await auditLog(userId, "ADMIN_BULK_IMPORT_FLOAT", "Schedule", schedule.id, {
         physicianEmail, count: res.count, year,
       });

@@ -53,11 +53,18 @@ up; don't lecture.
   is 9; Ian was going to confirm whether that's right for the practice.)
 - **One colour per concept, everywhere** (`src/lib/colors.ts`). Vacation is
   emerald, holidays yellow, call black, float blue, ICU rounder purple,
-  no-call slate, hospital rounder rose, echo reader cyan, MPI reader indigo,
-  doc in the box brown, any other duty orange. Don't introduce a new colour
-  for an existing concept. On the Full Year view of My Task Calendar each of
-  those duty days also carries a short code under the number (HR, Echo, MPI,
-  DITB) and the legend spells the code out — colour is never the only signal.
+  no-call slate, echo reader cyan, MPI reader indigo, doc in the box brown,
+  any other duty orange. Don't introduce a new colour for an existing
+  concept. On the Full Year view of My Task Calendar the echo, MPI and doc in
+  the box days also carry a short code under the number (Echo, MPI, DITB) and
+  the legend spells the code out — colour is never the only signal.
+- **Hospital Float is one role.** "Hospital Rounder" was a second name for the
+  same job and was folded into `HOSPITAL_FLOAT` (migration
+  `20260919230000_merge_hospital_rounder_into_float`). Don't reintroduce the
+  other term. The generator fills the float slot in Mon-Fri blocks; a float day
+  an admin enters by hand (Physician Calendar, or the Excel import) always
+  wins — the generator skips it, the import replaces a generated day, and
+  "Clear" releases a float day of either kind. ICU Rounder is a different job.
 - **The Vacation & Work Calendar is the high-level view**: vacation, holidays,
   call, float and no-call days only. ICU rounder is deliberately not on it —
   neither drawn nor settable there — because My Task Calendar and the Group
