@@ -22,7 +22,7 @@ export default async function MySchedulePage({
   if (!physicianId) {
     return (
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold tracking-tight">Personal Task Calendar</h1>
+        <h1 className="text-2xl font-bold tracking-tight">My Task Calendar</h1>
         <p className="text-muted-foreground">
           Admin accounts don&apos;t have a personal schedule. Use the Schedule
           page to view all assignments.
@@ -109,7 +109,7 @@ export default async function MySchedulePage({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">
-            Personal Task Calendar
+            My Task Calendar
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             {physicianName}&apos;s assignments for {selectedYear}
