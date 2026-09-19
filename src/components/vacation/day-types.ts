@@ -1,4 +1,5 @@
 import { Palmtree, Sun, Moon, Building2, Stethoscope, Phone, PhoneOff, X } from "lucide-react";
+import { DAY_COLORS } from "@/lib/colors";
 
 // The day's current type, as derived from the calendar data.
 export type DayState =
@@ -13,7 +14,7 @@ export type DayState =
 
 // Each option maps a button to the /api/admin/calendar-day request it sends.
 // To add a new day type later: add an entry here, extend the API route's TYPES
-// (clear + apply), and add a color in YearlyVacationCalendar.tsx. Shared by the
+// (clear + apply), and add its colours to src/lib/colors.ts. Shared by the
 // single-day editor sheet and the multi-day selection bar so the two can never
 // drift apart.
 export interface DayTypeOption {
@@ -28,12 +29,12 @@ export interface DayTypeOption {
 }
 
 export const DAY_TYPE_OPTIONS: DayTypeOption[] = [
-  { state: "VACATION", label: "Full Vacation", shortLabel: "Vacation", icon: Palmtree, type: "vacation", active: "bg-emerald-500 text-white border-emerald-500 hover:bg-emerald-600" },
-  { state: "HALF_AM", label: "½ Day — AM", shortLabel: "½ AM", icon: Sun, type: "half_vacation", halfPeriod: "MORNING", active: "bg-emerald-300 text-emerald-950 border-emerald-300 hover:bg-emerald-400" },
-  { state: "HALF_PM", label: "½ Day — PM", shortLabel: "½ PM", icon: Moon, type: "half_vacation", halfPeriod: "AFTERNOON", active: "bg-emerald-300 text-emerald-950 border-emerald-300 hover:bg-emerald-400" },
-  { state: "FLOAT", label: "Hospital Float", shortLabel: "Float", icon: Building2, type: "float", active: "bg-blue-500 text-white border-blue-500 hover:bg-blue-600" },
-  { state: "ROUNDER", label: "ICU Rounder", shortLabel: "Rounder", icon: Stethoscope, type: "rounder", active: "bg-purple-500 text-white border-purple-500 hover:bg-purple-600" },
-  { state: "CALL", label: "General Call", shortLabel: "Call", icon: Phone, type: "call", active: "bg-neutral-900 text-white border-neutral-900 hover:bg-black" },
-  { state: "NO_CALL", label: "No-Call Day", shortLabel: "No-Call", icon: PhoneOff, type: "no_call", active: "bg-slate-500 text-white border-slate-500 hover:bg-slate-600" },
+  { state: "VACATION", label: "Full Vacation", shortLabel: "Vacation", icon: Palmtree, type: "vacation", active: DAY_COLORS.vacation.active },
+  { state: "HALF_AM", label: "½ Day — AM", shortLabel: "½ AM", icon: Sun, type: "half_vacation", halfPeriod: "MORNING", active: DAY_COLORS.halfDay.active },
+  { state: "HALF_PM", label: "½ Day — PM", shortLabel: "½ PM", icon: Moon, type: "half_vacation", halfPeriod: "AFTERNOON", active: DAY_COLORS.halfDay.active },
+  { state: "FLOAT", label: "Hospital Float", shortLabel: "Float", icon: Building2, type: "float", active: DAY_COLORS.float.active },
+  { state: "ROUNDER", label: "ICU Rounder", shortLabel: "Rounder", icon: Stethoscope, type: "rounder", active: DAY_COLORS.rounder.active },
+  { state: "CALL", label: "General Call", shortLabel: "Call", icon: Phone, type: "call", active: DAY_COLORS.call.active },
+  { state: "NO_CALL", label: "No-Call Day", shortLabel: "No-Call", icon: PhoneOff, type: "no_call", active: DAY_COLORS.noCall.active },
   { state: "NONE", label: "Clear", shortLabel: "Clear", icon: X, type: "clear", active: "bg-muted text-foreground border-border" },
 ];

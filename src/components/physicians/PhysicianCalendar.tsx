@@ -47,6 +47,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { CATEGORY_COLORS, DAY_COLORS } from "@/lib/colors";
 
 // --- Types ---
 
@@ -82,12 +83,6 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  ON_CALL: "bg-red-100 text-red-800 border-red-200",
-  DAYTIME: "bg-blue-100 text-blue-800 border-blue-200",
-  READING: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  SPECIAL: "bg-purple-100 text-purple-800 border-purple-200",
-};
 
 const CATEGORY_DOT: Record<string, string> = {
   ON_CALL: "bg-red-500",
@@ -453,21 +448,21 @@ export function PhysicianCalendar({
             )}
 
             {holidayName && (
-              <Card className="shadow-sm border-rose-300 bg-gradient-to-r from-rose-50 to-pink-50 dark:from-rose-950/40 dark:to-pink-950/40">
+              <Card className={`shadow-sm ${DAY_COLORS.holiday.card}`}>
                 <CardContent className="p-3 flex items-center gap-2">
-                  <CalendarHeart className="h-4 w-4 text-rose-500 flex-shrink-0" />
-                  <span className="font-semibold text-rose-700 dark:text-rose-300">{holidayName}</span>
+                  <CalendarHeart className={`h-4 w-4 flex-shrink-0 ${DAY_COLORS.holiday.icon}`} />
+                  <span className={`font-semibold ${DAY_COLORS.holiday.text}`}>{holidayName}</span>
                 </CardContent>
               </Card>
             )}
 
             {vacation && (
-              <Card className="shadow-sm border-amber-300 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/40 dark:to-yellow-950/40">
+              <Card className={`shadow-sm ${DAY_COLORS.vacation.card}`}>
                 <CardContent className="p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <Palmtree className="h-4 w-4 text-amber-500 flex-shrink-0" />
-                      <span className="font-semibold text-amber-700 dark:text-amber-300">Vacation</span>
+                      <Palmtree className={`h-4 w-4 flex-shrink-0 ${DAY_COLORS.vacation.icon}`} />
+                      <span className={`font-semibold ${DAY_COLORS.vacation.text}`}>Vacation</span>
                     </div>
                     {isAdmin && (
                       <Button
@@ -487,11 +482,11 @@ export function PhysicianCalendar({
                     )}
                   </div>
                   {vacation.reason && (
-                    <div className="text-sm text-amber-600 dark:text-amber-400 mt-1 ml-6">
+                    <div className={`text-sm mt-1 ml-6 ${DAY_COLORS.vacation.textMuted}`}>
                       {vacation.reason}
                     </div>
                   )}
-                  <div className="text-xs text-amber-500 mt-1 ml-6">
+                  <div className={`text-xs mt-1 ml-6 ${DAY_COLORS.vacation.icon}`}>
                     {vacation.startDate} — {vacation.endDate}
                   </div>
                 </CardContent>
@@ -499,11 +494,11 @@ export function PhysicianCalendar({
             )}
 
             {noCall && (
-              <Card className="shadow-sm border-slate-300 bg-gradient-to-r from-slate-50 to-gray-50 dark:from-slate-950/40 dark:to-gray-950/40">
+              <Card className={`shadow-sm ${DAY_COLORS.noCall.card}`}>
                 <CardContent className="p-3">
                   <div className="flex items-center gap-2">
-                    <PhoneOff className="h-4 w-4 text-slate-500 flex-shrink-0" />
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">No Call Day</span>
+                    <PhoneOff className={`h-4 w-4 flex-shrink-0 ${DAY_COLORS.noCall.icon}`} />
+                    <span className={`font-semibold ${DAY_COLORS.noCall.text}`}>No Call Day</span>
                   </div>
                   {noCall.reason && (
                     <div className="text-sm text-slate-500 mt-1 ml-6">
@@ -610,14 +605,14 @@ export function PhysicianCalendar({
         ))}
 
         {totalVacationDays > 0 && (
-          <div className="rounded-lg border p-2.5 bg-amber-50 dark:bg-amber-950/30">
+          <div className={`rounded-lg border p-2.5 ${DAY_COLORS.vacation.tint}`}>
             <div className="flex items-center gap-1.5 mb-1">
-              <Palmtree className="w-3 h-3 text-amber-500" />
+              <Palmtree className={`w-3 h-3 ${DAY_COLORS.vacation.icon}`} />
               <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
                 Vacation
               </span>
             </div>
-            <div className="text-xl font-bold tabular-nums text-amber-600">
+            <div className={`text-xl font-bold tabular-nums ${DAY_COLORS.vacation.textMuted}`}>
               {totalVacationDays}
             </div>
           </div>
@@ -713,10 +708,10 @@ export function PhysicianCalendar({
           let cellBg = isWeekend
             ? "bg-slate-50/60 dark:bg-slate-900/15"
             : "bg-white dark:bg-background";
-          if (vacation) cellBg = "bg-gradient-to-br from-amber-50 to-amber-100/50 dark:from-amber-950/30 dark:to-yellow-950/20";
-          else if (floatAssign) cellBg = "bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-950/20";
-          else if (holidayName) cellBg = "bg-gradient-to-br from-rose-50 to-pink-50 dark:from-rose-950/30 dark:to-pink-950/20";
-          else if (noCall) cellBg = "bg-slate-100/60 dark:bg-slate-900/30";
+          if (vacation) cellBg = DAY_COLORS.vacation.soft;
+          else if (floatAssign) cellBg = DAY_COLORS.float.soft;
+          else if (holidayName) cellBg = DAY_COLORS.holiday.soft;
+          else if (noCall) cellBg = DAY_COLORS.noCall.soft;
 
           return (
             <button
@@ -740,13 +735,13 @@ export function PhysicianCalendar({
                   {day}
                 </span>
                 {holidayName && !vacation && (
-                  <CalendarHeart className="w-3.5 h-3.5 text-rose-400 flex-shrink-0" />
+                  <CalendarHeart className={`w-3.5 h-3.5 flex-shrink-0 ${DAY_COLORS.holiday.icon}`} />
                 )}
               </div>
 
               {/* Holiday label */}
               {holidayName && (
-                <div className="text-[10px] leading-snug font-bold text-rose-500 dark:text-rose-400 truncate mb-1">
+                <div className={`text-[10px] leading-snug font-bold truncate mb-1 ${DAY_COLORS.holiday.text}`}>
                   {holidayName}
                 </div>
               )}
@@ -754,8 +749,8 @@ export function PhysicianCalendar({
               {/* Vacation label */}
               {vacation && (
                 <div className="flex items-center gap-1 mb-1">
-                  <Palmtree className="w-3 h-3 text-amber-500 flex-shrink-0" />
-                  <span className="text-[11px] leading-snug font-semibold text-amber-600 dark:text-amber-400">
+                  <Palmtree className={`w-3 h-3 flex-shrink-0 ${DAY_COLORS.vacation.icon}`} />
+                  <span className={`text-[11px] leading-snug font-semibold ${DAY_COLORS.vacation.textMuted}`}>
                     Vacation
                   </span>
                 </div>
@@ -764,8 +759,8 @@ export function PhysicianCalendar({
               {/* Float label */}
               {floatAssign && !vacation && (
                 <div className="flex items-center gap-1 mb-1">
-                  <Building2 className="w-3 h-3 text-blue-500 flex-shrink-0" />
-                  <span className="text-[11px] leading-snug font-semibold text-blue-600 dark:text-blue-400">
+                  <Building2 className={`w-3 h-3 flex-shrink-0 ${DAY_COLORS.float.icon}`} />
+                  <span className={`text-[11px] leading-snug font-semibold ${DAY_COLORS.float.textMuted}`}>
                     Float
                   </span>
                 </div>
@@ -820,7 +815,7 @@ export function PhysicianCalendar({
           <span className="text-rose-700 dark:text-rose-300 font-medium">Holiday</span>
         </div>
         <div className="flex items-center gap-1.5 bg-amber-50 dark:bg-amber-950/30 rounded-full px-2.5 py-1 border border-amber-200 dark:border-amber-800">
-          <Palmtree className="w-3 h-3 text-amber-500" />
+          <Palmtree className={`w-3 h-3 ${DAY_COLORS.vacation.icon}`} />
           <span className="text-amber-700 dark:text-amber-300 font-medium">Vacation</span>
         </div>
         <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-950/30 rounded-full px-2.5 py-1 border border-blue-200 dark:border-blue-800">

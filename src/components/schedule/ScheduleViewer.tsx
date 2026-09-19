@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { CATEGORY_COLORS, DAY_COLORS, PHYSICIAN_COLORS } from "@/lib/colors";
 
 // --- Types ---
 
@@ -93,12 +94,6 @@ const MONTH_NAMES = [
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-const CATEGORY_COLORS: Record<string, string> = {
-  ON_CALL: "bg-red-100 text-red-800 border-red-200",
-  DAYTIME: "bg-blue-100 text-blue-800 border-blue-200",
-  READING: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  SPECIAL: "bg-purple-100 text-purple-800 border-purple-200",
-};
 
 const CATEGORY_DOT: Record<string, string> = {
   ON_CALL: "bg-red-500",
@@ -131,23 +126,6 @@ function isToday(dateStr: string): boolean {
 // Physician color palette — maximally distinct colors, ordered for contrast between neighbors
 // Removed near-duplicates (sky≈cyan, teal≈emerald, pink≈rose, amber≈orange)
 // Using 200-level backgrounds for stronger visual separation
-const PHYSICIAN_COLORS = [
-  { bg: "bg-blue-200",    text: "text-blue-900",    dot: "bg-blue-600" },
-  { bg: "bg-orange-200",  text: "text-orange-900",  dot: "bg-orange-600" },
-  { bg: "bg-emerald-200", text: "text-emerald-900", dot: "bg-emerald-600" },
-  { bg: "bg-rose-200",    text: "text-rose-900",    dot: "bg-rose-600" },
-  { bg: "bg-violet-200",  text: "text-violet-900",  dot: "bg-violet-600" },
-  { bg: "bg-yellow-200",  text: "text-yellow-900",  dot: "bg-yellow-600" },
-  { bg: "bg-cyan-200",    text: "text-cyan-900",    dot: "bg-cyan-600" },
-  { bg: "bg-fuchsia-200", text: "text-fuchsia-900", dot: "bg-fuchsia-600" },
-  { bg: "bg-lime-200",    text: "text-lime-900",    dot: "bg-lime-600" },
-  { bg: "bg-red-200",     text: "text-red-900",     dot: "bg-red-600" },
-  { bg: "bg-indigo-200",  text: "text-indigo-900",  dot: "bg-indigo-600" },
-  { bg: "bg-amber-200",   text: "text-amber-900",   dot: "bg-amber-600" },
-  { bg: "bg-teal-200",    text: "text-teal-900",    dot: "bg-teal-600" },
-  { bg: "bg-pink-200",    text: "text-pink-900",    dot: "bg-pink-600" },
-  { bg: "bg-sky-200",     text: "text-sky-900",     dot: "bg-sky-600" },
-];
 
 function buildPhysicianColorMap(physicians: Physician[]): Map<string, typeof PHYSICIAN_COLORS[0]> {
   const sorted = [...physicians].sort((a, b) => a.lastName.localeCompare(b.lastName));
@@ -842,7 +820,7 @@ export function ScheduleViewer({
                       <td
                         key={dateStr}
                         className={`border p-1 text-center text-xs min-w-[90px] cursor-pointer hover:bg-accent/50 transition-colors
-                          ${today ? "bg-primary/5" : isHoliday ? "bg-rose-50 dark:bg-rose-950/20" : isWeekend ? "bg-slate-100 dark:bg-slate-800/30" : ""}
+                          ${today ? "bg-primary/5" : isHoliday ? DAY_COLORS.holiday.tint : isWeekend ? "bg-slate-100 dark:bg-slate-800/30" : ""}
                           ${assignment?.source === "MANUAL" ? "ring-1 ring-inset ring-amber-400" : ""}`}
                         onClick={() => {
                           if (assignment && isAdmin) {
