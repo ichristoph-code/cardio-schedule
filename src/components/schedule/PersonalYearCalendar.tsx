@@ -126,10 +126,12 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
         {counts.other.map((o) => (
           <LegendItem key={o.label} swatch={o.swatch}>{o.label} — <strong>{o.days}</strong></LegendItem>
         ))}
-        <LegendItem swatch={DAY_COLORS.call.swatch}>
-          On call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
-          <strong>{tallies.weekendCallDays}</strong> weekend
-        </LegendItem>
+        {callDates.size > 0 && (
+          <LegendItem swatch={DAY_COLORS.call.swatch}>
+            On call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
+            <strong>{tallies.weekendCallDays}</strong> weekend
+          </LegendItem>
+        )}
         {noCallDays.length > 0 && (
           <LegendItem swatch={DAY_COLORS.noCall.swatch}>No-call — <strong>{noCallDays.length}</strong></LegendItem>
         )}
