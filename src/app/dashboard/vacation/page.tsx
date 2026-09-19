@@ -5,7 +5,8 @@ import { cookies } from "next/headers";
 import { VacationCalendarView } from "@/components/vacation/VacationCalendarView";
 import { PhysicianPicker, LAST_PHYSICIAN_COOKIE } from "@/components/vacation/PhysicianPicker";
 import { Suspense } from "react";
-import { parseYearParam } from "@/lib/calendar-years";
+import { browsableYears, parseYearParam } from "@/lib/calendar-years";
+import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
 
 export default async function VacationPage({
   searchParams,
@@ -151,6 +152,15 @@ export default async function VacationPage({
             selectedId={selectedId}
             year={selectedYear}
           />
+        </Suspense>
+      )}
+
+      {/* A physician sees only their own calendar, so no physician picker — but
+          they still need to move between years. The admin's picker above
+          carries its own year control; this is the same control on its own. */}
+      {!isAdmin && (
+        <Suspense>
+          <CalendarYearSelect years={browsableYears()} selectedYear={selectedYear} />
         </Suspense>
       )}
 
