@@ -6,14 +6,13 @@ import { DaySelectionBar } from "@/components/vacation/DaySelectionBar";
 import type { DayState } from "@/components/vacation/day-types";
 import { datesBetween } from "@/lib/calendar-dates";
 import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
-import { computeYearTallies } from "@/lib/year-tallies";
+import { buildVacationStateMap, computeYearTallies, type VacationDayState } from "@/lib/year-tallies";
 import { DAY_COLORS } from "@/lib/colors";
-
-const MONTH_NAMES = [
-  "January","February","March","April","May","June",
-  "July","August","September","October","November","December",
-];
-const DAY_LABELS = ["Su","Mo","Tu","We","Th","Fr","Sa"];
+import {
+  DAY_CELL, DAY_GRID, DAY_IDLE, DAY_LABEL, DAY_LABELS, DAY_TODAY, LEGEND_ROW,
+  MONTH_CARD, MONTH_NAMES, MONTH_TITLE, YEAR_GRID, dateKey, monthCells,
+} from "@/components/calendar/year-grid";
+import { LegendItem } from "@/components/calendar/LegendItem";
 
 /** Breathing room between the bulk bar and the days it must not cover. */
 const BAR_CLEARANCE = 24;
@@ -39,25 +38,6 @@ interface Props {
   physicianName?: string;
 }
 
-type VacState = "VACATION" | "HALF_AM" | "HALF_PM";
-
-/** Expand vacation ranges into a per-day map of vacation state (full vs AM/PM half). */
-function buildVacationStateMap(vacations: VacationInfo[]): Map<string, VacState> {
-  const map = new Map<string, VacState>();
-  for (const v of vacations) {
-    const start = new Date(v.startDate + "T12:00:00");
-    const end = new Date(v.endDate + "T12:00:00");
-    const state: VacState =
-      v.halfDay === "MORNING" ? "HALF_AM" : v.halfDay === "AFTERNOON" ? "HALF_PM" : "VACATION";
-    const cur = new Date(start);
-    while (cur <= end) {
-      const key = cur.toISOString().split("T")[0];
-      map.set(key, state);
-      cur.setDate(cur.getDate() + 1);
-    }
-  }
-  return map;
-}
 
 function MonthGrid({
   year,
@@ -76,7 +56,7 @@ function MonthGrid({
 }: {
   year: number;
   month: number;
-  vacMap: Map<string, VacState>;
+  vacMap: Map<string, VacationDayState>;
   floatSet: Set<string>;
   rounderSet: Set<string>;
   callMap: Map<string, boolean>; // date -> manual? (true = manually set, false = system-assigned)
@@ -89,30 +69,20 @@ function MonthGrid({
   onDayMouseEnter: (date: string) => void;
 }) {
   const today = new Date().toISOString().split("T")[0];
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-
-  const cells: (number | null)[] = [
-    ...Array(firstDay).fill(null),
-    ...Array.from({ length: daysInMonth }, (_, i) => i + 1),
-  ];
-  // Pad to complete last row
-  while (cells.length % 7 !== 0) cells.push(null);
+  const cells = monthCells(year, month);
 
   return (
-    <div className="bg-white dark:bg-card rounded-xl border p-4 shadow-sm">
-      <h3 className="text-sm font-semibold text-center mb-3 text-foreground">
-        {MONTH_NAMES[month]}
-      </h3>
-      <div className="grid grid-cols-7 gap-px">
+    <div className={MONTH_CARD}>
+      <h3 className={MONTH_TITLE}>{MONTH_NAMES[month]}</h3>
+      <div className={DAY_GRID}>
         {DAY_LABELS.map((d) => (
-          <div key={d} className="text-[10px] text-center text-muted-foreground font-medium pb-1">
+          <div key={d} className={DAY_LABEL}>
             {d}
           </div>
         ))}
         {cells.map((day, i) => {
           if (!day) return <div key={i} />;
-          const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+          const dateStr = dateKey(year, month, day);
           const vac = vacMap.get(dateStr);
           const call = callMap.get(dateStr); // undefined | true (manual) | false (auto)
           const isCall = call !== undefined;
@@ -135,7 +105,7 @@ function MonthGrid({
             : "";
 
           const className = [
-            "text-[11px] text-center rounded py-[3px] leading-none select-none",
+            DAY_CELL,
             isAdmin ? (isSelected ? "cursor-pointer" : "cursor-pointer hover:ring-2 hover:ring-primary/40") : "",
             (vac === "VACATION"
               ? DAY_COLORS.vacation.cell
@@ -152,8 +122,8 @@ function MonthGrid({
                         : holidayName
                           ? DAY_COLORS.holiday.cell
                           : isToday
-                            ? "bg-primary/15 text-primary font-bold"
-                            : "text-foreground hover:bg-muted/50") + callRing + selectionRing,
+                            ? DAY_TODAY
+                            : DAY_IDLE) + callRing + selectionRing,
           ].join(" ");
 
           const title =
@@ -371,55 +341,25 @@ export function YearlyVacationCalendar({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-6 text-sm flex-wrap">
-        <div className="flex items-center gap-2">
-          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.vacation.swatch}`} />
-          <span className="text-muted-foreground">Full day — <strong>{tallies.fullDays}</strong></span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.halfDay.swatch}`} />
-          <span className="text-muted-foreground">Half day — <strong>{tallies.halfDays}</strong></span>
-        </div>
-        <div className="text-muted-foreground">
-          Vacation days: <strong>{tallies.vacationDays}</strong>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.holiday.swatch}`} />
-          <span className="text-muted-foreground">Holidays — <strong>{tallies.holidays}</strong></span>
-        </div>
-        <div className="text-muted-foreground">
-          Weekdays worked: <strong>{tallies.weekdaysWorked}</strong>
-        </div>
+      <div className={LEGEND_ROW}>
+        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Full day — <strong>{tallies.fullDays}</strong></LegendItem>
+        <LegendItem swatch={DAY_COLORS.halfDay.swatch}>Half day — <strong>{tallies.halfDays}</strong></LegendItem>
+        <LegendItem>Vacation days: <strong>{tallies.vacationDays}</strong></LegendItem>
+        <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holidays — <strong>{tallies.holidays}</strong></LegendItem>
+        <LegendItem>Weekdays worked: <strong>{tallies.weekdaysWorked}</strong></LegendItem>
         {floatDays.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.float.swatch}`} />
-            <span className="text-muted-foreground">Hospital Float — <strong>{floatDays.length}</strong></span>
-          </div>
+          <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{floatDays.length}</strong></LegendItem>
         )}
         {rounderDays.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.rounder.swatch}`} />
-            <span className="text-muted-foreground">ICU Rounder — <strong>{rounderDays.length}</strong></span>
-          </div>
+          <LegendItem swatch={DAY_COLORS.rounder.swatch}>ICU Rounder — <strong>{rounderDays.length}</strong></LegendItem>
         )}
-        <div className="flex items-center gap-2">
-          <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.call.swatch}`} />
-          <span className="text-muted-foreground">
-            General Call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
-            <strong>{tallies.weekendCallDays}</strong> weekend
-          </span>
-        </div>
+        <LegendItem swatch={DAY_COLORS.call.swatch}>General Call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
+            <strong>{tallies.weekendCallDays}</strong> weekend</LegendItem>
         {callDays.some((c) => c.manual) && (
-          <div className="flex items-center gap-2">
-            <span className={`inline-block w-3 h-3 rounded-sm ring-2 ring-inset ring-amber-400 ${DAY_COLORS.call.swatch}`} />
-            <span className="text-muted-foreground">Call — manually set</span>
-          </div>
+          <LegendItem swatch={`ring-2 ring-inset ring-amber-400 ${DAY_COLORS.call.swatch}`}>Call — manually set</LegendItem>
         )}
         {noCallDays.length > 0 && (
-          <div className="flex items-center gap-2">
-            <span className={`inline-block w-3 h-3 rounded-sm ${DAY_COLORS.noCall.swatch}`} />
-            <span className="text-muted-foreground">No-call — <strong>{noCallDays.length}</strong></span>
-          </div>
+          <LegendItem swatch={DAY_COLORS.noCall.swatch}>No-call — <strong>{noCallDays.length}</strong></LegendItem>
         )}
       </div>
 
@@ -437,7 +377,7 @@ export function YearlyVacationCalendar({
         </div>
       )}
 
-      <div ref={gridRef} className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div ref={gridRef} className={YEAR_GRID}>
         {Array.from({ length: 12 }, (_, m) => (
           <MonthGrid
             key={m}

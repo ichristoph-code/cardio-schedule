@@ -1,9 +1,31 @@
 import { describe, it, expect } from "vitest";
-import { computeYearTallies, type VacationDayState } from "./year-tallies";
+import { buildVacationStateMap, computeYearTallies, type VacationDayState } from "./year-tallies";
 import { getFederalHolidayDatesForYear } from "./holidays";
 
 const NO_VACATION = new Map<string, VacationDayState>();
 const NO_HOLIDAYS = new Set<string>();
+
+describe("buildVacationStateMap", () => {
+  it("expands a range to one entry per calendar day, inclusive", () => {
+    const m = buildVacationStateMap([{ startDate: "2027-01-08", endDate: "2027-01-11" }]);
+    expect([...m.keys()]).toEqual(["2027-01-08", "2027-01-09", "2027-01-10", "2027-01-11"]);
+    expect(m.get("2027-01-08")).toBe("VACATION");
+  });
+
+  it("marks a half day by its period", () => {
+    const m = buildVacationStateMap([
+      { startDate: "2027-03-01", endDate: "2027-03-01", halfDay: "MORNING" },
+      { startDate: "2027-03-02", endDate: "2027-03-02", halfDay: "AFTERNOON" },
+    ]);
+    expect(m.get("2027-03-01")).toBe("HALF_AM");
+    expect(m.get("2027-03-02")).toBe("HALF_PM");
+  });
+
+  it("keys days by the local calendar, so a range never lands a day off", () => {
+    const m = buildVacationStateMap([{ startDate: "2027-12-31", endDate: "2027-12-31" }]);
+    expect([...m.keys()]).toEqual(["2027-12-31"]);
+  });
+});
 
 describe("computeYearTallies", () => {
   it("counts only Mon–Fri as weekdays", () => {

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 import { YearlyVacationCalendar } from "@/components/vacation/YearlyVacationCalendar";
 import { CalendarDays, LayoutGrid } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { SegmentedControl } from "@/components/calendar/SegmentedControl";
 import type { CustomHolidayInfo } from "@/lib/holidays";
 
 interface VacationInfo {
@@ -34,23 +34,14 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-end">
-        <div className="inline-flex items-center border rounded-lg p-0.5 bg-muted/40">
-          {(["monthly", "yearly"] as const).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className={cn(
-                "inline-flex items-center gap-1.5 text-xs px-3 h-7 rounded-md font-medium transition-all",
-                view === v
-                  ? "bg-white dark:bg-card shadow-sm text-foreground"
-                  : "text-muted-foreground hover:text-foreground"
-              )}
-            >
-              {v === "monthly" ? <CalendarDays className="h-3.5 w-3.5" /> : <LayoutGrid className="h-3.5 w-3.5" />}
-              {v === "monthly" ? "Monthly" : "Full Year"}
-            </button>
-          ))}
-        </div>
+        <SegmentedControl
+          value={view}
+          onChange={setView}
+          segments={[
+            { value: "monthly", label: "Monthly", icon: CalendarDays },
+            { value: "yearly", label: "Full Year", icon: LayoutGrid },
+          ]}
+        />
       </div>
 
       {view === "monthly" ? (
