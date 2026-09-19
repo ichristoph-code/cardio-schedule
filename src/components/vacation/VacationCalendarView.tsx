@@ -21,7 +21,7 @@ interface Props {
   physicianId: string;
   isAdmin: boolean;
   vacations: VacationInfo[];
-  floatDays?: string[];
+  floatDays?: { date: string; manual: boolean }[];
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
   customHolidays?: CustomHolidayInfo[];
@@ -50,13 +50,13 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           physicianName={physicianName}
           physicianId={physicianId}
           isAdmin={false}
-          assignments={floatDays.map((date, i) => ({
+          assignments={floatDays.map(({ date, manual }, i) => ({
             id: `float-${i}`,
             date,
             roleName: "HOSPITAL_FLOAT",
             roleDisplayName: "Hospital Float",
             roleCategory: "DAYTIME",
-            source: "MANUAL",
+            source: manual ? "MANUAL" : "AUTO",
           }))}
           vacations={vacations}
           noCallDays={noCallDays.map((date, i) => ({ id: `nocall-${i}`, date, reason: null }))}

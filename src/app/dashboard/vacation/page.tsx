@@ -61,6 +61,7 @@ export default async function VacationPage({
       },
       orderBy: { startDate: "asc" },
     }),
+    // Hospital Float — generated (AUTO) and hand-entered (MANUAL), like call.
     prisma.scheduleAssignment.findMany({
       where: {
         physicianId: selectedId,
@@ -71,7 +72,7 @@ export default async function VacationPage({
           lte: new Date(Date.UTC(selectedYear, 11, 31)),
         },
       },
-      select: { date: true },
+      select: { date: true, source: true },
       orderBy: { date: "asc" },
     }),
     // General Call — both system-assigned (AUTO) and manually-set (MANUAL).
@@ -113,7 +114,10 @@ export default async function VacationPage({
     }),
   ]);
 
-  const floatDays = floatAssignments.map((a) => a.date.toISOString().split("T")[0]);
+  const floatDays = floatAssignments.map((a) => ({
+    date: a.date.toISOString().split("T")[0],
+    manual: a.source === "MANUAL",
+  }));
   const callDays = callAssignments.map((a) => ({
     date: a.date.toISOString().split("T")[0],
     manual: a.source === "MANUAL",
