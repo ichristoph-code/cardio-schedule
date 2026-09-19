@@ -31,10 +31,12 @@ export default async function MySchedulePage({
     );
   }
 
-  // Find all published schedules (or drafts if admin)
-  const isAdmin = (session.user as Record<string, unknown>).role === "ADMIN";
+  // Every schedule, whatever its status. When an admin hand-sets a call or
+  // rounder day it lands on that year's schedule at once — created as a DRAFT
+  // if none exists yet — and it is real from that moment. The Vacation & Work
+  // Calendar and the phone feed both show it; this page must not be the one
+  // that disagrees.
   const allSchedules = await prisma.schedule.findMany({
-    where: isAdmin ? {} : { status: "PUBLISHED" },
     select: { id: true, year: true },
     orderBy: { year: "desc" },
   });
@@ -126,7 +128,7 @@ export default async function MySchedulePage({
 
       {!schedule && (
         <div className="rounded-lg border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          No schedule has been published for {selectedYear} yet. Any approved
+          No schedule exists for {selectedYear} yet. Any approved
           vacation and no-call days you already have for that year are shown
           below.
         </div>
