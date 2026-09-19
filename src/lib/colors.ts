@@ -63,9 +63,26 @@ export const DAY_COLORS = {
     text: "text-slate-700 dark:text-slate-300",
     textMuted: "text-slate-500",
   },
+  hospitalRounder: {
+    cell: "bg-rose-500 text-white font-semibold",
+    swatch: "bg-rose-500",
+  },
+  docInBox: {
+    cell: "bg-amber-700 text-white font-semibold",
+    swatch: "bg-amber-700",
+  },
+  echoReader: {
+    cell: "bg-cyan-500 text-white font-semibold",
+    swatch: "bg-cyan-500",
+  },
+  mpiReader: {
+    cell: "bg-indigo-600 text-white font-semibold",
+    swatch: "bg-indigo-600",
+  },
   /**
-   * Any other assignment on the Personal Task Calendar — hospital rounder, doc
-   * in the box, reading, cardioversion. One hue; the tooltip names the role.
+   * Any assignment on the Personal Task Calendar without a colour of its own
+   * (cardioversion, a role added later). A short code under the day number
+   * names the role, and the legend spells the code out.
    */
   otherDuty: {
     cell: "bg-orange-400 text-white font-semibold",

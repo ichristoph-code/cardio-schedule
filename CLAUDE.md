@@ -53,8 +53,11 @@ up; don't lecture.
   is 9; Ian was going to confirm whether that's right for the practice.)
 - **One colour per concept, everywhere** (`src/lib/colors.ts`). Vacation is
   emerald, holidays yellow, call black, float blue, ICU rounder purple,
-  no-call slate, any other duty orange. Don't introduce a new colour for an
-  existing concept.
+  no-call slate, hospital rounder rose, echo reader cyan, MPI reader indigo,
+  doc in the box brown, any other duty orange. Don't introduce a new colour
+  for an existing concept. On the Full Year view of My Task Calendar each of
+  those duty days also carries a short code under the number (HR, Echo, MPI,
+  DITB) and the legend spells the code out — colour is never the only signal.
 - **Calendar feed** (`/api/ics/<token>`): all-day events, no reminders,
   no-call days left out. These were explicit choices.
 

@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -20,6 +21,7 @@ import {
   Clock,
   Activity,
   Palmtree,
+  Filter,
 } from "lucide-react";
 import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 import { PersonalYearCalendar } from "@/components/schedule/PersonalYearCalendar";
@@ -75,7 +77,7 @@ const CATEGORY_ICON_COLOR: Record<string, string> = {
 export function MyScheduleView({
   year,
   physicianName,
-  assignments,
+  assignments: allAssignments,
   vacations = [],
   noCallDays = [],
   customHolidays = [],
@@ -94,6 +96,32 @@ export function MyScheduleView({
   // "year" is the same grid as the Physician Vacation & Work Calendar and the
   // default, so the two calendars a physician sees open on the same picture.
   const [viewMode, setViewMode] = useState<"year" | "month" | "upcoming" | "list">("year");
+
+  // Show/hide roles, the same control as the Group Schedule's "Filter Roles".
+  // Every view below draws from `assignments`, so one filter covers them all.
+  const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
+  const [showRoleFilter, setShowRoleFilter] = useState(false);
+
+  const roles = useMemo(() => {
+    const byName = new Map<string, string>();
+    for (const a of allAssignments) byName.set(a.roleName, a.roleDisplayName);
+    return [...byName].map(([name, displayName]) => ({ name, displayName }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [allAssignments]);
+
+  const assignments = useMemo(
+    () => hiddenRoles.size === 0 ? allAssignments : allAssignments.filter((a) => !hiddenRoles.has(a.roleName)),
+    [allAssignments, hiddenRoles],
+  );
+
+  function toggleRole(roleName: string) {
+    setHiddenRoles((prev) => {
+      const next = new Set(prev);
+      if (next.has(roleName)) next.delete(roleName);
+      else next.add(roleName);
+      return next;
+    });
+  }
 
   const byDate = useMemo(() => {
     const map = new Map<string, Assignment[]>();
@@ -203,22 +231,77 @@ export function MyScheduleView({
   }
 
   const viewToggle = (
-    <SegmentedControl
-      value={viewMode}
-      onChange={setViewMode}
-      segments={[
-        { value: "year", label: "Full Year", icon: LayoutGrid },
-        { value: "month", label: "Monthly", icon: CalendarDays },
-        { value: "upcoming", label: "Upcoming", icon: Clock },
-        { value: "list", label: "List", icon: List },
-      ]}
-    />
+    <div className="flex items-center gap-2 flex-wrap">
+      <SegmentedControl
+        value={viewMode}
+        onChange={setViewMode}
+        segments={[
+          { value: "year", label: "Full Year", icon: LayoutGrid },
+          { value: "month", label: "Monthly", icon: CalendarDays },
+          { value: "upcoming", label: "Upcoming", icon: Clock },
+          { value: "list", label: "List", icon: List },
+        ]}
+      />
+      {roles.length > 0 && (
+        <Button
+          variant={hiddenRoles.size > 0 ? "default" : "outline"}
+          size="sm"
+          onClick={() => setShowRoleFilter((v) => !v)}
+        >
+          <Filter className="h-4 w-4 mr-1" />
+          Filter Roles
+          {hiddenRoles.size > 0 && (
+            <Badge variant="secondary" className="ml-1.5 text-xs px-1.5 py-0">
+              {roles.length - hiddenRoles.size}/{roles.length}
+            </Badge>
+          )}
+        </Button>
+      )}
+    </div>
+  );
+
+  const roleFilterPanel = showRoleFilter && (
+    <Card className="no-print">
+      <CardContent className="p-4">
+        <div className="flex items-center justify-between mb-3">
+          <p className="text-sm font-medium">Show/hide roles</p>
+          <div className="flex gap-2">
+            <Button variant="ghost" size="sm" className="text-xs h-7" onClick={() => setHiddenRoles(new Set())}>
+              Show All
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-xs h-7"
+              onClick={() => setHiddenRoles(new Set(roles.map((r) => r.name)))}
+            >
+              Hide All
+            </Button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-x-6 gap-y-2">
+          {roles.map((role) => (
+            <div key={role.name} className="flex items-center gap-2">
+              <Checkbox
+                id={`role-${role.name}`}
+                checked={!hiddenRoles.has(role.name)}
+                onCheckedChange={() => toggleRole(role.name)}
+              />
+              <label htmlFor={`role-${role.name}`} className="text-sm cursor-pointer">
+                {role.displayName}
+              </label>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 
   if (viewMode === "year" || viewMode === "month") {
     return (
       <div className="space-y-4">
         <div className="no-print">{viewToggle}</div>
+        {roleFilterPanel}
 
         {viewMode === "year" ? (
           <PersonalYearCalendar
@@ -323,6 +406,7 @@ export function MyScheduleView({
           </div>
         )}
       </div>
+      {roleFilterPanel}
 
       {/* Assignment list */}
       <div className="space-y-2">
