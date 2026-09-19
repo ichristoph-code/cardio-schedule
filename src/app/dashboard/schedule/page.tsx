@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { ScheduleViewer } from "@/components/schedule/ScheduleViewer";
 import { ScheduleGenerateButton } from "@/components/schedule/ScheduleGenerateButton";
 import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
+import { DEFAULT_CALENDAR_YEAR } from "@/lib/calendar-years";
 import { Calendar } from "lucide-react";
 
 export default async function SchedulePage({
@@ -73,11 +74,16 @@ export default async function SchedulePage({
   const availableYears = allSchedules.map((s) => s.year);
   const currentYear = new Date().getFullYear();
 
+  // URL param > the shared default year (if a schedule exists for it) > this
+  // year (if one exists for it) > the newest schedule there is. This page can't
+  // show a year with no schedule, so the default only applies when it can.
   const selectedYear = query.year
     ? parseInt(query.year, 10)
-    : availableYears.includes(currentYear)
-      ? currentYear
-      : availableYears[0];
+    : availableYears.includes(DEFAULT_CALENDAR_YEAR)
+      ? DEFAULT_CALENDAR_YEAR
+      : availableYears.includes(currentYear)
+        ? currentYear
+        : availableYears[0];
 
   const selectedSchedule = allSchedules.find((s) => s.year === selectedYear) ?? allSchedules[0];
 
