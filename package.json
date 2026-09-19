@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma migrate resolve --applied 20260917130000_custom_holiday_hidden || true && prisma migrate deploy && next build",
+    "build": "bash scripts/vercel-build.sh",
     "postinstall": "prisma generate",
     "start": "next start",
     "lint": "eslint",
