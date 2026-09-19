@@ -28,7 +28,7 @@ interface VacationInfo {
 interface Props {
   year: number;
   vacations: VacationInfo[];
-  floatDays?: string[];
+  floatDays?: { date: string; manual: boolean }[];
   callDays?: { date: string; manual: boolean }[];
   noCallDays?: string[];
   customHolidays?: CustomHolidayInfo[];
@@ -42,7 +42,7 @@ function MonthGrid({
   year,
   month,
   vacMap,
-  floatSet,
+  floatMap,
   callMap,
   noCallSet,
   holidays,
@@ -55,7 +55,7 @@ function MonthGrid({
   year: number;
   month: number;
   vacMap: Map<string, VacationDayState>;
-  floatSet: Set<string>;
+  floatMap: Map<string, boolean>; // date -> manual?, as callMap below
   callMap: Map<string, boolean>; // date -> manual? (true = manually set, false = system-assigned)
   noCallSet: Set<string>;
   holidays: Map<string, string>;
@@ -83,16 +83,18 @@ function MonthGrid({
           const vac = vacMap.get(dateStr);
           const call = callMap.get(dateStr); // undefined | true (manual) | false (auto)
           const isCall = call !== undefined;
-          const isFloat = floatSet.has(dateStr);
+          const float = floatMap.get(dateStr); // undefined | true (manual) | false (auto)
+          const isFloat = float !== undefined;
           const isNoCall = noCallSet.has(dateStr);
           const holidayName = holidays.get(dateStr);
           const isToday = dateStr === today;
           const isSelected = selected.has(dateStr);
 
-          // Manual call gets an amber ring so system- vs manually-set is visible
-          // at a glance — but only when call is the displayed state (not when a
-          // vacation/half overrides it).
-          const callRing = !vac && call === true ? " ring-2 ring-inset ring-amber-400" : "";
+          // A manually-set call or float day gets an amber ring so system- vs
+          // manually-set is visible at a glance — but only when that is the
+          // displayed state (not when a vacation/half, or call over float,
+          // overrides it).
+          const callRing = !vac && (isCall ? call === true : float === true) ? " ring-2 ring-inset ring-amber-400" : "";
 
           // Drawn outside the cell (not inset) and lifted above its
           // neighbours so a multi-day run reads as one continuous band.
@@ -125,7 +127,7 @@ function MonthGrid({
             : vac === "HALF_PM" ? "Half day (PM)"
             : vac === "VACATION" ? "Vacation day"
             : isCall ? (call ? "General Call (manually set)" : "General Call (system-assigned)")
-            : isFloat ? "Hospital Float"
+            : isFloat ? (float ? "Hospital Float (manually set)" : "Hospital Float (system-assigned)")
             : isNoCall ? "No-call day"
             : holidayName ?? undefined;
 
@@ -173,7 +175,7 @@ export function YearlyVacationCalendar({
   physicianName,
 }: Props) {
   const vacMap = buildVacationStateMap(vacations);
-  const floatSet = new Set(floatDays);
+  const floatMap = new Map(floatDays.map((f) => [f.date, f.manual] as const));
   const callMap = new Map(callDays.map((c) => [c.date, c.manual] as const));
   const noCallSet = new Set(noCallDays);
   // Built-in holidays + admin-marked custom holidays (global, all physicians).
@@ -317,7 +319,7 @@ export function YearlyVacationCalendar({
     ? (vacMap.get(selectedDate)
         ?? (callMap.has(selectedDate)
           ? "CALL"
-          : floatSet.has(selectedDate)
+          : floatMap.has(selectedDate)
             ? "FLOAT"
             : noCallSet.has(selectedDate)
               ? "NO_CALL"
@@ -336,8 +338,9 @@ export function YearlyVacationCalendar({
         <LegendItem>Vacation days: <strong>{tallies.vacationDays}</strong></LegendItem>
         <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holidays — <strong>{tallies.holidays}</strong></LegendItem>
         <LegendItem>Weekdays worked: <strong>{tallies.weekdaysWorked}</strong></LegendItem>
-        {floatDays.length > 0 && (
-          <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{floatDays.length}</strong></LegendItem>
+        <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{floatDays.length}</strong></LegendItem>
+        {floatDays.some((f) => f.manual) && (
+          <LegendItem swatch={`ring-2 ring-inset ring-amber-400 ${DAY_COLORS.float.swatch}`}>Float — manually set</LegendItem>
         )}
         <LegendItem swatch={DAY_COLORS.call.swatch}>General Call — <strong>{tallies.weekdayCallDays}</strong> weekday ·{" "}
             <strong>{tallies.weekendCallDays}</strong> weekend</LegendItem>
@@ -370,7 +373,7 @@ export function YearlyVacationCalendar({
             year={year}
             month={m}
             vacMap={vacMap}
-            floatSet={floatSet}
+            floatMap={floatMap}
             callMap={callMap}
             noCallSet={noCallSet}
             holidays={holidays}
