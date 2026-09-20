@@ -47,6 +47,11 @@ export { Prisma }
  */
 export type User = Prisma.UserModel
 /**
+ * Model UserAvatar
+ * 
+ */
+export type UserAvatar = Prisma.UserAvatarModel
+/**
  * Model Physician
  * 
  */

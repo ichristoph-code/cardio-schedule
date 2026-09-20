@@ -191,6 +191,7 @@ export type UserWhereInput = {
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
   physician?: Prisma.XOR<Prisma.PhysicianNullableScalarRelationFilter, Prisma.PhysicianWhereInput> | null
+  avatar?: Prisma.XOR<Prisma.UserAvatarNullableScalarRelationFilter, Prisma.UserAvatarWhereInput> | null
 }
 
 export type UserOrderByWithRelationInput = {
@@ -201,6 +202,7 @@ export type UserOrderByWithRelationInput = {
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   physician?: Prisma.PhysicianOrderByWithRelationInput
+  avatar?: Prisma.UserAvatarOrderByWithRelationInput
 }
 
 export type UserWhereUniqueInput = Prisma.AtLeast<{
@@ -214,6 +216,7 @@ export type UserWhereUniqueInput = Prisma.AtLeast<{
   createdAt?: Prisma.DateTimeFilter<"User"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"User"> | Date | string
   physician?: Prisma.XOR<Prisma.PhysicianNullableScalarRelationFilter, Prisma.PhysicianWhereInput> | null
+  avatar?: Prisma.XOR<Prisma.UserAvatarNullableScalarRelationFilter, Prisma.UserAvatarWhereInput> | null
 }, "id" | "email">
 
 export type UserOrderByWithAggregationInput = {
@@ -248,6 +251,7 @@ export type UserCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   physician?: Prisma.PhysicianCreateNestedOneWithoutUserInput
+  avatar?: Prisma.UserAvatarCreateNestedOneWithoutUserInput
 }
 
 export type UserUncheckedCreateInput = {
@@ -258,6 +262,7 @@ export type UserUncheckedCreateInput = {
   createdAt?: Date | string
   updatedAt?: Date | string
   physician?: Prisma.PhysicianUncheckedCreateNestedOneWithoutUserInput
+  avatar?: Prisma.UserAvatarUncheckedCreateNestedOneWithoutUserInput
 }
 
 export type UserUpdateInput = {
@@ -268,6 +273,7 @@ export type UserUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   physician?: Prisma.PhysicianUpdateOneWithoutUserNestedInput
+  avatar?: Prisma.UserAvatarUpdateOneWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateInput = {
@@ -278,6 +284,7 @@ export type UserUncheckedUpdateInput = {
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   physician?: Prisma.PhysicianUncheckedUpdateOneWithoutUserNestedInput
+  avatar?: Prisma.UserAvatarUncheckedUpdateOneWithoutUserNestedInput
 }
 
 export type UserCreateManyInput = {
@@ -351,6 +358,20 @@ export type DateTimeFieldUpdateOperationsInput = {
   set?: Date | string
 }
 
+export type UserCreateNestedOneWithoutAvatarInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutAvatarInput, Prisma.UserUncheckedCreateWithoutAvatarInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAvatarInput
+  connect?: Prisma.UserWhereUniqueInput
+}
+
+export type UserUpdateOneRequiredWithoutAvatarNestedInput = {
+  create?: Prisma.XOR<Prisma.UserCreateWithoutAvatarInput, Prisma.UserUncheckedCreateWithoutAvatarInput>
+  connectOrCreate?: Prisma.UserCreateOrConnectWithoutAvatarInput
+  upsert?: Prisma.UserUpsertWithoutAvatarInput
+  connect?: Prisma.UserWhereUniqueInput
+  update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutAvatarInput, Prisma.UserUpdateWithoutAvatarInput>, Prisma.UserUncheckedUpdateWithoutAvatarInput>
+}
+
 export type UserCreateNestedOneWithoutPhysicianInput = {
   create?: Prisma.XOR<Prisma.UserCreateWithoutPhysicianInput, Prisma.UserUncheckedCreateWithoutPhysicianInput>
   connectOrCreate?: Prisma.UserCreateOrConnectWithoutPhysicianInput
@@ -365,6 +386,62 @@ export type UserUpdateOneRequiredWithoutPhysicianNestedInput = {
   update?: Prisma.XOR<Prisma.XOR<Prisma.UserUpdateToOneWithWhereWithoutPhysicianInput, Prisma.UserUpdateWithoutPhysicianInput>, Prisma.UserUncheckedUpdateWithoutPhysicianInput>
 }
 
+export type UserCreateWithoutAvatarInput = {
+  id?: string
+  email: string
+  passwordHash: string
+  role?: $Enums.UserRole
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  physician?: Prisma.PhysicianCreateNestedOneWithoutUserInput
+}
+
+export type UserUncheckedCreateWithoutAvatarInput = {
+  id?: string
+  email: string
+  passwordHash: string
+  role?: $Enums.UserRole
+  createdAt?: Date | string
+  updatedAt?: Date | string
+  physician?: Prisma.PhysicianUncheckedCreateNestedOneWithoutUserInput
+}
+
+export type UserCreateOrConnectWithoutAvatarInput = {
+  where: Prisma.UserWhereUniqueInput
+  create: Prisma.XOR<Prisma.UserCreateWithoutAvatarInput, Prisma.UserUncheckedCreateWithoutAvatarInput>
+}
+
+export type UserUpsertWithoutAvatarInput = {
+  update: Prisma.XOR<Prisma.UserUpdateWithoutAvatarInput, Prisma.UserUncheckedUpdateWithoutAvatarInput>
+  create: Prisma.XOR<Prisma.UserCreateWithoutAvatarInput, Prisma.UserUncheckedCreateWithoutAvatarInput>
+  where?: Prisma.UserWhereInput
+}
+
+export type UserUpdateToOneWithWhereWithoutAvatarInput = {
+  where?: Prisma.UserWhereInput
+  data: Prisma.XOR<Prisma.UserUpdateWithoutAvatarInput, Prisma.UserUncheckedUpdateWithoutAvatarInput>
+}
+
+export type UserUpdateWithoutAvatarInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  physician?: Prisma.PhysicianUpdateOneWithoutUserNestedInput
+}
+
+export type UserUncheckedUpdateWithoutAvatarInput = {
+  id?: Prisma.StringFieldUpdateOperationsInput | string
+  email?: Prisma.StringFieldUpdateOperationsInput | string
+  passwordHash?: Prisma.StringFieldUpdateOperationsInput | string
+  role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
+  createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  physician?: Prisma.PhysicianUncheckedUpdateOneWithoutUserNestedInput
+}
+
 export type UserCreateWithoutPhysicianInput = {
   id?: string
   email: string
@@ -372,6 +449,7 @@ export type UserCreateWithoutPhysicianInput = {
   role?: $Enums.UserRole
   createdAt?: Date | string
   updatedAt?: Date | string
+  avatar?: Prisma.UserAvatarCreateNestedOneWithoutUserInput
 }
 
 export type UserUncheckedCreateWithoutPhysicianInput = {
@@ -381,6 +459,7 @@ export type UserUncheckedCreateWithoutPhysicianInput = {
   role?: $Enums.UserRole
   createdAt?: Date | string
   updatedAt?: Date | string
+  avatar?: Prisma.UserAvatarUncheckedCreateNestedOneWithoutUserInput
 }
 
 export type UserCreateOrConnectWithoutPhysicianInput = {
@@ -406,6 +485,7 @@ export type UserUpdateWithoutPhysicianInput = {
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  avatar?: Prisma.UserAvatarUpdateOneWithoutUserNestedInput
 }
 
 export type UserUncheckedUpdateWithoutPhysicianInput = {
@@ -415,6 +495,7 @@ export type UserUncheckedUpdateWithoutPhysicianInput = {
   role?: Prisma.EnumUserRoleFieldUpdateOperationsInput | $Enums.UserRole
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
+  avatar?: Prisma.UserAvatarUncheckedUpdateOneWithoutUserNestedInput
 }
 
 
@@ -427,6 +508,7 @@ export type UserSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs = r
   createdAt?: boolean
   updatedAt?: boolean
   physician?: boolean | Prisma.User$physicianArgs<ExtArgs>
+  avatar?: boolean | Prisma.User$avatarArgs<ExtArgs>
 }, ExtArgs["result"]["user"]>
 
 export type UserSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetSelect<{
@@ -459,6 +541,7 @@ export type UserSelectScalar = {
 export type UserOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "email" | "passwordHash" | "role" | "createdAt" | "updatedAt", ExtArgs["result"]["user"]>
 export type UserInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   physician?: boolean | Prisma.User$physicianArgs<ExtArgs>
+  avatar?: boolean | Prisma.User$avatarArgs<ExtArgs>
 }
 export type UserIncludeCreateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
 export type UserIncludeUpdateManyAndReturn<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {}
@@ -467,6 +550,7 @@ export type $UserPayload<ExtArgs extends runtime.Types.Extensions.InternalArgs =
   name: "User"
   objects: {
     physician: Prisma.$PhysicianPayload<ExtArgs> | null
+    avatar: Prisma.$UserAvatarPayload<ExtArgs> | null
   }
   scalars: runtime.Types.Extensions.GetPayloadResult<{
     id: string
@@ -870,6 +954,7 @@ readonly fields: UserFieldRefs;
 export interface Prisma__UserClient<T, Null = never, ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs, GlobalOmitOptions = {}> extends Prisma.PrismaPromise<T> {
   readonly [Symbol.toStringTag]: "PrismaPromise"
   physician<T extends Prisma.User$physicianArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$physicianArgs<ExtArgs>>): Prisma.Prisma__PhysicianClient<runtime.Types.Result.GetResult<Prisma.$PhysicianPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
+  avatar<T extends Prisma.User$avatarArgs<ExtArgs> = {}>(args?: Prisma.Subset<T, Prisma.User$avatarArgs<ExtArgs>>): Prisma.Prisma__UserAvatarClient<runtime.Types.Result.GetResult<Prisma.$UserAvatarPayload<ExtArgs>, T, "findUniqueOrThrow", GlobalOmitOptions> | null, null, ExtArgs, GlobalOmitOptions>
   /**
    * Attaches callbacks for the resolution and/or rejection of the Promise.
    * @param onfulfilled The callback to execute when the Promise is resolved.
@@ -1314,6 +1399,25 @@ export type User$physicianArgs<ExtArgs extends runtime.Types.Extensions.Internal
    */
   include?: Prisma.PhysicianInclude<ExtArgs> | null
   where?: Prisma.PhysicianWhereInput
+}
+
+/**
+ * User.avatar
+ */
+export type User$avatarArgs<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
+  /**
+   * Select specific fields to fetch from the UserAvatar
+   */
+  select?: Prisma.UserAvatarSelect<ExtArgs> | null
+  /**
+   * Omit specific fields from the UserAvatar
+   */
+  omit?: Prisma.UserAvatarOmit<ExtArgs> | null
+  /**
+   * Choose, which related nodes to fetch as well
+   */
+  include?: Prisma.UserAvatarInclude<ExtArgs> | null
+  where?: Prisma.UserAvatarWhereInput
 }
 
 /**

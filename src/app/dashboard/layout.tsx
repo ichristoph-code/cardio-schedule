@@ -24,6 +24,7 @@ export default async function DashboardLayout({
       {/* Main content */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Header
+          userId={session.user.id}
           userName={session.user.name ?? "User"}
           userRole={session.user.role}
           physicianId={(session.user as Record<string, unknown>).physicianId as string | null}

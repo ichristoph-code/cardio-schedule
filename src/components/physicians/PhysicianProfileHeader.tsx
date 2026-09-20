@@ -12,6 +12,7 @@ import {
   ShieldCheck,
   ArrowLeft,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface Props {
   firstName: string;
@@ -27,6 +28,7 @@ interface Props {
   callCount: number;
   scheduleYear: number;
   physicianId: string;
+  userId: string;
 }
 
 export function PhysicianProfileHeader({
@@ -43,6 +45,7 @@ export function PhysicianProfileHeader({
   callCount,
   scheduleYear,
   physicianId,
+  userId,
 }: Props) {
   const initials = `${firstName[0] ?? ""}${lastName[0] ?? ""}`.toUpperCase();
   const ftePercent = Math.round((fteDays / 200) * 100);
@@ -62,9 +65,12 @@ export function PhysicianProfileHeader({
         <div className="flex flex-col sm:flex-row gap-5">
           {/* Avatar */}
           <div className="flex-shrink-0">
-            <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-primary to-blue-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg shadow-primary/20">
-              {initials}
-            </div>
+            <Avatar className="w-20 h-20 rounded-2xl after:rounded-2xl shadow-lg shadow-primary/20">
+              <AvatarImage src={`/api/avatar/${userId}`} alt="" className="rounded-2xl" />
+              <AvatarFallback className="rounded-2xl bg-gradient-to-br from-primary to-blue-600 text-white text-2xl font-bold">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
           </div>
 
           {/* Name + details */}

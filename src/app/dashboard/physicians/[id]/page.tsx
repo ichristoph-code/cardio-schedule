@@ -118,6 +118,7 @@ export default async function PhysicianDetailPage({ params }: PageProps) {
   return (
     <div className="space-y-6">
       <PhysicianProfileHeader
+        userId={physician.userId}
         firstName={physician.firstName}
         lastName={physician.lastName}
         email={physician.user.email}

@@ -9,13 +9,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
-import { Menu, LogOut, User } from "lucide-react";
+import { Menu, LogOut, User, Camera } from "lucide-react";
 import { Sidebar } from "./Sidebar";
+import { ProfilePhotoDialog } from "./ProfilePhotoDialog";
 import { useState } from "react";
 
 interface HeaderProps {
+  userId: string;
   userName: string;
   userRole: string;
   physicianId?: string | null;
@@ -24,9 +26,10 @@ interface HeaderProps {
   buildTime?: string;
 }
 
-export function Header({ userName, userRole, physicianId, version, buildSha, buildTime }: HeaderProps) {
+export function Header({ userId, userName, userRole, physicianId, version, buildSha, buildTime }: HeaderProps) {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [photoOpen, setPhotoOpen] = useState(false);
   const initials = userName
     .split(" ")
     .map((n) => n[0])
@@ -63,6 +66,7 @@ export function Header({ userName, userRole, physicianId, version, buildSha, bui
           className="inline-flex items-center justify-center rounded-md px-3 py-2 gap-2 hover:bg-accent hover:text-accent-foreground"
         >
           <Avatar className="h-7 w-7">
+            <AvatarImage src={`/api/avatar/${userId}`} alt="" />
             <AvatarFallback className="text-xs">{initials}</AvatarFallback>
           </Avatar>
           <span className="hidden sm:inline">{userName}</span>
@@ -85,6 +89,10 @@ export function Header({ userName, userRole, physicianId, version, buildSha, bui
             <User className="mr-2 h-4 w-4" />
             Profile
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setPhotoOpen(true)}>
+            <Camera className="mr-2 h-4 w-4" />
+            Profile photo
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/login" })}>
             <LogOut className="mr-2 h-4 w-4" />
@@ -92,6 +100,7 @@ export function Header({ userName, userRole, physicianId, version, buildSha, bui
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+      <ProfilePhotoDialog open={photoOpen} onOpenChange={setPhotoOpen} userId={userId} initials={initials} />
     </header>
   );
 }

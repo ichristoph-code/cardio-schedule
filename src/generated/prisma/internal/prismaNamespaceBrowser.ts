@@ -52,6 +52,7 @@ export const AnyNull = runtime.AnyNull
 
 export const ModelName = {
   User: 'User',
+  UserAvatar: 'UserAvatar',
   Physician: 'Physician',
   RoleType: 'RoleType',
   PhysicianEligibility: 'PhysicianEligibility',
@@ -95,6 +96,15 @@ export const UserScalarFieldEnum = {
 } as const
 
 export type UserScalarFieldEnum = (typeof UserScalarFieldEnum)[keyof typeof UserScalarFieldEnum]
+
+
+export const UserAvatarScalarFieldEnum = {
+  userId: 'userId',
+  data: 'data',
+  updatedAt: 'updatedAt'
+} as const
+
+export type UserAvatarScalarFieldEnum = (typeof UserAvatarScalarFieldEnum)[keyof typeof UserAvatarScalarFieldEnum]
 
 
 export const PhysicianScalarFieldEnum = {
