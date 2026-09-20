@@ -5,5 +5,5 @@ export const size = { width: 512, height: 512 };
 export const contentType = "image/png";
 
 export default function Icon() {
-  return new ImageResponse(<AppIconArtwork />, size);
+  return new ImageResponse(<AppIconArtwork size={size.width} />, size);
 }
