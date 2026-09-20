@@ -5,8 +5,7 @@
 //   2. Custom holidays an admin marks on the Physician Calendar.
 //      These live in the CustomHoliday table and apply to every physician.
 //
-// NOTE: The scheduler (src/lib/scheduler.ts) keeps its own holiday list for
-// call/rounder generation and is intentionally unaffected by this file.
+// The scheduler and every calendar share this holiday list, including removals.
 
 /** "YYYY-MM-DD" using local calendar fields (no timezone shifting). */
 export function formatLocalDate(d: Date): string {

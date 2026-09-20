@@ -8,6 +8,7 @@ import {
   DAY_CELL, DAY_GRID, DAY_IDLE, DAY_LABEL, DAY_LABELS, DAY_TODAY, LEGEND_ROW,
   MONTH_CARD, MONTH_NAMES, MONTH_TITLE, YEAR_GRID, dateKey, monthCells,
 } from "@/components/calendar/year-grid";
+import { YearSummary } from "@/components/calendar/YearSummary";
 import { LegendItem } from "@/components/calendar/LegendItem";
 
 export interface PersonalAssignment {
@@ -109,15 +110,16 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
 
   return (
     <div className="space-y-4">
-      <div className={LEGEND_ROW}>
-        <LegendItem>Workdays — <strong>{tallies.weekdaysWorked}</strong></LegendItem>
-        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Vacation — <strong>{tallies.vacationDays}</strong></LegendItem>
+      <YearSummary workdays={tallies.weekdaysWorked} vacation={tallies.vacationDays} holidays={tallies.holidays} float={new Set(assignments.filter((a) => a.roleName === "HOSPITAL_FLOAT").map((a) => a.date)).size} />
+      <div className={LEGEND_ROW} aria-label="Calendar legend">
+
+        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Vacation</LegendItem>
         {tallies.halfDays > 0 && (
           <LegendItem swatch={DAY_COLORS.halfDay.swatch}>Half-day vacation — <strong>{tallies.halfDays}</strong></LegendItem>
         )}
-        <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holidays — <strong>{tallies.holidays}</strong></LegendItem>
+        <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holiday</LegendItem>
         {counts.float > 0 && (
-          <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{counts.float}</strong></LegendItem>
+          <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float</LegendItem>
         )}
         {counts.rounder > 0 && (
           <LegendItem swatch={DAY_COLORS.rounder.swatch}>ICU Rounder — <strong>{counts.rounder}</strong></LegendItem>
@@ -185,14 +187,14 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
                 }
 
                 const content = vac === "HALF_AM" || vac === "HALF_PM"
-                  ? <>{day}<span className="text-[8px] align-super ml-px">{vac === "HALF_AM" ? "AM" : "PM"}</span></>
+                  ? <>{day}<span className="text-[10px] align-super ml-px">{vac === "HALF_AM" ? "AM" : "PM"}</span></>
                   : day;
 
                 return (
                   <div key={i} title={title} className={`${DAY_CELL} ${colour}`}>
                     {content}
                     {codes.map((c) => (
-                      <span key={c} className="block text-[7px] font-normal mt-px">{c}</span>
+                      <span key={c} className="block text-[10px] font-normal mt-px">{c}</span>
                     ))}
                   </div>
                 );

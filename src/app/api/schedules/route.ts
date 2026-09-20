@@ -1,16 +1,25 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { generateSchedule } from "@/lib/scheduler";
-import { auditLog } from "@/lib/audit";
+import bcrypt from "bcryptjs";
+import { scopeSchema } from "@/lib/scheduling/plan";
+import { previewSchedule, applySchedule, restoreSchedule, ScheduleConflict, latestRecovery } from "@/lib/scheduling/service";
 
 export const maxDuration = 60;
 
 // GET /api/schedules — list all schedules
-export async function GET() {
+export async function GET(req: Request) {
   const session = await auth();
   if (!session?.user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const recoveryYear = new URL(req.url).searchParams.get("recoveryYear");
+  if (recoveryYear !== null) {
+    if (session.user.role !== "ADMIN") return NextResponse.json({ error: "Admin only" }, { status: 403 });
+    const year = Number(recoveryYear);
+    if (!Number.isInteger(year) || year < 2024 || year > 2100) return NextResponse.json({ error: "Invalid year" }, { status: 400 });
+    return NextResponse.json({ recovery: await latestRecovery(year) });
   }
 
   const schedules = await prisma.schedule.findMany({
@@ -23,74 +32,39 @@ export async function GET() {
   return NextResponse.json(schedules);
 }
 
-// POST /api/schedules — generate a new schedule
+// Preview is read-only for schedules. Apply and restore verify the password on the server.
 export async function POST(req: Request) {
   const session = await auth();
-  if (!session?.user || (session.user as Record<string, unknown>).role !== "ADMIN") {
+  if (!session?.user || session.user.role !== "ADMIN") {
     return NextResponse.json({ error: "Admin only" }, { status: 403 });
   }
-
-  const { year, roleTypeIds, resetOnly, startMonth, endMonth } = await req.json();
-  if (!year || typeof year !== "number" || year < 2024 || year > 2100) {
-    return NextResponse.json({ error: "Invalid year" }, { status: 400 });
-  }
-  if (roleTypeIds !== undefined && (!Array.isArray(roleTypeIds) || roleTypeIds.some((id: unknown) => typeof id !== "string"))) {
-    return NextResponse.json({ error: "Invalid roleTypeIds" }, { status: 400 });
-  }
-  if (startMonth !== undefined && (typeof startMonth !== "number" || startMonth < 1 || startMonth > 12)) {
-    return NextResponse.json({ error: "Invalid startMonth" }, { status: 400 });
-  }
-  if (endMonth !== undefined && (typeof endMonth !== "number" || endMonth < 1 || endMonth > 12)) {
-    return NextResponse.json({ error: "Invalid endMonth" }, { status: 400 });
-  }
-  if (startMonth !== undefined && endMonth !== undefined && startMonth > endMonth) {
-    return NextResponse.json({ error: "startMonth must be ≤ endMonth" }, { status: 400 });
-  }
-
-  // Reset-only: delete assignments for the given roles without regenerating
-  if (resetOnly) {
-    if (!Array.isArray(roleTypeIds) || roleTypeIds.length === 0) {
-      return NextResponse.json({ error: "roleTypeIds required for reset" }, { status: 400 });
-    }
-    try {
-      const schedule = await prisma.schedule.findUnique({ where: { year } });
-      if (!schedule) {
-        return NextResponse.json({ error: "No schedule found for that year" }, { status: 404 });
-      }
-      const { count } = await prisma.scheduleAssignment.deleteMany({
-        where: { scheduleId: schedule.id, roleTypeId: { in: roleTypeIds } },
-      });
-      await auditLog(
-        (session.user as Record<string, unknown>).id as string,
-        "RESET_ROLES",
-        "Schedule",
-        schedule.id,
-        { year, roleTypeIds, deletedCount: count }
-      );
-      return NextResponse.json({ deletedCount: count });
-    } catch (error) {
-      console.error("Schedule reset error:", error);
-      return NextResponse.json({ error: "Failed to reset assignments" }, { status: 500 });
-    }
-  }
-
   try {
-    const result = await generateSchedule(year, roleTypeIds, startMonth, endMonth);
-
-    await auditLog(
-      (session.user as Record<string, unknown>).id as string,
-      "GENERATE_SCHEDULE",
-      "Schedule",
-      result.scheduleId,
-      { year, assignmentCount: result.assignmentCount }
-    );
-
-    return NextResponse.json(result);
+    const body = await req.json();
+    if (body.action === "preview") {
+      const parsed = scopeSchema.safeParse(body);
+      if (!parsed.success) return NextResponse.json({ error: parsed.error.issues[0].message }, { status: 400 });
+      return NextResponse.json(await previewSchedule(parsed.data, session.user.id));
+    }
+    if (body.action !== "apply" && body.action !== "restore") {
+      return NextResponse.json({ error: "Create a preview before changing a schedule" }, { status: 400 });
+    }
+    const id = body.action === "apply" ? body.previewId : body.recoveryId;
+    if (typeof id !== "string" || typeof body.password !== "string") {
+      return NextResponse.json({ error: "Confirmation and password are required" }, { status: 400 });
+    }
+    const user = await prisma.user.findUnique({ where: { id: session.user.id } });
+    if (!user || user.role !== "ADMIN" || !await bcrypt.compare(body.password, user.passwordHash)) {
+      return NextResponse.json({ error: "Incorrect password or access changed" }, { status: 403 });
+    }
+    return NextResponse.json(body.action === "apply"
+      ? await applySchedule(id, session.user.id)
+      : await restoreSchedule(id, session.user.id));
   } catch (error) {
-    console.error("Schedule generation error:", error);
-    return NextResponse.json(
-      { error: "Failed to generate schedule" },
-      { status: 500 }
-    );
+    if (error instanceof ScheduleConflict || (error && typeof error === "object" && "code" in error && error.code === "P2034")) {
+      return NextResponse.json({ error: error instanceof ScheduleConflict ? error.message : "Another edit happened at the same time. Please preview again." }, { status: 409 });
+    }
+    if (error instanceof SyntaxError) return NextResponse.json({ error: "Invalid JSON" }, { status: 400 });
+    console.error("Schedule operation failed:", error);
+    return NextResponse.json({ error: "The operation failed. No schedule changes were saved." }, { status: 500 });
   }
 }

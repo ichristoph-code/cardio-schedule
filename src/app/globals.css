@@ -168,7 +168,7 @@
               transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1);
 }
 
-[data-slot="card"]:hover {
+[data-slot="card"][data-interactive="true"]:hover {
   box-shadow:
     0 0.5px 1px rgba(0,0,0,0.03),
     0 2px 6px rgba(0,0,0,0.06),
@@ -258,4 +258,9 @@
   .print-month-page + .print-month-page {
     page-break-before: always;
   }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-slot="card"] { transition: none; }
+  [data-slot="card"][data-interactive="true"]:hover { transform: none; }
 }

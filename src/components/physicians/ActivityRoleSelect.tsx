@@ -43,8 +43,8 @@ export function ActivityRoleSelect({
 
   return (
     <Select value={selectedRole} onValueChange={handleChange}>
-      <SelectTrigger className="h-7 w-[140px] text-xs">
-        <SelectValue />
+      <SelectTrigger aria-label="Activity role" className="h-7 w-[140px] text-xs">
+        <SelectValue>{roles.find((role) => role.name === selectedRole)?.displayName ?? selectedRole}</SelectValue>
       </SelectTrigger>
       <SelectContent>
         {categories.map((cat) => {

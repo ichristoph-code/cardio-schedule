@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   Table,
   TableBody,
@@ -64,36 +64,28 @@ export function AuditLogTab() {
   const [loading, setLoading] = useState(true);
   const [entityType, setEntityType] = useState("");
   const [searchAction, setSearchAction] = useState("");
-
-  const fetchLogs = useCallback(async () => {
-    setLoading(true);
-    try {
-      const params = new URLSearchParams({
-        limit: String(PAGE_SIZE),
-        offset: String(offset),
-      });
-      if (entityType) params.set("entityType", entityType);
-      if (searchAction) params.set("action", searchAction.toUpperCase());
-
-      const res = await fetch(`/api/audit-logs?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        setLogs(data.logs);
-        setTotal(data.total);
-      }
-    } catch {
-      // silently fail
-    }
-    setLoading(false);
-  }, [offset, entityType, searchAction]);
+  const [appliedAction, setAppliedAction] = useState("");
+  const [revision, setRevision] = useState(0);
+  const [error, setError] = useState("");
 
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
+    const controller = new AbortController();
+    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(offset) });
+    if (entityType) params.set("entityType", entityType);
+    if (appliedAction) params.set("action", appliedAction);
+    fetch(`/api/audit-logs?${params}`, { signal: controller.signal })
+      .then(async (res) => { if (!res.ok) throw new Error("Could not load audit entries"); return res.json(); })
+      .then((data) => { setLogs(data.logs); setTotal(data.total); setError(""); })
+      .catch((err) => { if (!controller.signal.aborted) setError(err.message); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [offset, entityType, appliedAction, revision]);
 
   function handleFilter() {
+    setLoading(true);
     setOffset(0);
-    fetchLogs();
+    setAppliedAction(searchAction.trim().toUpperCase());
+    setRevision((value) => value + 1);
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
@@ -116,6 +108,7 @@ export function AuditLogTab() {
             id="audit-entity-type"
             value={entityType}
             onChange={(e) => {
+              setLoading(true);
               setEntityType(e.target.value);
               setOffset(0);
             }}
@@ -145,6 +138,7 @@ export function AuditLogTab() {
               variant="outline"
               size="sm"
               className="h-9 px-2"
+              aria-label="Filter audit log"
               onClick={handleFilter}
             >
               <Search className="h-4 w-4" />
@@ -153,6 +147,7 @@ export function AuditLogTab() {
         </div>
       </div>
 
+      {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
       {/* Table */}
       <div className="rounded-md border">
         <Table>
@@ -233,7 +228,8 @@ export function AuditLogTab() {
               variant="outline"
               size="sm"
               disabled={offset === 0}
-              onClick={() => setOffset(Math.max(0, offset - PAGE_SIZE))}
+              aria-label="Previous page"
+              onClick={() => { setLoading(true); setOffset(Math.max(0, offset - PAGE_SIZE)); }}
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
@@ -244,7 +240,8 @@ export function AuditLogTab() {
               variant="outline"
               size="sm"
               disabled={offset + PAGE_SIZE >= total}
-              onClick={() => setOffset(offset + PAGE_SIZE)}
+              aria-label="Next page"
+              onClick={() => { setLoading(true); setOffset(offset + PAGE_SIZE); }}
             >
               <ChevronRight className="h-4 w-4" />
             </Button>

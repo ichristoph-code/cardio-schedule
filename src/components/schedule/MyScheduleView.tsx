@@ -20,14 +20,13 @@ import {
   List,
   Clock,
   Activity,
-  Palmtree,
   Filter,
 } from "lucide-react";
 import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 import { PersonalYearCalendar } from "@/components/schedule/PersonalYearCalendar";
 import { SegmentedControl } from "@/components/calendar/SegmentedControl";
 import { CATEGORY_COLORS } from "@/lib/colors";
-import type { CustomHolidayInfo } from "@/lib/holidays";
+import { formatLocalDate, type CustomHolidayInfo } from "@/lib/holidays";
 
 interface Assignment {
   id: string;
@@ -145,29 +144,27 @@ export function MyScheduleView({
     return Object.entries(counts).sort((a, b) => b[1].count - a[1].count);
   }, [assignments]);
 
-  const todayStr = now.toISOString().split("T")[0];
+  const todayStr = formatLocalDate(now);
 
   // Upcoming: next 30 days with assignments
-  const upcomingDates = useMemo(() => {
+  const upcomingDates = (() => {
     const dates: string[] = [];
-    const sorted = [...byDate.keys()].sort();
-    for (const d of sorted) {
+    for (const d of [...byDate.keys()].sort()) {
       if (d >= todayStr) dates.push(d);
       if (dates.length >= 30) break;
     }
     return dates;
-  }, [byDate, todayStr]);
+  })();
 
   // Month dates with assignments
-  const monthDates = useMemo(() => {
+  const monthDates = (() => {
     const dates: string[] = [];
     const prefix = `${year}-${String(month + 1).padStart(2, "0")}`;
-    const sorted = [...byDate.keys()].sort();
-    for (const d of sorted) {
+    for (const d of [...byDate.keys()].sort()) {
       if (d.startsWith(prefix)) dates.push(d);
     }
     return dates;
-  }, [byDate, year, month]);
+  })();
 
   function renderDateRow(dateStr: string) {
     const dayAssigns = byDate.get(dateStr) ?? [];

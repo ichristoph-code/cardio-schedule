@@ -10,14 +10,6 @@ export const authConfig = {
     strategy: "jwt" as const,
   },
   callbacks: {
-    jwt({ token, user }) {
-      if (user) {
-        const u = user as unknown as Record<string, unknown>;
-        token.role = u.role;
-        token.physicianId = u.physicianId;
-      }
-      return token;
-    },
     session({ session, token }) {
       if (session.user) {
         const u = session.user as unknown as Record<string, unknown>;
@@ -30,17 +22,14 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
       const isOnDashboard = nextUrl.pathname.startsWith("/dashboard");
-      const isOnLogin = nextUrl.pathname === "/login";
 
       if (isOnDashboard) {
         if (isLoggedIn) return true;
         return false; // Redirect to login
       }
 
-      if (isOnLogin && isLoggedIn) {
-        return Response.redirect(new URL("/dashboard", nextUrl));
-      }
-
+      // Allow sign-in even when an old edge token exists: server-side checks
+      // may have revoked it after a password or permission change.
       return true;
     },
   },

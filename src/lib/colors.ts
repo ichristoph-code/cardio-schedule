@@ -15,7 +15,7 @@
 export const DAY_COLORS = {
   vacation: {
     /** Solid chip on the year grids. */
-    cell: "bg-emerald-500 text-white font-semibold",
+    cell: "bg-emerald-500 text-emerald-950 font-semibold",
     /** Legend square. */
     swatch: "bg-emerald-500",
     /** Selected state of the editor / bulk-bar button. */
@@ -36,7 +36,7 @@ export const DAY_COLORS = {
     active: "bg-emerald-300 text-emerald-950 border-emerald-300 hover:bg-emerald-400",
   },
   float: {
-    cell: "bg-blue-400 text-white font-semibold",
+    cell: "bg-blue-400 text-blue-950 font-semibold",
     swatch: "bg-blue-400",
     active: "bg-blue-500 text-white border-blue-500 hover:bg-blue-600",
     soft: "bg-gradient-to-br from-blue-50 to-blue-100/50 dark:from-blue-950/30 dark:to-blue-950/20",
@@ -44,7 +44,7 @@ export const DAY_COLORS = {
     textMuted: "text-blue-600 dark:text-blue-400",
   },
   rounder: {
-    cell: "bg-purple-400 text-white font-semibold",
+    cell: "bg-purple-400 text-purple-950 font-semibold",
     swatch: "bg-purple-400",
   },
   call: {
@@ -53,7 +53,7 @@ export const DAY_COLORS = {
     active: "bg-neutral-900 text-white border-neutral-900 hover:bg-black",
   },
   noCall: {
-    cell: "bg-slate-400 text-white font-semibold",
+    cell: "bg-slate-400 text-slate-950 font-semibold",
     swatch: "bg-slate-400",
     active: "bg-slate-500 text-white border-slate-500 hover:bg-slate-600",
     soft: "bg-slate-100/60 dark:bg-slate-900/30",
@@ -67,7 +67,7 @@ export const DAY_COLORS = {
     swatch: "bg-amber-700",
   },
   echoReader: {
-    cell: "bg-cyan-500 text-white font-semibold",
+    cell: "bg-cyan-500 text-cyan-950 font-semibold",
     swatch: "bg-cyan-500",
   },
   mpiReader: {
@@ -80,7 +80,7 @@ export const DAY_COLORS = {
    * names the role, and the legend spells the code out.
    */
   otherDuty: {
-    cell: "bg-orange-400 text-white font-semibold",
+    cell: "bg-orange-400 text-orange-950 font-semibold",
     swatch: "bg-orange-400",
   },
   holiday: {

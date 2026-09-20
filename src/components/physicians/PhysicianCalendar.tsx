@@ -46,7 +46,7 @@ import {
   Building2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { formatLocalDate, getAllHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 import { CATEGORY_COLORS, DAY_COLORS } from "@/lib/colors";
 
 // --- Types ---
@@ -116,7 +116,7 @@ function dayOfWeekSun(y: number, m: number, d: number): number {
 }
 
 function isToday(dateStr: string): boolean {
-  return dateStr === new Date().toISOString().split("T")[0];
+  return dateStr === formatLocalDate(new Date());
 }
 
 /** Shorten long role names for calendar cells */
