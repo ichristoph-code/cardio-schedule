@@ -1,17 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DayStateEditor } from "@/components/vacation/DayStateEditor";
 import { DaySelectionBar } from "@/components/vacation/DaySelectionBar";
 import type { DayState } from "@/components/vacation/day-types";
 import { datesBetween } from "@/lib/calendar-dates";
-import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { formatLocalDate, getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 import { buildVacationStateMap, computeYearTallies, type VacationDayState } from "@/lib/year-tallies";
 import { DAY_COLORS } from "@/lib/colors";
 import {
   DAY_CELL, DAY_GRID, DAY_IDLE, DAY_LABEL, DAY_LABELS, DAY_TODAY, LEGEND_ROW,
   MONTH_CARD, MONTH_NAMES, MONTH_TITLE, YEAR_GRID, dateKey, monthCells,
 } from "@/components/calendar/year-grid";
+import { YearSummary } from "@/components/calendar/YearSummary";
 import { LegendItem } from "@/components/calendar/LegendItem";
 
 /** Breathing room between the bulk bar and the days it must not cover. */
@@ -26,6 +29,7 @@ interface VacationInfo {
 }
 
 interface Props {
+  view?: "year" | "month";
   year: number;
   vacations: VacationInfo[];
   floatDays?: { date: string; manual: boolean }[];
@@ -41,6 +45,7 @@ interface Props {
 function MonthGrid({
   year,
   month,
+  expanded,
   vacMap,
   floatMap,
   callMap,
@@ -54,6 +59,7 @@ function MonthGrid({
 }: {
   year: number;
   month: number;
+  expanded: boolean;
   vacMap: Map<string, VacationDayState>;
   floatMap: Map<string, boolean>; // date -> manual?, as callMap below
   callMap: Map<string, boolean>; // date -> manual? (true = manually set, false = system-assigned)
@@ -65,7 +71,7 @@ function MonthGrid({
   onDayMouseDown: (date: string, e: React.MouseEvent) => void;
   onDayMouseEnter: (date: string) => void;
 }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = formatLocalDate(new Date());
   const cells = monthCells(year, month);
 
   return (
@@ -104,6 +110,7 @@ function MonthGrid({
 
           const className = [
             DAY_CELL,
+            expanded ? "min-h-14 sm:min-h-20 flex items-center justify-center text-base" : "",
             isAdmin ? (isSelected ? "cursor-pointer" : "cursor-pointer hover:ring-2 hover:ring-primary/40") : "",
             (vac === "VACATION"
               ? DAY_COLORS.vacation.cell
@@ -132,7 +139,7 @@ function MonthGrid({
             : holidayName ?? undefined;
 
           const content = (vac === "HALF_AM" || vac === "HALF_PM")
-            ? <>{day}<span className="text-[8px] align-super ml-px">{vac === "HALF_AM" ? "AM" : "PM"}</span></>
+            ? <>{day}<span className="text-[10px] align-super ml-px">{vac === "HALF_AM" ? "AM" : "PM"}</span></>
             : day;
 
           if (isAdmin) {
@@ -142,6 +149,7 @@ function MonthGrid({
                 type="button"
                 data-date={dateStr}
                 title={title}
+                aria-label={`${MONTH_NAMES[month]} ${day}, ${year}: ${title ?? "Working day"}`}
                 aria-pressed={isSelected}
                 className={className}
                 onMouseDown={(e) => onDayMouseDown(dateStr, e)}
@@ -164,6 +172,7 @@ function MonthGrid({
 }
 
 export function YearlyVacationCalendar({
+  view = "year",
   year,
   vacations,
   floatDays = [],
@@ -187,6 +196,8 @@ export function YearlyVacationCalendar({
     customHolidays.filter((h) => h.hidden).map((h) => [h.date, builtInHolidays.get(h.date) ?? h.name])
   );
 
+  const [month, setMonth] = useState(new Date().getFullYear() === year ? new Date().getMonth() : 0);
+  const [multiSelect, setMultiSelect] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
 
   // ── Multi-day selection (drag / shift-click / cmd-click) ───────────────────
@@ -242,7 +253,7 @@ export function YearlyVacationCalendar({
 
   const handleDayMouseDown = useCallback(
     (date: string, e: React.MouseEvent) => {
-      if (!isAdmin || e.button !== 0) return;
+      if (!isAdmin || multiSelect || e.button !== 0) return;
       const additive = e.metaKey || e.ctrlKey;
 
       // Shift-click: extend from the anchor to here.
@@ -272,7 +283,7 @@ export function YearlyVacationCalendar({
       dragRef.current = { start: date, moved: false, last: date };
       suppressClickRef.current = false;
     },
-    [isAdmin],
+    [isAdmin, multiSelect],
   );
 
   const handleDayMouseEnter = useCallback((date: string) => {
@@ -299,6 +310,15 @@ export function YearlyVacationCalendar({
   }, [barHeight, dragging, selectedDays]);
 
   const handleDayClick = useCallback((date: string) => {
+    if (multiSelect) {
+      revealRef.current = date;
+      setSelectedDays((prev) => {
+        const next = new Set(prev);
+        if (next.has(date)) next.delete(date); else next.add(date);
+        return next;
+      });
+      return;
+    }
     // Swallow the click that ends a drag or follows a modifier-click.
     if (suppressClickRef.current) {
       suppressClickRef.current = false;
@@ -308,7 +328,7 @@ export function YearlyVacationCalendar({
     setSelectedDays(new Set());
     anchorRef.current = date;
     setSelectedDate(date);
-  }, []);
+  }, [multiSelect]);
 
   // Counted in weekdays, so a vacation spanning a weekend or landing on a
   // holiday doesn't inflate the total. See src/lib/year-tallies.ts.
@@ -332,14 +352,15 @@ export function YearlyVacationCalendar({
 
   return (
     <div className="space-y-4">
-      <div className={LEGEND_ROW}>
-        <LegendItem>Workdays — <strong>{tallies.weekdaysWorked}</strong></LegendItem>
-        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Vacation — <strong>{tallies.vacationDays}</strong></LegendItem>
+      <YearSummary workdays={tallies.weekdaysWorked} vacation={tallies.vacationDays} holidays={tallies.holidays} float={floatDays.length} />
+      <div className={LEGEND_ROW} aria-label="Calendar legend">
+
+        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Vacation</LegendItem>
         {tallies.halfDays > 0 && (
           <LegendItem swatch={DAY_COLORS.halfDay.swatch}>Half-day vacation — <strong>{tallies.halfDays}</strong></LegendItem>
         )}
-        <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holidays — <strong>{tallies.holidays}</strong></LegendItem>
-        <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{floatDays.length}</strong></LegendItem>
+        <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holiday</LegendItem>
+        <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float</LegendItem>
         {floatDays.some((f) => f.manual) && (
           <LegendItem swatch={`ring-2 ring-inset ring-amber-400 ${DAY_COLORS.float.swatch}`}>Float — manually set</LegendItem>
         )}
@@ -353,26 +374,24 @@ export function YearlyVacationCalendar({
         )}
       </div>
 
-      {isAdmin && (
-        <div className="-mt-1 space-y-1 text-xs text-muted-foreground">
-          <p>
-            Click any day to set vacation, ½ day, float, general call, or no-call — or mark it as a holiday for everyone.
-          </p>
-          <p>
-            To fill many days at once: <strong>drag</strong> across a run of days,{" "}
-            <strong>shift-click</strong> to extend to a day, or{" "}
-            <strong>⌘/Ctrl-click</strong> to pick scattered days — then choose a
-            type from the bar at the bottom. <kbd className="rounded border px-1">Esc</kbd> deselects.
-          </p>
-        </div>
-      )}
+      {isAdmin && <div className="rounded-xl border bg-white/70 dark:bg-card p-3 text-sm space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2"><p>{multiSelect ? "Tap days to select them, then choose an action below." : "Choose a day to edit vacation, float, call, or no-call."}</p>
+          <Button variant="outline" size="sm" aria-pressed={multiSelect} onClick={() => { setMultiSelect(!multiSelect); clearSelection(); }}>{multiSelect ? "Finish selection" : "Select multiple days"}</Button></div>
+        <details className="text-muted-foreground"><summary className="cursor-pointer">Keyboard and mouse shortcuts</summary><p className="mt-2">Drag across days, shift-click to extend a range, or ⌘/Ctrl-click for scattered dates. Esc clears the selection. Holidays apply to everyone.</p></details>
+      </div>}
+      {view === "month" && <div className="flex items-center justify-center gap-4 no-print">
+        <Button variant="outline" size="icon" aria-label="Previous month" disabled={month === 0} onClick={() => setMonth(month - 1)}><ChevronLeft className="size-4" /></Button>
+        <h3 className="min-w-40 text-center font-semibold">{MONTH_NAMES[month]} {year}</h3>
+        <Button variant="outline" size="icon" aria-label="Next month" disabled={month === 11} onClick={() => setMonth(month + 1)}><ChevronRight className="size-4" /></Button>
+      </div>}
 
-      <div ref={gridRef} className={YEAR_GRID}>
-        {Array.from({ length: 12 }, (_, m) => (
+      <div ref={gridRef} className={view === "month" ? "max-w-5xl mx-auto" : YEAR_GRID}>
+        {(view === "month" ? [month] : Array.from({ length: 12 }, (_, m) => m)).map((m) => (
           <MonthGrid
             key={m}
             year={year}
             month={m}
+            expanded={view === "month"}
             vacMap={vacMap}
             floatMap={floatMap}
             callMap={callMap}

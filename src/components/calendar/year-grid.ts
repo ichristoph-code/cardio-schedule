@@ -3,16 +3,16 @@
 // (My Vacation & Work Calendar) and the Personal Task Calendar so the two cannot drift apart — a
 // physician moving between them should see the same grid, not a cousin of it.
 
-export const YEAR_GRID = "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4";
+export const YEAR_GRID = "grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 gap-4";
 export const MONTH_CARD = "bg-white dark:bg-card rounded-xl border p-4 shadow-sm";
 export const MONTH_TITLE = "text-sm font-semibold text-center mb-3 text-foreground";
 export const DAY_GRID = "grid grid-cols-7 gap-px";
-export const DAY_LABEL = "text-[10px] text-center text-muted-foreground font-medium pb-1";
+export const DAY_LABEL = "text-xs text-center text-muted-foreground font-medium pb-1";
 /** Every day chip starts from this; a colour from DAY_COLORS is added on top. */
-export const DAY_CELL = "text-[11px] text-center rounded py-[3px] leading-none select-none";
+export const DAY_CELL = "text-sm text-center rounded py-2 leading-none min-h-8 select-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary";
 export const DAY_TODAY = "bg-primary/15 text-primary font-bold";
 export const DAY_IDLE = "text-foreground hover:bg-muted/50";
-export const LEGEND_ROW = "flex items-center gap-6 text-sm flex-wrap";
+export const LEGEND_ROW = "flex items-center gap-x-5 gap-y-2 text-sm flex-wrap";
 export const SWATCH = "inline-block w-3 h-3 rounded-sm";
 
 export const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];

@@ -5,6 +5,7 @@ import { ScheduleViewer } from "@/components/schedule/ScheduleViewer";
 import { ScheduleGenerateButton } from "@/components/schedule/ScheduleGenerateButton";
 import { CalendarYearSelect } from "@/components/physicians/CalendarYearSelect";
 import { DEFAULT_CALENDAR_YEAR } from "@/lib/calendar-years";
+import { isCalendarDate } from "@/lib/schedule-timeline";
 import { Calendar } from "lucide-react";
 
 export default async function SchedulePage({
@@ -89,10 +90,10 @@ export default async function SchedulePage({
 
   // Optional view state carried in the URL so the month/week arrows can cross
   // into the neighbouring year's schedule (?year=2028&month=0&view=month).
-  const initialView = query.view === "month" || query.view === "year" ? query.view : query.view === "week" ? "week" : undefined;
+  const initialView = query.view === "month" || query.view === "year" || query.view === "week" || (isAdmin && query.view === "timeline") ? query.view : undefined;
   const monthParam = query.month !== undefined ? parseInt(query.month, 10) : NaN;
   const initialMonth = Number.isInteger(monthParam) && monthParam >= 0 && monthParam <= 11 ? monthParam : undefined;
-  const initialWeekStart = query.week && /^\d{4}-\d{2}-\d{2}$/.test(query.week) ? query.week : undefined;
+  const initialWeekStart = query.week && isCalendarDate(query.week) ? query.week : undefined;
   const hasPrevYear = availableYears.includes(selectedSchedule.year - 1);
   const hasNextYear = availableYears.includes(selectedSchedule.year + 1);
 

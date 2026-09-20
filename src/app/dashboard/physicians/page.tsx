@@ -12,7 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Calendar } from "lucide-react";
+import { Pencil, Calendar } from "lucide-react";
 import { AddPhysicianDialog } from "@/components/physicians/AddPhysicianDialog";
 import { DeletePhysicianButton } from "@/components/physicians/DeletePhysicianButton";
 import { CallStatsYearSelect } from "@/components/physicians/CallStatsYearSelect";
@@ -154,58 +154,32 @@ export default async function PhysiciansPage({
         <AddPhysicianDialog />
       </div>
 
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
+      <div className="space-y-3">
+        <div className="hidden xl:flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
+          {availableYears.length > 0 && <div className="flex items-center gap-2">
+            <span>Workload year</span>
+            <CallStatsYearSelect years={availableYears} selectedYear={selectedYear} />
+          </div>}
+          <div className="flex items-center gap-2">
+            <span>Activity</span>
+            <ActivityRoleSelect roles={allRoleTypes} selectedRole={selectedActivityRole} />
+          </div>
+        </div>
+        <Table className="table-fixed [&_th]:px-2 [&_th]:normal-case [&_th]:tracking-normal [&_td]:px-2 [&_td]:py-2">
           <TableHeader>
             <TableRow>
-              <TableHead className="sticky left-0 z-10 bg-background shadow-[1px_0_0_0_hsl(var(--border))]">Name</TableHead>
-              <TableHead className="hidden sm:table-cell">Email</TableHead>
-              <TableHead className="hidden md:table-cell">FTE</TableHead>
-              <TableHead className="hidden md:table-cell">Subspecialty</TableHead>
-              <TableHead className="hidden lg:table-cell">Office Days</TableHead>
-              <TableHead className="hidden xl:table-cell">
-                <div className="flex flex-col items-center gap-1">
-                  <span>Weekday General Call</span>
-                  {availableYears.length > 0 && (
-                    <CallStatsYearSelect
-                      years={availableYears}
-                      selectedYear={selectedYear}
-                    />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="hidden xl:table-cell text-center">Weekday Call / FTE</TableHead>
-              <TableHead className="hidden xl:table-cell">
-                <div className="flex flex-col items-center gap-1">
-                  <span>Weekend General Call</span>
-                  {availableYears.length > 0 && (
-                    <CallStatsYearSelect
-                      years={availableYears}
-                      selectedYear={selectedYear}
-                    />
-                  )}
-                </div>
-              </TableHead>
-              <TableHead className="hidden xl:table-cell text-center">Weekend Call / FTE</TableHead>
-              <TableHead className="hidden xl:table-cell">
-                <div className="flex flex-col items-center gap-1">
-                  <span>Activity Count</span>
-                  <div className="flex gap-1">
-                    <ActivityRoleSelect
-                      roles={allRoleTypes}
-                      selectedRole={selectedActivityRole}
-                    />
-                    {availableYears.length > 0 && (
-                      <CallStatsYearSelect
-                        years={availableYears}
-                        selectedYear={selectedYear}
-                      />
-                    )}
-                  </div>
-                </div>
-              </TableHead>
-              <TableHead className="hidden xl:table-cell text-center">Activity / FTE</TableHead>
-              <TableHead className="w-[50px]"></TableHead>
+              <TableHead className="w-36 sticky left-0 z-10 bg-background border-r">Name</TableHead>
+              <TableHead className="hidden md:table-cell w-11 text-center">FTE</TableHead>
+              <TableHead className="hidden md:table-cell w-[104px]">Subspecialty</TableHead>
+              <TableHead className="hidden lg:table-cell w-[100px] whitespace-normal">Office Days</TableHead>
+              <TableHead className="hidden xl:table-cell w-16 whitespace-normal text-center py-2" title="Weekday General Call">Weekday Call</TableHead>
+              <TableHead className="hidden xl:table-cell w-[60px] whitespace-normal text-center" title="Weekday General Call per FTE">Weekday / FTE</TableHead>
+              <TableHead className="hidden xl:table-cell w-16 whitespace-normal text-center" title="Weekend General Call">Weekend Call</TableHead>
+              <TableHead className="hidden xl:table-cell w-[60px] whitespace-normal text-center" title="Weekend General Call per FTE">Weekend / FTE</TableHead>
+              <TableHead className="hidden xl:table-cell w-16 whitespace-normal text-center">Activity Count</TableHead>
+              <TableHead className="hidden xl:table-cell w-[60px] whitespace-normal text-center">Activity / FTE</TableHead>
+              <TableHead className="w-[104px]"><span className="sr-only">Actions</span></TableHead>
+              <TableHead className="hidden sm:table-cell w-[168px]">Email</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -218,19 +192,16 @@ export default async function PhysiciansPage({
             ) : (
               physicians.map((doc) => (
                 <TableRow key={doc.id}>
-                  <TableCell className="font-medium sticky left-0 z-10 bg-background shadow-[1px_0_0_0_hsl(var(--border))]">
+                  <TableCell className="font-medium whitespace-normal break-words sticky left-0 z-10 bg-background border-r">
                     {doc.lastName}, {doc.firstName}
                   </TableCell>
-                  <TableCell className="hidden sm:table-cell text-muted-foreground">
-                    {doc.user.email}
-                  </TableCell>
-                  <TableCell className="hidden md:table-cell">
+                  <TableCell className="hidden md:table-cell text-center tabular-nums">
                     {doc.fteDays}
                   </TableCell>
                   <TableCell className="hidden md:table-cell">
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
                       {doc.isInterventionalist && (
-                        <Badge variant="secondary">Interventional</Badge>
+                        <Badge variant="secondary" className="px-1 text-[11px]">Interventional</Badge>
                       )}
                       {doc.isEP && (
                         <Badge variant="secondary">EP</Badge>
@@ -241,7 +212,7 @@ export default async function PhysiciansPage({
                     </div>
                   </TableCell>
                   <TableCell className="hidden lg:table-cell">
-                    <div className="flex gap-1">
+                    <div className="flex flex-wrap gap-1">
                       {doc.officeDays
                         .sort((a, b) => a.dayOfWeek - b.dayOfWeek)
                         .map((d) => (
@@ -312,14 +283,14 @@ export default async function PhysiciansPage({
                     })()}
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-0.5">
                       <Link href={`/dashboard/physicians/${doc.id}/calendar`}>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon-sm" aria-label={`Calendar for ${doc.firstName} ${doc.lastName}`}>
                           <Calendar className="h-4 w-4" />
                         </Button>
                       </Link>
                       <Link href={`/dashboard/physicians/${doc.id}`}>
-                        <Button variant="ghost" size="icon">
+                        <Button variant="ghost" size="icon-sm" aria-label={`Edit ${doc.firstName} ${doc.lastName}`}>
                           <Pencil className="h-4 w-4" />
                         </Button>
                       </Link>
@@ -328,6 +299,11 @@ export default async function PhysiciansPage({
                         physicianName={`${doc.firstName} ${doc.lastName}`}
                       />
                     </div>
+                  </TableCell>
+                  <TableCell className="hidden sm:table-cell text-muted-foreground">
+                    <a href={`mailto:${doc.user.email}`} title={doc.user.email} className="block truncate text-xs hover:underline focus-visible:outline-2 focus-visible:outline-primary">
+                      {doc.user.email}
+                    </a>
                   </TableCell>
                 </TableRow>
               ))

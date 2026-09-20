@@ -2,10 +2,20 @@ import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
+import { refreshSessionToken } from "./auth-session";
 import { authConfig } from "./auth.config";
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  callbacks: {
+    ...authConfig.callbacks,
+    async jwt({ token, user }) {
+      const id = user?.id ?? token.sub;
+      if (!id) return null;
+      const current = await prisma.user.findUnique({ where: { id }, include: { physician: true } });
+      return refreshSessionToken(token, current, !!user);
+    },
+  },
   providers: [
     Credentials({
       credentials: {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { PhysicianCalendar } from "@/components/physicians/PhysicianCalendar";
 import { YearlyVacationCalendar } from "@/components/vacation/YearlyVacationCalendar";
 import { CalendarDays, LayoutGrid } from "lucide-react";
 import { SegmentedControl } from "@/components/calendar/SegmentedControl";
@@ -43,27 +42,9 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
         />
       </div>
 
-      {view === "monthly" ? (
-        <PhysicianCalendar
-          key={`${physicianId}-${year}-monthly`}
-          year={year}
-          physicianName={physicianName}
-          physicianId={physicianId}
-          isAdmin={false}
-          assignments={floatDays.map(({ date, manual }, i) => ({
-            id: `float-${i}`,
-            date,
-            roleName: "HOSPITAL_FLOAT",
-            roleDisplayName: "Hospital Float",
-            roleCategory: "DAYTIME",
-            source: manual ? "MANUAL" : "AUTO",
-          }))}
-          vacations={vacations}
-          noCallDays={noCallDays.map((date, i) => ({ id: `nocall-${i}`, date, reason: null }))}
-          customHolidays={customHolidays}
-        />
-      ) : (
         <YearlyVacationCalendar
+          key={`${physicianId}-${year}`}
+          view={view === "monthly" ? "month" : "year"}
           year={year}
           vacations={vacations}
           floatDays={floatDays}
@@ -74,7 +55,6 @@ export function VacationCalendarView({ year, physicianName, physicianId, isAdmin
           physicianId={physicianId}
           physicianName={physicianName}
         />
-      )}
     </div>
   );
 }

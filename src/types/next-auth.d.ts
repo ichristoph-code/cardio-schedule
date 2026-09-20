@@ -6,7 +6,7 @@ declare module "next-auth" {
       id: string;
       email: string;
       name: string;
-      role: "ADMIN" | "PHYSICIAN";
+      role: "ADMIN" | "PHYSICIAN" | "VIEWER";
       physicianId: string | null;
     };
   }
@@ -14,7 +14,8 @@ declare module "next-auth" {
 
 declare module "next-auth/jwt" {
   interface JWT {
-    role: "ADMIN" | "PHYSICIAN";
+    authVersion?: string;
+    role: "ADMIN" | "PHYSICIAN" | "VIEWER";
     physicianId: string | null;
   }
 }

@@ -62,8 +62,9 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
   const pathname = usePathname();
 
   const isAdmin = userRole === "ADMIN";
+  const isViewer = userRole === "VIEWER";
   const visible = navItems.filter((item) =>
-    isAdmin ? !item.physicianOnly : !item.adminOnly && !item.parked
+    isViewer ? item.href === "/dashboard/schedule" : isAdmin ? !item.physicianOnly : !item.adminOnly && !item.parked
   );
   // Working items first; parked ones (admins only) grouped under a caption at
   // the bottom, so it is obvious where "works" ends and "paused" begins.

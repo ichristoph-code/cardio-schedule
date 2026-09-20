@@ -28,7 +28,7 @@ export function CallStatsYearSelect({
 
   return (
     <Select value={String(selectedYear)} onValueChange={(v) => handleChange(v)}>
-      <SelectTrigger className="h-7 w-[80px] text-xs">
+      <SelectTrigger aria-label="Workload year" className="h-7 w-[80px] text-xs">
         <SelectValue />
       </SelectTrigger>
       <SelectContent>

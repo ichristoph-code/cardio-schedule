@@ -18,3 +18,7 @@ scripts/diagnostics/
 # Database dumps from scripts/backup-db.sh — real schedule data, never commit.
 *.dump
 *.sql.gz
+
+# Isolated local verification artifacts
+.test-artifacts/
+.next-review/

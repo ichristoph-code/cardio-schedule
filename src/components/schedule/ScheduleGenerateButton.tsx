@@ -1,472 +1,120 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import { AlertTriangle, Calendar, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Calendar, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
+import { DEFAULT_CALENDAR_YEAR } from "@/lib/calendar-years";
+import { ScheduleChangeSummary } from "./ScheduleChangeSummary";
+import type { SchedulePreview } from "@/lib/scheduling/plan";
 
-interface RoleTypeInfo {
-  id: string;
-  displayName: string;
-  category: string;
+type Recovery = { id: string; label: string; createdAt: string; assignmentCount: number };
+interface Props {
+  roleTypes?: { id: string; displayName: string; category: string }[];
+  existingSchedules?: { year: number; status: string }[];
 }
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const selectClass = "h-10 w-full rounded-lg border bg-background px-3 text-sm disabled:opacity-50";
 
-interface ExistingSchedule {
-  year: number;
-  status: string;
-}
-
-interface ScheduleGenerateButtonProps {
-  roleTypes?: RoleTypeInfo[];
-  existingSchedules?: ExistingSchedule[];
-}
-
-const CATEGORY_LABELS: Record<string, string> = {
-  ON_CALL: "On Call",
-  DAYTIME: "Daytime",
-  READING: "Reading",
-  SPECIAL: "Special",
-};
-
-const CATEGORY_ORDER = ["ON_CALL", "DAYTIME", "READING", "SPECIAL"];
-
-function existingStatusBadge(status: string) {
-  switch (status) {
-    case "DRAFT":
-      return <Badge variant="secondary" className="text-xs">Draft exists</Badge>;
-    case "PUBLISHED":
-      return <Badge className="bg-green-600 hover:bg-green-600 text-xs">Published exists</Badge>;
-    case "ARCHIVED":
-      return <Badge variant="outline" className="text-xs">Archived exists</Badge>;
-    default:
-      return null;
-  }
-}
-
-export function ScheduleGenerateButton({
-  roleTypes = [],
-  existingSchedules = [],
-}: ScheduleGenerateButtonProps) {
+export function ScheduleGenerateButton({ roleTypes = [], existingSchedules = [] }: Props) {
   const router = useRouter();
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const [generating, setGenerating] = useState(false);
-  const [resetting, setResetting] = useState(false);
-  const [verifying, setVerifying] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [year, setYear] = useState(DEFAULT_CALENDAR_YEAR);
+  const [startMonth, setStartMonth] = useState(1);
+  const [endMonth, setEndMonth] = useState(12);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [preview, setPreview] = useState<SchedulePreview | null>(null);
+  const [applied, setApplied] = useState(false);
   const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [recovery, setRecovery] = useState<Recovery | null>(null);
+  const [restoreMode, setRestoreMode] = useState(false);
+  const [recoveryError, setRecoveryError] = useState("");
+  const years = [...new Set([DEFAULT_CALENDAR_YEAR, ...existingSchedules.map((s) => s.year), ...Array.from({ length: 5 }, (_, i) => new Date().getFullYear() + i - 1)])].sort();
 
-  const currentYear = new Date().getFullYear();
-  const yearOptions = Array.from({ length: 5 }, (_, i) => currentYear + i - 1);
-  const existingByYear = new Map(existingSchedules.map((s) => [s.year, s.status]));
+  useEffect(() => {
+    if (!open) return;
+    const controller = new AbortController();
+    fetch(`/api/schedules?recoveryYear=${year}`, { signal: controller.signal })
+      .then(async (res) => { if (!res.ok) throw new Error("Could not load recovery point"); return res.json(); })
+      .then((data) => { setRecovery(data.recovery); setRecoveryError(""); })
+      .catch((error) => { if (!controller.signal.aborted) setRecoveryError(error.message); });
+    return () => controller.abort();
+  }, [open, year]);
 
-  const [selectedYear, setSelectedYear] = useState(String(currentYear));
-  const [startMonth, setStartMonth] = useState("1");
-  const [endMonth, setEndMonth] = useState("12");
-  const [checkedRoleIds, setCheckedRoleIds] = useState<Set<string>>(
-    () => new Set<string>()
-  );
-
-  const groupedRoles = CATEGORY_ORDER
-    .map((cat) => ({
-      category: cat,
-      label: CATEGORY_LABELS[cat] ?? cat,
-      roles: roleTypes.filter((r) => r.category === cat),
-    }))
-    .filter((g) => g.roles.length > 0);
-
-  const allChecked = roleTypes.length > 0 && roleTypes.every((r) => checkedRoleIds.has(r.id));
-  const isPartial = roleTypes.length > 0 && checkedRoleIds.size < roleTypes.length;
-  const existingStatus = existingByYear.get(Number(selectedYear));
-  const willOverwrite = !!existingStatus;
-
-  function toggleRole(id: string) {
-    setCheckedRoleIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
+  function changeSelection(update: () => void) {
+    update(); setPreview(null); setApplied(false); setRestoreMode(false); setPassword("");
   }
-
-  function toggleCategory(cat: string) {
-    const catIds = roleTypes.filter((r) => r.category === cat).map((r) => r.id);
-    const allOn = catIds.every((id) => checkedRoleIds.has(id));
-    setCheckedRoleIds((prev) => {
-      const next = new Set(prev);
-      for (const id of catIds) {
-        if (allOn) next.delete(id);
-        else next.add(id);
-      }
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (allChecked) {
-      setCheckedRoleIds(new Set());
-    } else {
-      setCheckedRoleIds(new Set(roleTypes.map((r) => r.id)));
+  async function request(body: Record<string, unknown>) {
+    const res = await fetch("/api/schedules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) {
+      if (res.status === 409) { setPreview(null); setRecovery(null); setRestoreMode(false); }
+      throw new Error(data.error || "Operation failed");
     }
+    return data;
   }
-
-  const MONTHS = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December",
-  ];
-
-  const isFullYear = startMonth === "1" && endMonth === "12";
-
-  function handleDialogChange(open: boolean) {
-    setDialogOpen(open);
-    if (!open) setPassword("");
-  }
-
-  async function verifyPassword(): Promise<boolean> {
-    setVerifying(true);
+  async function buildPreview(resetOnly: boolean) {
+    setBusy(true);
     try {
-      const verifyRes = await fetch("/api/auth/verify-password", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      if (!verifyRes.ok) {
-        const data = await verifyRes.json();
-        toast.error(
-          verifyRes.status === 403
-            ? "Incorrect password. Please try again."
-            : data.error || "Could not verify password."
-        );
-        return false;
-      }
-      return true;
-    } catch {
-      toast.error("Could not verify password. Please try again.");
-      return false;
-    } finally {
-      setVerifying(false);
-    }
+      const data = await request({ action: "preview", year, startMonth, endMonth, roleTypeIds: selected, resetOnly });
+      setPreview(data); setApplied(false); setRestoreMode(false); setPassword("");
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Preview failed"); }
+    finally { setBusy(false); }
   }
-
-  async function handleGenerate() {
-    if (checkedRoleIds.size === 0) {
-      toast.error("Select at least one role to generate.");
-      return;
-    }
-    if (!password.trim()) {
-      toast.error("Enter your password to confirm.");
-      return;
-    }
-
-    if (!await verifyPassword()) return;
-
-    setGenerating(true);
+  async function apply() {
+    if (!preview) return;
+    setBusy(true);
     try {
-      const body: Record<string, unknown> = { year: Number(selectedYear) };
-      if (isPartial) body.roleTypeIds = [...checkedRoleIds];
-      if (!isFullYear) {
-        body.startMonth = Number(startMonth);
-        body.endMonth = Number(endMonth);
-      }
-
-      const res = await fetch("/api/schedules", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to generate");
-      }
-
-      const result = await res.json();
-      const roleLabel = isPartial
-        ? `${checkedRoleIds.size} role${checkedRoleIds.size > 1 ? "s" : ""}`
-        : "all roles";
-      toast.success(
-        `${selectedYear} schedule generated (${roleLabel}, ${result.assignmentCount} assignments)`
-      );
-      handleDialogChange(false);
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Generation failed");
-    } finally {
-      setGenerating(false);
-    }
+      const result = await request({ action: "apply", previewId: preview.previewId, password });
+      setApplied(true); setPassword("");
+      setRecovery({ id: result.recoveryId, label: preview.scope.resetOnly ? "Reset roles" : "Generate schedule", createdAt: new Date().toISOString(), assignmentCount: preview.summary.replacedCount + preview.summary.retainedCount });
+      toast.success("Schedule saved. Review the results below."); router.refresh();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Save failed"); }
+    finally { setBusy(false); }
   }
-
-  async function handleReset() {
-    if (checkedRoleIds.size === 0) {
-      toast.error("Select at least one role to reset.");
-      return;
-    }
-    if (!password.trim()) {
-      toast.error("Enter your password to confirm.");
-      return;
-    }
-
-    if (!await verifyPassword()) return;
-
-    setResetting(true);
+  async function restore() {
+    if (!recovery) return;
+    setBusy(true);
     try {
-      const res = await fetch("/api/schedules", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          year: Number(selectedYear),
-          roleTypeIds: [...checkedRoleIds],
-          resetOnly: true,
-        }),
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Failed to reset");
-      }
-      const result = await res.json();
-      toast.success(
-        `Reset ${checkedRoleIds.size} role${checkedRoleIds.size > 1 ? "s" : ""} — ${result.deletedCount} assignments removed`
-      );
-      handleDialogChange(false);
-      router.refresh();
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Reset failed");
-    } finally {
-      setResetting(false);
-    }
+      await request({ action: "restore", recoveryId: recovery.id, password });
+      setRecovery(null); setRestoreMode(false); setPreview(null); setApplied(false); setPassword("");
+      toast.success("Previous schedule restored"); router.refresh();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Restore failed"); }
+    finally { setBusy(false); }
   }
 
-  const isLoading = generating || resetting || verifying;
-
-  return (
-    <Dialog open={dialogOpen} onOpenChange={handleDialogChange}>
-      <DialogTrigger className="inline-flex items-center justify-center rounded-md bg-primary text-primary-foreground h-10 px-4 py-2 text-sm font-medium hover:bg-primary/90 cursor-pointer">
-        <Calendar className="mr-2 h-4 w-4" />
-        Generate Schedule
-      </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Generate Schedule</DialogTitle>
-          <DialogDescription>
-            Check the roles you want to act on, then choose an action. Unchecked roles are left unchanged.
-          </DialogDescription>
-        </DialogHeader>
-
-        {/* Year */}
-        <div>
-          <Label htmlFor="schedule-year">Year</Label>
-          <div className="flex items-center gap-3 mt-1">
-            <Select
-              value={selectedYear}
-              onValueChange={(v) => v && setSelectedYear(v)}
-            >
-              <SelectTrigger id="schedule-year" className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {yearOptions.map((y) => (
-                  <SelectItem key={y} value={String(y)}>
-                    {y}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {existingStatus && existingStatusBadge(existingStatus)}
-          </div>
+  return <Dialog open={open} onOpenChange={(value) => { if (!busy) { setOpen(value); setPassword(""); setRestoreMode(false); if (!value) { setPreview(null); setApplied(false); } } }}>
+    <DialogTrigger className="inline-flex items-center justify-center rounded-lg bg-primary text-primary-foreground h-10 px-4 text-sm font-medium cursor-pointer"><Calendar className="mr-2 h-4 w-4" />Generate Schedule</DialogTrigger>
+    <DialogContent className="sm:max-w-3xl max-h-[90dvh] overflow-y-auto">
+      <DialogHeader><DialogTitle>{restoreMode ? "Restore previous schedule" : applied ? "Schedule saved" : "Preview schedule changes"}</DialogTitle>
+        <DialogDescription>Review the affected dates, coverage, and workload before saving. Each change includes a recovery point.</DialogDescription></DialogHeader>
+      <fieldset disabled={busy || restoreMode || applied} className="space-y-4 disabled:opacity-60">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="space-y-1"><Label htmlFor="schedule-year">Year</Label><select id="schedule-year" className={selectClass} value={year} onChange={(e) => changeSelection(() => { setYear(Number(e.target.value)); setRecovery(null); })}>{years.map((y) => <option key={y}>{y}</option>)}</select></div>
+          <div className="space-y-1"><Label htmlFor="schedule-start">From</Label><select id="schedule-start" className={selectClass} value={startMonth} onChange={(e) => changeSelection(() => setStartMonth(Number(e.target.value)))}>{MONTHS.map((m, i) => <option key={m} value={i + 1} disabled={i + 1 > endMonth}>{m}</option>)}</select></div>
+          <div className="space-y-1"><Label htmlFor="schedule-end">Through</Label><select id="schedule-end" className={selectClass} value={endMonth} onChange={(e) => changeSelection(() => setEndMonth(Number(e.target.value)))}>{MONTHS.map((m, i) => <option key={m} value={i + 1} disabled={i + 1 < startMonth}>{m}</option>)}</select></div>
         </div>
-
-        {/* Month range */}
-        <div>
-          <Label>Month Range</Label>
-          <div className="flex items-center gap-2 mt-1">
-            <Select value={startMonth} onValueChange={(v) => v && setStartMonth(v)}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((m, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)} disabled={i + 1 > Number(endMonth)}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <span className="text-sm text-muted-foreground">to</span>
-            <Select value={endMonth} onValueChange={(v) => v && setEndMonth(v)}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {MONTHS.map((m, i) => (
-                  <SelectItem key={i + 1} value={String(i + 1)} disabled={i + 1 < Number(startMonth)}>
-                    {m}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            {!isFullYear && (
-              <button
-                type="button"
-                onClick={() => { setStartMonth("1"); setEndMonth("12"); }}
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Role type checklist */}
-        {roleTypes.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label>Select roles to regenerate or reset</Label>
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="text-xs text-muted-foreground hover:text-foreground underline underline-offset-2 transition-colors"
-              >
-                {allChecked ? "Deselect all" : "Select all"}
-              </button>
-            </div>
-
-            <div className="rounded-lg border divide-y">
-              {groupedRoles.map((group) => {
-                const catIds = group.roles.map((r) => r.id);
-                const catAllChecked = catIds.every((id) => checkedRoleIds.has(id));
-                const catSomeChecked = catIds.some((id) => checkedRoleIds.has(id));
-
-                return (
-                  <div key={group.category}>
-                    {/* Category header */}
-                    <label className="flex items-center gap-3 px-4 py-2 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors">
-                      <Checkbox
-                        checked={catAllChecked}
-                        indeterminate={catSomeChecked && !catAllChecked}
-                        onCheckedChange={() => toggleCategory(group.category)}
-                        disabled={isLoading}
-                      />
-                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                        {group.label}
-                      </span>
-                    </label>
-
-                    {/* Role rows */}
-                    {group.roles.map((role) => (
-                      <label
-                        key={role.id}
-                        className="flex items-center gap-3 px-4 pl-10 py-2.5 cursor-pointer hover:bg-muted/20 transition-colors"
-                      >
-                        <Checkbox
-                          checked={checkedRoleIds.has(role.id)}
-                          onCheckedChange={() => toggleRole(role.id)}
-                          disabled={isLoading}
-                        />
-                        <span className="text-sm">{role.displayName}</span>
-                      </label>
-                    ))}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Warning */}
-        {willOverwrite && (
-          <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3">
-            <div className="flex gap-2.5">
-              <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0 mt-0.5" />
-              <p className="text-sm text-muted-foreground">
-                {isPartial
-                  ? `The checked roles${!isFullYear ? ` (${MONTHS[Number(startMonth)-1]}–${MONTHS[Number(endMonth)-1]})` : ""} in the ${selectedYear} schedule will be replaced. Other roles are untouched.`
-                  : !isFullYear
-                  ? `${MONTHS[Number(startMonth)-1]}–${MONTHS[Number(endMonth)-1]} ${selectedYear} will be replaced. Other months are untouched.`
-                  : `The entire ${selectedYear} schedule will be replaced. This cannot be undone.`}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* Password */}
-        <div>
-          <Label htmlFor="confirm-password">Re-enter your password to confirm</Label>
-          <Input
-            id="confirm-password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter your password"
-            className="mt-1"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !isLoading) {
-                e.preventDefault();
-                handleGenerate();
-              }
-            }}
-          />
-        </div>
-
-        <DialogFooter className="flex-col sm:flex-row gap-2">
-          <Button
-            variant="outline"
-            onClick={() => handleDialogChange(false)}
-            disabled={isLoading}
-          >
-            Cancel
-          </Button>
-          <div className="flex gap-2 sm:ml-auto">
-            <Button
-              variant="outline"
-              onClick={handleReset}
-              disabled={isLoading || !password.trim() || checkedRoleIds.size === 0 || !existingStatus}
-              className="border-destructive/50 text-destructive hover:bg-destructive/5"
-            >
-              {resetting ? (
-                <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Resetting...</>
-              ) : (
-                <>Reset {checkedRoleIds.size > 0 ? `${checkedRoleIds.size} Role${checkedRoleIds.size > 1 ? "s" : ""}` : ""}</>
-              )}
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleGenerate}
-              disabled={isLoading || !password.trim() || checkedRoleIds.size === 0}
-            >
-              {generating || (verifying && !resetting) ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {verifying ? "Verifying..." : "Generating..."}
-                </>
-              ) : (
-                <>
-                  Generate
-                  {isPartial ? ` ${checkedRoleIds.size} Role${checkedRoleIds.size > 1 ? "s" : ""}` : " All"}
-                </>
-              )}
-            </Button>
-          </div>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
+        <div className="flex justify-between items-center"><span className="text-sm font-medium">Roles</span><Button variant="ghost" size="sm" onClick={() => changeSelection(() => setSelected(selected.length === roleTypes.length ? [] : roleTypes.map((r) => r.id)))}>{selected.length === roleTypes.length ? "Deselect all" : "Select all"}</Button></div>
+        <div className="grid sm:grid-cols-2 gap-2">{roleTypes.map((r) => <label key={r.id} className="flex gap-3 items-center rounded-lg border p-3 text-sm"><input type="checkbox" checked={selected.includes(r.id)} onChange={() => changeSelection(() => setSelected(selected.includes(r.id) ? selected.filter((id) => id !== r.id) : [...selected, r.id]))} className="size-4 accent-blue-700" />{r.displayName}</label>)}</div>
+        <div className="flex flex-wrap gap-2"><Button disabled={!selected.length} onClick={() => buildPreview(false)}>{busy ? <Loader2 className="mr-2 size-4 animate-spin" /> : null}Preview generation</Button><Button variant="outline" disabled={!selected.length || !existingSchedules.some((s) => s.year === year)} onClick={() => buildPreview(true)}>Preview reset</Button></div>
+      </fieldset>
+      {preview && <section className="space-y-3 border-t pt-4">
+        <h3 className="font-semibold">{preview.scope.resetOnly ? "Reset" : "Generate"} · {MONTHS[preview.scope.startMonth - 1]}–{MONTHS[preview.scope.endMonth - 1]} {preview.scope.year}</h3>
+        <p className="text-sm text-muted-foreground">Other months and unchecked roles stay unchanged.{!preview.scope.resetOnly && " Manually entered Hospital Float days are kept."}</p>
+        <ScheduleChangeSummary summary={preview.summary} />
+        {!applied && !restoreMode && <><Label htmlFor="schedule-password">Re-enter your password to apply this preview</Label><Input id="schedule-password" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} disabled={busy} /><Button variant={preview.scope.resetOnly ? "destructive" : "default"} disabled={busy || !password} onClick={apply}>{busy ? "Saving…" : preview.scope.resetOnly ? "Apply reset" : "Apply schedule"}</Button></>}
+      </section>}
+      {recoveryError && <p role="alert" className="text-sm text-destructive">{recoveryError}</p>}
+      {recovery && <section className="space-y-3 border-t pt-4">
+        <p className="text-sm">Recovery available: before {recovery.label.toLowerCase()} on {new Date(recovery.createdAt).toLocaleString()}.</p>
+        {restoreMode ? <><p className="text-sm">Restore the previous {year} schedule ({recovery.assignmentCount} assignments). Restoration is blocked if someone has made newer changes.</p><Label htmlFor="restore-password">Confirm with your password</Label><Input id="restore-password" type="password" autoComplete="current-password" disabled={busy} value={password} onChange={(e) => setPassword(e.target.value)} /><div className="flex gap-2"><Button disabled={busy || !password} onClick={restore}>Restore previous schedule</Button><Button variant="outline" disabled={busy} onClick={() => { setRestoreMode(false); setPassword(""); }}>Cancel</Button></div></>
+          : <Button variant="outline" disabled={busy} onClick={() => { setRestoreMode(true); setPassword(""); }}><RotateCcw className="mr-2 size-4" />Review recovery</Button>}
+      </section>}
+    </DialogContent>
+  </Dialog>;
 }

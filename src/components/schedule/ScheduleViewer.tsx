@@ -44,13 +44,15 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
-import { getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
+import { formatLocalDate, getAllHolidayDatesForYear, getFederalHolidayDatesForYear, type CustomHolidayInfo } from "@/lib/holidays";
 import { CATEGORY_COLORS, DAY_COLORS, PHYSICIAN_COLORS } from "@/lib/colors";
+import { ScheduleTimeline } from "@/components/schedule/ScheduleTimeline";
 
 // --- Types ---
 
 interface Assignment {
   id: string;
+  scheduleId?: string;
   date: string;
   physicianId: string;
   physicianName: string;
@@ -119,7 +121,7 @@ function getWeekStart(y: number, m: number, d: number): Date {
 }
 
 function isToday(dateStr: string): boolean {
-  return dateStr === new Date().toISOString().split("T")[0];
+  return dateStr === formatLocalDate(new Date());
 }
 
 
@@ -161,7 +163,7 @@ export function ScheduleViewer({
   /** Admin-marked holidays (global). Merged with the built-in federal holidays. */
   customHolidays?: CustomHolidayInfo[];
   /** Initial tab / position, usually carried over from a year-boundary jump. */
-  initialView?: "week" | "month" | "year";
+  initialView?: "timeline" | "week" | "month" | "year";
   initialMonth?: number;          // 0–11
   initialWeekStart?: string;      // YYYY-MM-DD
   /** Whether a schedule exists for the neighbouring years (enables crossing the year edge). */
@@ -169,7 +171,9 @@ export function ScheduleViewer({
   hasNextYear?: boolean;
 }) {
   const router = useRouter();
-  const [view, setView] = useState<"week" | "month" | "year">(initialView ?? "week");
+  const [view, setView] = useState<"timeline" | "week" | "month" | "year">(
+    initialView === "timeline" && !isAdmin ? "week" : initialView ?? (isAdmin ? "timeline" : "week")
+  );
   const [month, setMonth] = useState(() => {
     if (initialMonth !== undefined) return initialMonth;
     const now = new Date();
@@ -226,6 +230,8 @@ export function ScheduleViewer({
   const [overriding, setOverriding] = useState(false);
   const [overrideConflicts, setOverrideConflicts] = useState<string[]>([]);
   const [localAssignments, setLocalAssignments] = useState(assignments);
+  const [timelineRefresh, setTimelineRefresh] = useState(0);
+  const [timelineDayAssignments, setTimelineDayAssignments] = useState<Assignment[]>([]);
   // Re-sync when the server sends fresh data (e.g. after a regenerate +
   // router.refresh()). The schedule id — and thus the component key — is
   // unchanged on regeneration, so the component is not remounted; without this
@@ -233,6 +239,7 @@ export function ScheduleViewer({
   // assignments never appear until a full page reload.
   useEffect(() => {
     setLocalAssignments(assignments);
+    setTimelineRefresh((version) => version + 1);
   }, [assignments]);
   const [hiddenRoles, setHiddenRoles] = useState<Set<string>>(new Set());
   const [showRoleFilter, setShowRoleFilter] = useState(false);
@@ -366,7 +373,7 @@ export function ScheduleViewer({
     setOverriding(true);
     try {
       const res = await fetch(
-        `/api/schedules/${schedule.id}/assignments/${overrideAssignment.id}`,
+        `/api/schedules/${overrideAssignment.scheduleId ?? schedule.id}/assignments/${overrideAssignment.id}`,
         {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
@@ -399,6 +406,7 @@ export function ScheduleViewer({
         )
       );
       toast.success("Assignment updated");
+      setTimelineRefresh((version) => version + 1);
       setOverrideAssignment(null);
       setOverrideConflicts([]);
     } catch (err) {
@@ -439,6 +447,7 @@ export function ScheduleViewer({
             <Button
               variant="ghost"
               size="sm"
+              aria-label="Previous month"
               onClick={prevMonth}
               disabled={!canGoBack}
               title={!canGoBack ? `No ${schedule.year - 1} schedule yet` : undefined}
@@ -463,6 +472,7 @@ export function ScheduleViewer({
             <Button
               variant="ghost"
               size="sm"
+              aria-label="Next month"
               onClick={nextMonth}
               disabled={!canGoForward}
               title={!canGoForward ? `No ${schedule.year + 1} schedule yet` : undefined}
@@ -528,15 +538,15 @@ export function ScheduleViewer({
                     return (
                       <div
                         key={a.id}
-                        className="flex items-center gap-1 text-[10px] leading-tight truncate"
+                        className="flex items-center gap-1 text-xs leading-snug truncate"
                       >
                         <span
                           className={`inline-block w-1.5 h-1.5 rounded-full flex-shrink-0 ${
                             pColor?.dot ?? "bg-gray-400"
                           }`}
                         />
-                        <span className={`truncate font-medium ${pColor?.text ?? ""}`}>
-                          {a.physicianLastName}
+                        <span title={`${a.roleDisplayName}: ${a.physicianName}`} className={`truncate font-medium ${pColor?.text ?? ""}`}>
+                          {a.roleDisplayName.replace("General Call", "Call").replace("Echo Reader", "Echo").replace("MPI Reader", "MPI").replace("Doc in the Box", "DITB")} · {a.physicianLastName}
                         </span>
                       </div>
                     );
@@ -872,7 +882,7 @@ export function ScheduleViewer({
 
   function renderYearView() {
     const DAY_MINI = ["Su","Mo","Tu","We","Th","Fr","Sa"];
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = formatLocalDate(new Date());
 
     return (
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -944,7 +954,7 @@ export function ScheduleViewer({
   function renderDaySheet() {
     if (!selectedDate) return null;
 
-    const dayAssignments = assignmentsByDate.get(selectedDate) ?? [];
+    const dayAssignments = view === "timeline" ? timelineDayAssignments : assignmentsByDate.get(selectedDate) ?? [];
     const d = new Date(selectedDate + "T12:00:00");
     const dayLabel = `${DAY_LABELS[dayOfWeekSun(d.getFullYear(), d.getMonth(), d.getDate())]}, ${MONTH_NAMES[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
 
@@ -988,6 +998,7 @@ export function ScheduleViewer({
                       <Button
                         variant="ghost"
                         size="icon"
+                        aria-label={`Edit ${a.roleDisplayName} assignment`}
                         className="h-8 w-8"
                         onClick={() => {
                           setOverrideAssignment(a);
@@ -1127,11 +1138,12 @@ export function ScheduleViewer({
           )}
           <div>
             <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold">{schedule.year} Schedule</h1>
-              {statusBadge}
+              <h1 className="text-2xl font-bold">{view === "timeline" ? "Group Schedule" : `${schedule.year} Schedule`}</h1>
+              {view !== "timeline" && statusBadge}
             </div>
             <p className="text-sm text-muted-foreground">
-              {localAssignments.length.toLocaleString()} assignments
+              {view === "timeline" ? `${schedule.year} · ` : ""}{localAssignments.length.toLocaleString()} assignments
+              {view === "timeline" && <span className="ml-2">{statusBadge}</span>}
             </p>
           </div>
         </div>
@@ -1142,16 +1154,17 @@ export function ScheduleViewer({
           {isAdmin && schedule.status === "DRAFT" && (
             <Button onClick={handlePublish}>
               <Send className="mr-2 h-4 w-4" />
-              Publish Schedule
+              {view === "timeline" ? `Publish ${schedule.year} Schedule` : "Publish Schedule"}
             </Button>
           )}
         </div>
       </div>
 
-      {/* Tabs: Month / Week / Year */}
-      <Tabs value={view} onValueChange={(v) => setView(v as "week" | "month" | "year")}>
-        <div className="flex items-center justify-between">
+      {/* Timeline keeps the existing calendar views available. */}
+      <Tabs value={view} onValueChange={(v) => setView(v as typeof view)}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
           <TabsList>
+            {isAdmin && <TabsTrigger value="timeline">Timeline</TabsTrigger>}
             <TabsTrigger value="week">Week View</TabsTrigger>
             <TabsTrigger value="month">Month View</TabsTrigger>
             <TabsTrigger value="year"><LayoutGrid className="h-3.5 w-3.5 mr-1.5" />Year View</TabsTrigger>
@@ -1249,6 +1262,24 @@ export function ScheduleViewer({
             </CardContent>
           </Card>
         )}
+        {isAdmin && <TabsContent value="timeline" className="mt-4 min-w-0">
+          <ScheduleTimeline
+            initialDate={initialWeekStart ?? (new Date().getFullYear() === schedule.year
+              ? formatLocalDate(new Date()) : formatDate(schedule.year, initialMonth ?? 0, 1))}
+            roles={visibleRoleTypes}
+            physicianColors={physicianColors}
+            refreshKey={timelineRefresh}
+            onEdit={(assignment) => {
+              setOverrideAssignment(assignment);
+              setOverridePhysicianId(assignment.physicianId);
+              setOverrideConflicts([]);
+            }}
+            onDaySelect={(date, dayAssignments) => {
+              setTimelineDayAssignments(dayAssignments);
+              setSelectedDate(date);
+            }}
+          />
+        </TabsContent>}
         <TabsContent value="week" className="mt-4">
           {renderWeekView()}
         </TabsContent>

@@ -1,4 +1,4 @@
-import { prisma } from "./prisma";
+import type { ScheduleData } from "./scheduling/data";
 import { computeMonthlyTargets, assignEchoDates, ReaderSpec } from "./echoAllocator";
 import { getAllHolidayDatesForYear } from "./holidays";
 
@@ -127,95 +127,31 @@ function countReadingDaysInMonth(year: number, month: number, holidayDates: Map<
 
 // --- Main Engine ---
 
-export async function generateSchedule(
+export function calculateSchedule(
+  data: ScheduleData,
   year: number,
   roleTypeIds?: string[],
-  startMonth?: number, // 1–12, inclusive
-  endMonth?: number,   // 1–12, inclusive
-): Promise<{
-  scheduleId: string;
-  stats: ScheduleStats;
-  assignmentCount: number;
-}> {
+  startMonth?: number,
+  endMonth?: number,
+) {
+  const { existing, physicians, roleTypes, rules, dbHolidays, customHolidayRows,
+    vacations, noCallDays, weeklyDaysOffRecords, priorHA, savedAssignments } = data;
   const isPartial = roleTypeIds && roleTypeIds.length > 0;
   const hasDateRange = startMonth !== undefined || endMonth !== undefined;
   const rangeStart = new Date(year, (startMonth ?? 1) - 1, 1);
   const rangeEnd = new Date(year, endMonth ?? 12, 0); // last day of endMonth
 
-  // Check for existing schedule
-  const existing = await prisma.schedule.findUnique({ where: { year } });
-
-  if (existing) {
-    if (!isPartial && !hasDateRange) {
-      // Full regeneration: clear auto-generated assignments but PRESERVE
-      // hand-entered Hospital Float days (the admin Excel import, or a day set
-      // on the Physician Calendar). The generator fills the float slot only on
-      // days nobody entered by hand — see the manual-float seeding below — so
-      // wiping entered days on regen is pure data loss. Reuse the existing schedule
-      // row instead of deleting it, otherwise the onDelete: Cascade would
-      // remove the preserved rows too.
-      await prisma.holidayAssignment.deleteMany({ where: { year } });
-      await prisma.scheduleAssignment.deleteMany({
-        where: {
-          scheduleId: existing.id,
-          NOT: { source: "MANUAL", roleType: { name: "HOSPITAL_FLOAT" } },
-        },
-      });
-      await prisma.schedule.update({
-        where: { id: existing.id },
-        data: { status: "DRAFT", generatedAt: new Date() },
-      });
-    } else {
-      // Scoped regeneration: delete only selected roles within date range,
-      // preserving manually-imported Hospital Float days (see above).
-      await prisma.scheduleAssignment.deleteMany({
-        where: {
-          scheduleId: existing.id,
-          ...(isPartial ? { roleTypeId: { in: roleTypeIds } } : {}),
-          ...(hasDateRange ? { date: { gte: rangeStart, lte: rangeEnd } } : {}),
-          NOT: { source: "MANUAL", roleType: { name: "HOSPITAL_FLOAT" } },
-        },
-      });
-      await prisma.schedule.update({
-        where: { id: existing.id },
-        data: { status: "DRAFT", generatedAt: new Date() },
-      });
-    }
-  }
-
-  // Load data
-  const physicians = await prisma.physician.findMany({
-    orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
-    include: { eligibilities: true, officeDays: true },
-  });
-
-  const roleTypes = await prisma.roleType.findMany({
-    orderBy: { sortOrder: "asc" },
-  });
-
-  const rules = await prisma.schedulingRule.findMany({
-    where: { isActive: true },
-    include: { physician: true },
-  });
-
-  const dbHolidays = await prisma.holiday.findMany();
   const holidayWeights: Record<string, number> = {};
-  const holidayIdMap: Record<string, string> = {};
   for (const h of dbHolidays) {
     holidayWeights[h.name] = h.weight;
-    holidayIdMap[h.name] = h.id;
   }
 
   // Holiday dates = built-in federal holidays (incl. MLK and Presidents' Day)
   // plus any days an admin marked as a holiday on the Physician
   // Calendar. Both kinds are staffed like a weekend (see roleNeedsFilling).
-  const customHolidayRows = await prisma.customHoliday.findMany({
-    where: { date: { gte: toDbDate(`${year}-01-01`), lte: toDbDate(`${year}-12-31`) } },
-    select: { date: true, name: true },
-  });
   const holidayDates = getAllHolidayDatesForYear(
     year,
-    customHolidayRows.map((h) => ({ date: formatDate(toLocalMidnight(h.date)), name: h.name }))
+    customHolidayRows.map((h) => ({ date: formatDate(toLocalMidnight(h.date)), name: h.name, hidden: h.hidden }))
   );
 
   // Weekly rounder blocks run Mon–Fri with the same MD. When Monday (or Monday
@@ -239,14 +175,6 @@ export async function generateSchedule(
   // Vacations
   const yearStart = new Date(year, 0, 1);
   const yearEnd = new Date(year, 11, 31);
-  const vacations = await prisma.vacationRequest.findMany({
-    where: {
-      status: "APPROVED",
-      startDate: { lte: yearEnd },
-      endDate: { gte: yearStart },
-    },
-  });
-
   const vacationDays = new Map<string, Set<string>>();
   // Dates where a physician is only working a half day (MORNING/AFTERNOON vacation).
   // Used to bar READING (study-reading) assignments — a half-day MD isn't present
@@ -271,12 +199,6 @@ export async function generateSchedule(
   }
 
   // No-call days (block ON_CALL roles only)
-  const noCallDays = await prisma.noCallDayRequest.findMany({
-    where: {
-      status: "APPROVED",
-      date: { gte: yearStart, lte: yearEnd },
-    },
-  });
   const noCallDaySet = new Map<string, Set<string>>();
   for (const nc of noCallDays) {
     const dates = noCallDaySet.get(nc.physicianId) ?? new Set<string>();
@@ -285,7 +207,6 @@ export async function generateSchedule(
   }
 
   // Weekly recurring days off (block all roles on that day of week)
-  const weeklyDaysOffRecords = await prisma.physicianWeeklyDayOff.findMany();
   const weeklyDayOffMap = new Map<string, Set<number>>();
   for (const wd of weeklyDaysOffRecords) {
     const days = weeklyDayOffMap.get(wd.physicianId) ?? new Set<number>();
@@ -294,10 +215,6 @@ export async function generateSchedule(
   }
 
   // Historical holiday burden (prior years)
-  const priorHA = await prisma.holidayAssignment.findMany({
-    where: { year: { lt: year } },
-    include: { holiday: true },
-  });
   const holidayBurden = new Map<string, number>();
   for (const ha of priorHA) {
     const w = holidayWeights[ha.holiday.name] ?? 1;
@@ -397,21 +314,13 @@ export async function generateSchedule(
   // Pre-seed tracking state from assignments we're keeping (different role or outside date range)
   // so the scheduler respects already-assigned slots when placing new ones.
   if ((isPartial || hasDateRange) && existing) {
-    const keptWhere: Record<string, unknown> = { scheduleId: existing.id, isActive: true };
-    if (isPartial && hasDateRange) {
-      keptWhere.OR = [
-        { roleTypeId: { notIn: roleTypeIds } },
-        { date: { lt: rangeStart } },
-        { date: { gt: rangeEnd } },
-      ];
-    } else if (isPartial) {
-      keptWhere.roleTypeId = { notIn: roleTypeIds };
-    } else {
-      // date range only — keep everything outside the range
-      keptWhere.OR = [{ date: { lt: rangeStart } }, { date: { gt: rangeEnd } }];
-    }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const keptAssignments = await (prisma.scheduleAssignment.findMany as any)({ where: keptWhere });
+    const keptAssignments = savedAssignments.filter((a) => {
+      const date = formatDate(toLocalMidnight(a.date));
+      return a.isActive && (
+        (isPartial && !roleTypeIds!.includes(a.roleTypeId)) ||
+        (hasDateRange && (date < formatDate(rangeStart) || date > formatDate(rangeEnd)))
+      );
+    });
 
     for (const a of keptAssignments) seedExisting(a);
   }
@@ -424,9 +333,7 @@ export async function generateSchedule(
   // duty that day and the rest of a week started by hand follows the same MD.
   const floatRole = roleData.find((r) => r.name === "HOSPITAL_FLOAT");
   if (existing && floatRole) {
-    const manualFloat = await prisma.scheduleAssignment.findMany({
-      where: { scheduleId: existing.id, roleTypeId: floatRole.id, source: "MANUAL" },
-    });
+    const manualFloat = savedAssignments.filter((a) => a.roleTypeId === floatRole.id && a.source === "MANUAL");
     for (const a of manualFloat) {
       handledRoleDays.add(`${formatDate(toLocalMidnight(a.date))}:${a.roleTypeId}`);
       if (a.isActive) seedExisting(a);
@@ -1102,48 +1009,8 @@ export async function generateSchedule(
     }
   }
 
-  // Save to database — reuse the existing schedule row (full and scoped
-  // regeneration both keep it now, so manually-imported rows survive); only
-  // create a new row when there is no schedule for this year yet.
-  const schedule =
-    existing ??
-    (await prisma.schedule.create({
-      data: { year, status: "DRAFT", generatedAt: new Date() },
-    }));
-
-  // Batch insert assignments
-  const chunkSize = 500;
-  for (let i = 0; i < assignments.length; i += chunkSize) {
-    const chunk = assignments.slice(i, i + chunkSize);
-    await prisma.scheduleAssignment.createMany({
-      data: chunk.map((a) => ({
-        scheduleId: schedule.id,
-        date: toDbDate(a.date),
-        physicianId: a.physicianId,
-        roleTypeId: a.roleTypeId,
-        source: "AUTO" as const,
-      })),
-    });
-  }
-
-  // Save holiday assignments
-  for (const [hName, rolePhysMap] of Object.entries(stats.holidays)) {
-    const hId = holidayIdMap[hName];
-    if (!hId) continue;
-    for (const [roleTypeId, physicianId] of Object.entries(rolePhysMap)) {
-      await prisma.holidayAssignment.upsert({
-        where: {
-          holidayId_year_roleTypeId: { holidayId: hId, year, roleTypeId },
-        },
-        update: { physicianId },
-        create: { holidayId: hId, physicianId, roleTypeId, year },
-      });
-    }
-  }
-
   stats.byRole = assignmentCount;
-
-  return { scheduleId: schedule.id, stats, assignmentCount: assignments.length };
+  return { assignments, stats };
 }
 
 function getDayIndex(dateStr: string, year: number): number {
