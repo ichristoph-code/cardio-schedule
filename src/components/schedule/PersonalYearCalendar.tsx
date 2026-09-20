@@ -110,11 +110,12 @@ export function PersonalYearCalendar({ year, assignments, vacations, noCallDays,
   return (
     <div className="space-y-4">
       <div className={LEGEND_ROW}>
-        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Full day — <strong>{tallies.fullDays}</strong></LegendItem>
-        <LegendItem swatch={DAY_COLORS.halfDay.swatch}>Half day — <strong>{tallies.halfDays}</strong></LegendItem>
-        <LegendItem>Vacation days: <strong>{tallies.vacationDays}</strong></LegendItem>
+        <LegendItem>Workdays — <strong>{tallies.weekdaysWorked}</strong></LegendItem>
+        <LegendItem swatch={DAY_COLORS.vacation.swatch}>Vacation — <strong>{tallies.vacationDays}</strong></LegendItem>
+        {tallies.halfDays > 0 && (
+          <LegendItem swatch={DAY_COLORS.halfDay.swatch}>Half-day vacation — <strong>{tallies.halfDays}</strong></LegendItem>
+        )}
         <LegendItem swatch={DAY_COLORS.holiday.swatch}>Holidays — <strong>{tallies.holidays}</strong></LegendItem>
-        <LegendItem>Weekdays worked: <strong>{tallies.weekdaysWorked}</strong></LegendItem>
         {counts.float > 0 && (
           <LegendItem swatch={DAY_COLORS.float.swatch}>Hospital Float — <strong>{counts.float}</strong></LegendItem>
         )}

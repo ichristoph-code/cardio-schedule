@@ -45,6 +45,12 @@ up; don't lecture.
   `src/lib/calendar-years.ts`). Hardcoded on purpose; change the one number
   when the practice moves on. A per-user remembered year was tried and
   reverted — see the task list before reattempting.
+- **The year legend shows four tallies**: Workdays, Vacation, Holidays,
+  Hospital Float (plus call and no-call). Workdays already *includes* float
+  days and counts a half-day vacation as ½ worked, so float is a subset, never
+  an addition. The old "Full day"/"Half day" pair was dropped: both were
+  vacation figures but read as days worked, and with no half days "Full day"
+  and "Vacation days" printed the same number twice.
 - **Tallies are counted in weekdays** (`src/lib/year-tallies.ts`): half day
   = ½ day; weekend holidays don't count; a weekday on call is still a weekday
   worked. `weekdays === holidays + vacationDays + weekdaysWorked`.
