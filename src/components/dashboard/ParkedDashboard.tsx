@@ -7,7 +7,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Calendar, ClipboardList, Heart } from "lucide-react";
+import { Calendar, ClipboardList } from "lucide-react";
+import { EcgMark } from "@/components/brand/EcgMark";
 import Link from "next/link";
 
 export default async function DashboardPage() {
@@ -116,7 +117,7 @@ export default async function DashboardPage() {
             <CardTitle className="text-sm font-medium">
               Today&apos;s Coverage
             </CardTitle>
-            <Heart className="h-4 w-4 text-rose-500" />
+            <EcgMark className="h-4 w-4 text-rose-500" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{todayCoverage}</div>
