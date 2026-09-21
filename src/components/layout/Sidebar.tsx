@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useId } from "react";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import {
@@ -14,7 +15,7 @@ import {
   Shield,
   Users,
 } from "lucide-react";
-import { EcgMark } from "@/components/brand/EcgMark";
+import { AppIconArtwork } from "@/app/app-icon-artwork";
 
 interface NavItem {
   label: string;
@@ -60,6 +61,7 @@ interface SidebarProps {
 
 export function Sidebar({ userRole, onNavigate }: SidebarProps) {
   const pathname = usePathname();
+  const iconGradientId = `icon-bg-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
 
   const isAdmin = userRole === "ADMIN";
   const isViewer = userRole === "VIEWER";
@@ -76,7 +78,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
     <div className="flex h-full flex-col">
       <div className="flex h-14 items-center px-5">
         <Link href="/dashboard" className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <EcgMark className="h-5 w-5 text-rose-500" />
+          <AppIconArtwork size={24} gradientId={iconGradientId} />
           <span className="text-[15px]">CardioSchedule</span>
         </Link>
       </div>

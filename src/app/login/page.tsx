@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useId, useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Eye, EyeOff } from "lucide-react";
-import { EcgMark } from "@/components/brand/EcgMark";
+import { AppIconArtwork } from "@/app/app-icon-artwork";
 import { LivingSky } from "@/components/login/LivingSky";
 import { degrees, sunPosition } from "@/lib/celestial";
 
@@ -23,6 +23,7 @@ function LoginForm() {
   const searchParams = useSearchParams();
   const callbackUrl = searchParams.get("callbackUrl") || "/dashboard";
   const [error, setError] = useState("");
+  const iconGradientId = `icon-bg-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -53,8 +54,8 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-sm card-glass">
       <CardHeader className="text-center">
-        <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/50">
-          <EcgMark className="h-6 w-6 text-rose-500" />
+        <div className="mx-auto mb-2 drop-shadow-md">
+          <AppIconArtwork size={56} gradientId={iconGradientId} />
         </div>
         <CardTitle className="text-2xl">CardioSchedule</CardTitle>
         <CardDescription>

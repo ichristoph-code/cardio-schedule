@@ -1,4 +1,19 @@
-export function AppIconArtwork({ size = 512 }: { size?: number }) {
+/**
+ * The CardioSchedule icon: a calendar carrying an ECG tracing. One drawing for
+ * the app icon, the favicon, and the logo beside the wordmark.
+ *
+ * `gradientId` matters only when the icon is drawn inline in a page, where two
+ * copies can coexist (the sidebar renders twice: desktop, and the mobile
+ * sheet). Give each copy its own id - a gradient referenced from a
+ * display:none copy fails to paint in some browsers.
+ */
+export function AppIconArtwork({
+  size = 512,
+  gradientId = "background",
+}: {
+  size?: number;
+  gradientId?: string;
+}) {
   return (
     <svg
       width={size}
@@ -9,12 +24,12 @@ export function AppIconArtwork({ size = 512 }: { size?: number }) {
       aria-label="CardioSchedule"
     >
       <defs>
-        <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+        <linearGradient id={gradientId} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor="#3b82f6" />
           <stop offset="1" stopColor="#164eaa" />
         </linearGradient>
       </defs>
-      <rect width="512" height="512" rx="112" fill="url(#background)" />
+      <rect width="512" height="512" rx="112" fill={`url(#${gradientId})`} />
       <rect x="72" y="98" width="368" height="318" rx="42" fill="#ffffff" />
       <path
         d="M114 98h284a42 42 0 0 1 42 42v48H72v-48a42 42 0 0 1 42-42Z"
