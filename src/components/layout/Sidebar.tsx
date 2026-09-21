@@ -8,13 +8,13 @@ import {
   CalendarClock,
   CalendarDays,
   ClipboardList,
-  Heart,
   Home,
   Palmtree,
   Settings,
   Shield,
   Users,
 } from "lucide-react";
+import { EcgMark } from "@/components/brand/EcgMark";
 
 interface NavItem {
   label: string;
@@ -76,7 +76,7 @@ export function Sidebar({ userRole, onNavigate }: SidebarProps) {
     <div className="flex h-full flex-col">
       <div className="flex h-14 items-center px-5">
         <Link href="/dashboard" className="flex items-center gap-2.5 font-semibold tracking-tight">
-          <Heart className="h-5 w-5 text-rose-500" />
+          <EcgMark className="h-5 w-5 text-rose-500" />
           <span className="text-[15px]">CardioSchedule</span>
         </Link>
       </div>

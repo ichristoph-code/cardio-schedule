@@ -32,7 +32,7 @@ export function AppIconArtwork({ size = 512 }: { size?: number }) {
       <path
         d="M94 300h18c6 0 11-18 20-18s15 18 25 18h18l10 12 10-12 13-70 16 122 15-52h38c14 0 22-34 36-34s22 34 39 34h54"
         fill="none"
-        stroke="#1d63c7"
+        stroke="#f43f5e"
         strokeLinecap="round"
         strokeLinejoin="round"
         strokeWidth="16"
