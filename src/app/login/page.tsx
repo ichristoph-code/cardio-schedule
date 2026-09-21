@@ -13,7 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Heart, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { EcgMark } from "@/components/brand/EcgMark";
 import { LivingSky } from "@/components/login/LivingSky";
 import { degrees, sunPosition } from "@/lib/celestial";
 
@@ -53,7 +54,7 @@ function LoginForm() {
     <Card className="w-full max-w-sm card-glass">
       <CardHeader className="text-center">
         <div className="mx-auto mb-2 flex h-12 w-12 items-center justify-center rounded-full bg-rose-50 dark:bg-rose-950/50">
-          <Heart className="h-6 w-6 text-rose-500" />
+          <EcgMark className="h-6 w-6 text-rose-500" />
         </div>
         <CardTitle className="text-2xl">CardioSchedule</CardTitle>
         <CardDescription>
