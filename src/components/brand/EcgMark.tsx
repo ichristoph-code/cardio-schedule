@@ -1,12 +1,12 @@
 /**
- * The CardioSchedule mark: an ECG tracing, the same motif the app icon carries
- * across its calendar. It replaced a generic heart so there is one brand shape,
- * not two.
+ * An ECG tracing as a small line pictogram, for places where a lucide-style
+ * icon sits among other line icons (the "Today's Coverage" card). It is NOT the
+ * logo: beside the wordmark and on the login card the logo is the full
+ * calendar icon, `AppIconArtwork` - the bare tracing was tried there and read
+ * as a generic pulse symbol, while the calendar reads as CardioSchedule.
  *
  * Drawn to lucide's conventions (24x24 box, `currentColor`, round caps) so it
- * drops in wherever a lucide icon went and still takes its colour and size from
- * `className`. The trace is deliberately simpler than the app icon's — at the
- * 16-24px this renders at, the icon's full waveform turns to mush.
+ * takes its colour and size from `className`.
  */
 export function EcgMark({ className }: { className?: string }) {
   return (
